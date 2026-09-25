@@ -1,0 +1,48 @@
+# whackagent
+
+Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in the projects it is installed in. The repo is pure Markdown: no runtime code, no build, no tests. Every file is a prompt that Claude reads at run time.
+
+## Layout
+
+- `.claude-plugin/plugin.json`: plugin manifest. Registers every skill in `skills[]`.
+- `.claude-plugin/marketplace.json`: marketplace entry. Carries the version twice (`metadata.version` and `plugins[0].version`).
+- `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
+- `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
+- `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift is split into modules, TypeScript and generic are one file each.
+- `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
+- `README.md`: public doc on GitHub. No agent reads it.
+
+## Task lifecycle
+
+`todo → in-progress → review → validated → done` (or `canceled`).
+
+- `/wa-code` sets `review`: coded, waiting for the user to test.
+- `/wa-validate` sets `validated`: the user approved the spec and the verifier ran.
+- `/wa-close` sets `done`: commits and lands the branch.
+
+Keep each step's ownership intact when editing. For example, only `/wa-close` commits in attended runs (`/wa-autopilot` commits on its own task branch only), and the orchestrator skills never write code themselves.
+
+## Rules when editing
+
+- **English only**, in every file. The target project's chat language is a runtime setting (`discussion_language`), not something the repo is written in.
+- **Skills, agents, conventions and templates are caveman-compressed** (terse, no articles, fragments). Match that style when editing them. `README.md` and this file stay in normal prose.
+- **Task file section headings are an API.** Skills look them up by exact name: `## Context / Decisions`, `## Acceptance criteria`, `## Implementation`, `## Review`, `## Verification`, `## Feedback`. Renaming one means updating `templates/task.md`, every skill and agent that cites it, and the README task example.
+- **Cross-references use `**<skill> → <Section>**`** (e.g. `**wa-board → Voice**`, `**wa-board → Paths**`, `**wa-code → Report card**`). Renaming a section heading means grepping for its references.
+- **Canonical definitions live in one place.** Voice, display format, task indexes, paths and sprints are defined in `wa-board`. The report card is defined in `wa-code`. Other skills point there rather than restating.
+- **Never hardcode `.whackagent/` paths** for backlog, tasks, wiki, reports or conventions. Use the `{backlog}` `{tasks}` `{wiki}` `{reports}` `{conventions}` placeholders, resolved from `paths:` in the config. Only `.whackagent/config.md` is fixed.
+- **Subagents never read the config.** The orchestrating skill passes them what they need (build commands, `verify.mode`, module paths).
+- **Every question to the user carries a recommended answer** plus a one-line reason. Keep that rule in any new prompt that asks something.
+
+## Adding things
+
+- **New skill**: create `skills/<name>/SKILL.md` with `name` and `description` frontmatter, register it in `plugin.json` `skills[]`, add it to the README command table.
+- **New config key**: add it with its default and a comment to `templates/config.md`, add the question to `/wa-setup`, document it in the README. The `/wa-setup` reconfigure mode diffs the project config against the template, so existing projects get offered the new key automatically. Omitting a key must keep the old behavior.
+- **New convention module**: add the file under `conventions/<language>/`, teach `/wa-setup` when to copy it, list it in the README.
+
+## Releasing
+
+Bump the version in all three places, `plugin.json` and both fields of `marketplace.json`, in one `chore: release X.Y.Z` commit.
+
+## Commits
+
+Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, optional scope such as `feat(review):`). The subject says what changed for the user of the plugin.
