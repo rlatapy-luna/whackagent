@@ -29,7 +29,7 @@ on:
 permissions:
   contents: write
   issues: write
-  pull-requests: read
+  pull-requests: write   # assignee on the PR (issues API on a PR number needs it)
 
 concurrency:
   # event + action in the group: GitHub keeps one pending run per group and cancels the older one, so a
