@@ -44,6 +44,8 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 
 **`coding` is transient.** Held only while an agent works: every agent round (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`) claims from `grilled`/`review` and ends with a push — first delivery opens the draft PR (`opened`), later rounds push to it (`synchronize`). Either way hook releases claim, ticket waits for humans in `review`. Draft vs ready tells who looks next: draft = test it, ready = merge it.
 
+**Assignee = human on turn.** `claim … coding` clears issue + PR assignees (agent working, nobody to ping). Hook assigns PR author to issue + PR when ticket enters `review` (`opened`, `synchronize` ending a round); `release --reset-to review` assigns the `gh` user; closed unmerged (`grilled`) clears. Skills never pass `--assignee`.
+
 Workflow runs from default branch for `issues`, from pushed ref for `push`/`pull_request` — so it must be merged on default branch **and** present on ticket branches (branches forked after merge carry it).
 
 Custom `branch.prefix` → edit `branches:` filter in workflow to match.
