@@ -22,7 +22,7 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
    - `status: done` / `canceled` → already closed. Say what branch did, stop.
 2. **Check nothing moved** since review round — `git diff` against state `## Review` recorded. Code changed → say what, send back to `/wa-validate` for delta. Review only worth tree it read.
 3. **Show landing plan, get yes.** One block, before touching git — see *Plan block*. Only confirmation command ask; everything after run without more prompting.
-4. **Commit** — when `commit.auto_commit_after_validation`. `commit.author_name` / `commit.author_email`, **never as Claude**. Already clean → skip, say so.
+4. **Commit** — when `commit.auto_commit_after_validation`. `commit.author_name` / `commit.author_email` (empty → repo's git identity), **never as Claude**. Already clean → skip, say so.
    - Nothing committed and tree dirty → **stop before any branch move.** Uncommitted work plus merge = how work disappear.
 5. **Land branch** — *Landing* below. Task in sprint → merge into sprint branch. Else → `close.strategy`.
 6. **Clean up** — *Cleanup* below. Worktree then branch, that order, `close.delete_branch` decide.

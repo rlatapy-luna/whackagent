@@ -88,8 +88,9 @@ verify:                        # runtime check — implementer drive app it just
 commit:
   auto_commit_after_validation: false   # may Claude commit once YOU validate feature?
                                # (name kept for old configs: it gate the commit /wa-close make)
-  author_name: "Benjamin Pisano"        # commits ALWAYS use this — never "Claude"
-  author_email: "benjamin.pisano@icloud.com"
+  author_name: ""              # commits ALWAYS use this — never "Claude". /wa-setup fill
+  author_email: ""             # from `git config user.name` / `user.email`. Empty → that git
+                               # identity at commit time, never a made-up one.
 
 branch:
   per_task: false              # /wa-code work on own branch per task instead of current one
