@@ -356,13 +356,18 @@ def agent_id(explicit=None):
 
 
 def claim_tree(config):
-    """Any tree already in the repo works for a claim commit; resolve once, keep it in the cache."""
-    if not config.get("claim_tree"):
-        repo = rest("GET", f"repos/{config['repo']}")
-        head = rest("GET", f"repos/{config['repo']}/commits/{repo['default_branch']}")
-        config["claim_tree"] = head["commit"]["tree"]["sha"]
+    """One-file tree for claim commits; created once, kept in the cache.
+
+    Never reuse a branch tree: once it holds `.github/workflows/`, GitHub refuses (404) a ref to a
+    commit adding workflow files unless the token has the `workflow` scope.
+    """
+    if not config.get("claim_blob_tree"):
+        tree = rest("POST", f"repos/{config['repo']}/git/trees", {
+            "tree": [{"path": "CLAIM", "mode": "100644", "type": "blob", "content": "whackagent claim\n"}],
+        })
+        config["claim_blob_tree"] = tree["sha"]
         cache_path().write_text(json.dumps(config, indent=2))
-    return config["claim_tree"]
+    return config["claim_blob_tree"]
 
 
 def remote_branch(config, number):
