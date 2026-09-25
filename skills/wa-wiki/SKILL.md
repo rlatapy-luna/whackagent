@@ -29,6 +29,8 @@ Task status + report handled by `/wa-code`. This step keep shared knowledge true
 
 Stop and ask if can't tell which page a change belongs to — don't scatter duplicates.
 
+**GitHub provider** — wiki update is part of `coding`: run on ticket branch before `/wa-close`, commit goes into ticket PR, never straight to base. Parallel tickets touch wiki at once → keep `{wiki}/index.md` **one line per page, sorted alphabetically**, no grouped prose: two tickets adding pages → adjacent-line changes, `/wa-close` rebase resolves mechanically.
+
 ## Query mode — `/wa-wiki <feature or question>`
 
 Read-only. Answer what user asked about project.

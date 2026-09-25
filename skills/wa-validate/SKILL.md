@@ -36,6 +36,10 @@ Review every round burn one verifier per note, review code about to change anywa
    - **Clean, autofix changed code** → list what changed, in their terms. *"Retest, then `/wa-close <slug>`."*
    - **Findings still open** → show severity-ordered, with recommendation per item (fix now / accept and close / spin off `/wa-task`). Don't hand off to `/wa-close` with findings open — say which ones you'd accept.
 
+## GitHub provider
+
+`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve `#n` / index; coding claim must be held from this host (`wa-backlog get` vs `whoami`, host part) — else stop, say who holds it. Board untouched here: `validated` is whackagent-internal, ticket stays `coding` until `/wa-close` opens PR.
+
 ## Interaction with the rest
 
 - **`/wa-feedback` on `validated` task** → code moved after its review: status go back to `review`, task need `/wa-validate` again. Never close on review predating last edit.

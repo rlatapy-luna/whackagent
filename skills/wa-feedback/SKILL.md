@@ -72,6 +72,15 @@ Rules = `/wa-code` → *Resuming, rounds 2+*, in full — delta only, anti-stale
 7. **Log it.** Append round to task `## Feedback`: what user asked (their words), triage, what changed, review verdict (`deferred` when `review.when: on_validation`), verify verdict, any rule captured. Refresh `{reports}/<slug>.md`.
 8. **Report + loop.** **wa-code → Report card**, feedback variant: header `## 🟢 <title> · feedback #<n>`, **Asked** (user words, short) replaces Problem + Goal, rest identical — Done, To test, status line, next. More notes → run again, next round. Feature match spec now → **`/wa-validate <slug>`**: that fire verifier; **`/wa-close <slug>`** end it after your retest. **Never set `done` here, never commit** — say next command instead.
 
+## GitHub provider
+
+`backlog.provider: github` (rules **wa-board → Backlog provider**). Two entry points:
+
+- **Ticket in `coding`, claim held from this host** (normal round, before PR) → as above. Sub-phase in task file `phase:`.
+- **Ticket in `ready-to-merge`** (PR open, reviewer asked changes) → **re-claim first**: `wa-backlog claim <n> coding` (exit 3 → someone already fixing it, stop). Check out ticket branch, rebase not needed yet. Input = user notes **plus PR review threads** (`gh pr view <pr> --comments`, `gh api repos/{repo}/pulls/<pr>/comments`) — quote reviewer words as feedback items, triage same way. Round ends through `/wa-validate` → `/wa-close`, which pushes to existing PR: hook flips back to `ready-to-merge`, releases claim.
+
+Never push fix commits from here — push = `/wa-close` job, after validation. Claim held by another host → stop, say who.
+
 ## Asking
 
 Triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always with your recommended answer** and one-line reason (which bucket you'd pick, what you'd change). Never bounce bare question back at user. Same rule as `/wa-task` grill.

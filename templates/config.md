@@ -24,6 +24,13 @@ paths:                         # WHERE whackagent keep each kind of file. Skills
                                # paths, so must sit at known spot.
                                # Move path after setup → move files too; nothing back-fill.
 
+backlog:
+  provider: local              # WHERE tickets live — providers/CONTRACT.md.
+                               #   local  — {backlog} + task files, one agent (default).
+                               #   github — GitHub Project + issues, many agents/worktrees.
+                               #     Settings in repo variables (wa-backlog provision), not here.
+                               #     Forces branch.per_task: true, close.strategy: pr.
+
 review:
   when: on_validation          # WHEN wa-verifier run.
                                #   on_validation — once, at /wa-validate: your green light say feature

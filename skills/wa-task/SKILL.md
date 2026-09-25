@@ -35,6 +35,24 @@ Owns two things: **writing task** (steps 1–5), **placing it** (step 6). Priori
 5. **Add to backlog.** Append task under **Todo** in `{backlog}`, link file (relative to backlog's own folder, so link works when backlog and tasks sit in different trees). Sprint set → echo as `· <sprint>` after link, slot line **next to its sprint siblings**, not bottom.
 6. **Prioritize.** Run pass below — always, never ask permission, part of adding task. Several tasks one go → one pass at end, not one per task.
 
+## GitHub provider
+
+`backlog.provider: github` — rules in **wa-board → Backlog provider**. Same grill, same task file content; what changes is where it goes and who may touch it.
+
+**Arg forms:** free text → new ticket. `#12` / `12` / display index → existing ticket. `release <n>` → stale-claim cleanup (below). No arg → prioritization pass.
+
+1. **New ticket** → `wa-backlog create --title … --summary … [--size] [--sprint]` right after step 2 (title), before grilling — ticket visible on board at once. Then continue with it as existing ticket. User flags quick win to skip grill → no interview, but still claim, write minimal spec (context one line, 1–3 acceptance criteria from title + summary) and push (steps 2–5): coding claim needs `grilled`, and only a pushed spec gets there.
+2. **Claim** → `wa-backlog claim <n> grilling`. Exit 3 → `#12 grilled by <agent> since <time>` — stop, suggest next `todo`. Exit 4 → state not `todo`, say which, stop.
+3. **Branch** → fork point per `/wa-code` step 0 (`branch.base`, or `sprint/<sprint>` when ticket has milestone). Dirty tree → stop and ask. Create `<branch.prefix><n>-<slug>` locally.
+4. **Grill** (step 3), **write** `{tasks}/<n>-<slug>.md` (step 4) with GitHub frontmatter: `issue: <n>`, `phase:` empty, `wiki:`, `note:`, `created:`. Title/summary/size/sprint → `wa-backlog set-field` / GitHub issue, never file. `## Acceptance criteria` **must** be non-empty — hook reads it as proof grill finished.
+5. **Commit + push, once, at end.** Commit only task file (`task: grill #<n> <slug>`), author per `commit.author_*`, push `-u origin`. Never push mid-grill. Hook moves ticket to `grilled` and drops grilling claim — confirm with `wa-backlog get <n>` (wait ~30 s, re-read once; still `grilling` → say hook late, check Actions run, never set state yourself).
+6. **Abort** (user drops mid-grill) → `wa-backlog release <n> grilling --reset-to todo --reason "<why>"`, delete local branch if nothing pushed.
+7. **Split** (large ticket) → children = new tickets via `create`, same sprint milestone. Parent: `release`, then close issue with comment linking children — never leave parent claimed.
+
+**Prioritization (step 6) under GitHub:** **not automatic.** Board order shared with humans and other agents — new ticket lands bottom of `todo`, full stop. Only explicit `/wa-task` (no arg): re-read `wa-backlog list` just before writing, show proposed order, apply with `wa-backlog move` **only on user yes**. Cancel = close issue `not planned` with reason comment, on yes.
+
+**`/wa-task release <n>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <n> <phase> --reset-to <todo|grilled> --reason "stale: <age>, no push"` (`grilling` → `todo`, `coding` → `grilled`). Never on own initiative, never to take ticket another live agent holds.
+
 ## Sprints
 
 Optional grouping label for work too big for one task — `sprint: login-refacto`. Canonical rules in **wa-board → Sprints**; here is when to set it.

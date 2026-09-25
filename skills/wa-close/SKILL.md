@@ -31,6 +31,21 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
 9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch wa/<next-slug> ready · /wa-code <next-slug>`.
 10. **Report** — after-state, four lines max: what landed where, what deleted, sprint progress, next command.
 
+## GitHub provider
+
+`backlog.provider: github` (rules **wa-board → Backlog provider**). End of `coding` = PR opened; board moves itself. Replaces steps 5–9:
+
+1. **Resolve** `#12` / `12` / index. Check coding claim held from this host (`wa-backlog get <n>` → `claims[].agent` host part = `wa-backlog whoami` host part — autopilot worktree on same machine counts). Other host / none → stop: closing someone else's work, or work nobody claimed. `phase:` in task file plays role of `status:` in step 1.
+2. **Commit** (step 4) — always on ticket branch, task file included (`phase: validated`, Review/Verification filled).
+3. **Rebase onto PR base** — `sprint/<milestone>` when ticket has milestone, else `close.target`. Fetch first. Conflicts mechanical (wiki index lines, import lists, generated files) → resolve yourself; touching logic → stop and ask with recommended resolution. Then **re-run build + tests**; red → stop, back to `/wa-feedback`.
+4. **Push + PR** — `git push --force-with-lease` (rebased), then `gh pr create --base <base> --head <branch> --title "<ticket title>" --body` = summary + `Closes #<n>` + acceptance criteria checklist. **Existing open PR** for branch (fix round) → push only, no new PR. Plan block names PR base and says it pushes; always confirmed, every time.
+5. **Board** — hook sets `ready-to-merge` and releases coding claim. Confirm `wa-backlog get <n>` (re-read once after ~30 s). Never set state yourself.
+6. **Branch + worktree kept** — PR needs branch. Autopilot worktree: remove only when clean.
+7. **`done` is not yours** — merge on GitHub (human, or project's merge policy) → hook sets `done`, closes issue, closes milestone when empty.
+8. **Next** (`branch.checkout_next`) → next ticket only through **claim**: `/wa-code` without arg picks top unclaimed `grilled`. Never check out ticket branch you don't hold.
+
+Sprint landing (below) unchanged: last ticket of milestone merged into `sprint/<name>` → propose sprint PR onto `close.target`.
+
 ## Plan block
 
 Say what you about to do to git **before** doing it, in their terms. Landing outward-facing, half irreversible:

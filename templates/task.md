@@ -1,4 +1,9 @@
 ---
+# GitHub provider (backlog.provider: github): file named {tasks}/<issue#>-<slug>.md, lives on ticket
+# branch, frontmatter keeps ONLY issue / phase / wiki / note / created. title, summary, size, sprint,
+# status live on GitHub (issue + Project) — never here. phase: in-progress | review | validated.
+# issue: 12
+# phase:
 title:                  # label ≤ 5 words, not a sentence ("Fix flaky CLI tests", not "Tests turn red at random")
 summary:                # ≤ 8 words, the goal plainly — never the mechanism, never repeat the title
 size: medium            # quickwin | medium | large  → 🟢 | 🟡 | 🔴 in backlog list

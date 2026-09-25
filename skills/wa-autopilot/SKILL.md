@@ -17,6 +17,18 @@ Given tasks, or every `todo` task if none (confirm list first if user present). 
 
 **Sprint name expands to its `todo` tasks**, backlog order — `in-progress`, `review`, `validated` already moving or waiting on user, don't touch. Resolve per **wa-board → Sprints**; echo expansion (`login-refacto → login-apple · login-layout · login-errors (3 todo, 2 already in review)`) so user see what left out. Sprint with no todo task → say so, stop. Sprint tasks usually touch same screen, so expect most land in **separate waves** — wave planner doing job, not failure.
 
+## GitHub provider
+
+`backlog.provider: github` (rules **wa-board → Backlog provider**). Several autopilots, on several machines, may run on one board at once — claims keep them apart.
+
+- **Scope** = unclaimed `grilled` tickets, board order (`wa-backlog list --state grilled`); args = `#n`, indexes, or milestone name. Never `todo`: grilling needs user.
+- **Claim each ticket before its worktree** — `wa-backlog claim <n> coding`. Exit 3 → drop from batch, echo `#12 skipped: coded by <agent>`. Claim just before wave starts, not whole batch up front: later waves' tickets stay free for others until needed.
+- **Also check open PRs** before planning waves: `gh pr list --json number,headRefName,files` — ticket whose BRIEF files overlap files of open PR → warn in plan (`#14 touches LoginView like open PR #9 — merge conflict likely`). Warning, not block.
+- **Worktree from existing ticket branch** (grilling pushed it) — fetch, then `git worktree add ../.wa-worktrees/<n>-<slug> <branch>`. Never `-b`: spec lives on that branch.
+- **Delivery** — commit (task file `phase: review` included), then **push** branch: work visible and safe on remote, push moves nothing on board while coding. No PR — PR = `/wa-close`, after user validates. Coding claim stays held: ticket still in whackagent loop (test → feedback → validate).
+- **Handoff** — claim agent id = `<host>:<worktree>`. User continues in that worktree, or any worktree on same host — `/wa-feedback`, `/wa-validate`, `/wa-close` accept claim held from same host. Other machine → stop, say who holds it.
+- **Blocked ticket** → `wa-backlog release <n> coding --reset-to grilled --reason "BLOCKED: <question>"` — question lands on issue, ticket free for next attempt once answered.
+
 ## 1. Plan the batch — what can run at once
 
 Do `/wa-code` step 1 (**Plan**) for **every** task in batch, up front, main thread. Now hold one BRIEF per task — that tell you if two tasks share clock.

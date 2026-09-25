@@ -1,6 +1,6 @@
 # whackagent
 
-Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in the projects it is installed in. The repo is pure Markdown: no runtime code, no build, no tests. Every file is a prompt that Claude reads at run time.
+Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in the projects it is installed in. The repo is Markdown prompts that Claude reads at run time, with one exception: backlog providers under `providers/` may ship a script and CI workflow (for example `providers/github/wa-backlog`, Python 3 stdlib plus `gh`). There is no build and no test suite; provider scripts are tested against a real tracker (see the playground below).
 
 ## Layout
 
@@ -10,6 +10,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
 - `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift and Kotlin are multi-module packs with the same file names; TypeScript and generic (fallback for every other language) are one file each.
 - `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
+- `providers/`: backlog providers. `CONTRACT.md` defines the verbs and the six states (`todo`, `grilling`, `grilled`, `coding`, `ready-to-merge`, `done`) every skill uses. `local.md` maps the default file-based backlog onto it; `github/` holds the `wa-backlog` script, the `whackagent-board.yml` hooks workflow and its README.
 - `README.md`: public doc on GitHub. No agent reads it.
 
 ## Task lifecycle
@@ -34,6 +35,13 @@ Keep each step's ownership intact when editing. For example, only `/wa-close` co
 - **Never hardcode `.whackagent/` paths** for backlog, tasks, wiki, reports or conventions. Use the `{backlog}` `{tasks}` `{wiki}` `{reports}` `{conventions}` placeholders, resolved from `paths:` in the config. Only `.whackagent/config.md` is fixed.
 - **Subagents never read the config.** The orchestrating skill passes them what they need (build commands, `verify.mode`, module paths).
 - **Every question to the user carries a recommended answer** plus a one-line reason. Keep that rule in any new prompt that asks something.
+
+## Backlog providers
+
+- Skills must speak only the contract verbs and states, never tracker terms. The canonical rules for providers live in `wa-board` under "Backlog provider"; each skill that behaves differently under GitHub has its own "GitHub provider" section.
+- Under the GitHub provider, agents only write `grilling` and `coding`, always through an atomic `claim`. `grilled`, `ready-to-merge` and `done` are set by the hooks workflow from repository events. Don't add a skill step that sets them directly.
+- A new tracker means a new `providers/<name>/` folder implementing the same verbs, states and exit codes, plus whatever automation moves the data-driven states.
+- Test provider changes in the playground repo `rlatapy-luna/whackagent-playground` (worktree `~/dev/whackagent-playground-worktrees/cocorico`, Project #1). The workflow must be merged on its default branch to react to `issues` events.
 
 ## Adding things
 

@@ -15,7 +15,7 @@ Runs on fresh project **and** on one already set up. Second time = **reconfigure
 
 `.whackagent/config.md` exists → **reconfigure** (jump to *Reconfigure mode*). Absent → **first setup**, steps 1–4.
 
-Optional arg narrow scope: `/wa-setup paths`, `/wa-setup review`, `/wa-setup build`, `/wa-setup branch`, `/wa-setup commit`, `/wa-setup verify`, `/wa-setup languages`. Reconfigure only — on fresh project arg meaningless, say so and run full setup.
+Optional arg narrow scope: `/wa-setup paths`, `/wa-setup review`, `/wa-setup build`, `/wa-setup branch`, `/wa-setup commit`, `/wa-setup verify`, `/wa-setup languages`, `/wa-setup backlog`. Reconfigure only — on fresh project arg meaningless, say so and run full setup.
 
 ## 1. Interactive config (ask one at a time, propose a default)
 
@@ -45,7 +45,9 @@ Then confirm with user:
    - `paths.reports` = run output, not knowledge — leave local (and gitignore-able) unless asked.
    Absolute paths work too (wiki in sibling repo). `.whackagent/config.md` itself never move — it carry the paths.
 
-Keep short — 7 to 9 questions (build one fire only on detected wrapper; close policy only when `per_task`). Rest take template default.
+9. **Where the backlog lives** — _"Keep the backlog as files in the repo, or on a GitHub Project so several agents in different worktrees share it without stepping on each other? (recommended: files — nothing to wire up; switch to GitHub once you run agents in parallel)"_ → sets `backlog.provider` (`local` | `github`). Detect first: repo has GitHub remote and `gh` logged in → offer it; else don't ask, `local`. `github` → run *GitHub backlog* below, and say it forces `branch.per_task: true` + `close.strategy: pr` (skip questions 7's close part).
+
+Keep short — 7 to 10 questions (build one fire only on detected wrapper; close policy only when `per_task`). Rest take template default.
 
 **Only if project is runnable (kind `app`, `web`, `server`, `cli`):** ask **who tests it** after green build — _"In autopilot the agent exercises what it built itself (taps + screenshots, browser, curl, CLI run) since nobody's watching. When you're at the keyboard, should it do the same, or stop at build + tests and let you test? (recommended: you test — you'll run it anyway, and driving it costs a few minutes per round)"_ → sets `verify.mode` (`autopilot` | `always` | `off`). Name third option only if they push back on autopilot driving at all: `off` = nobody drives it, ever. `package` → `verify.platform: none`, don't ask.
 
@@ -56,6 +58,25 @@ Then set `verify.platform` + `verify.target` from detection (confirm in one line
 - `desktop` → desktop/computer-use MCP if they have one; else GUI proof unavailable, build + tests only.
 - `server`, `cli` → nothing to install: Bash (`curl`, the binary).
 Driver missing → say so now, not at first autopilot run.
+
+### GitHub backlog (only when `backlog.provider: github`)
+
+Follow `${CLAUDE_PLUGIN_ROOT}/providers/github/README.md` → **Setup**, one step at a time, each confirmed:
+
+1. `gh auth status` has scope `project` — missing → give user `! gh auth refresh -h github.com -s project`, wait.
+2. Project: list theirs (`gh project list --owner <owner>`), propose reuse or new. Run `wa-backlog provision --title … | --project <n>` (+ `--state x=Name` when adopting a board whose column names differ — ask for any state it can't match; never rename their columns). Pass `--tasks-path {tasks}` and `--branch-prefix <branch.prefix>`.
+3. Workflow → branch `wa-setup/board-hooks`, copy `providers/github/whackagent-board.yml` to `.github/workflows/`, fix its `branches:` filter if prefix isn't `wa/`, PR onto default branch. Never push default branch. Hooks live once merged — say so.
+4. Secret `WA_PROJECT_TOKEN` — give token link + `! pbpaste | gh secret set WA_PROJECT_TOKEN -R <repo>`, wait, check `provision` / `gh secret list`.
+5. Offer (ask each): import open issues (`wa-backlog get <n>` adds each as `todo`); smoke test (README step 5).
+6. Scaffold without `{backlog}` file — board replaces it. `{tasks}` still created (holds specs on ticket branches).
+
+**Migrating an existing local backlog** (reconfigure `local` → `github`) — offer once, apply on yes, per task:
+- not `done`/`canceled` → `wa-backlog create` (title, summary, size, sprint), board order = `{backlog}` order.
+- `todo` + `grilled: false` → stays `todo`.
+- `todo` + `grilled: true` → rename file `{tasks}/<n>-<slug>.md`, rewrite frontmatter to GitHub shape (`issue: <n>`), commit on `wa/<n>-<slug>`, push — hook moves it to `grilled` (tests hook for real).
+- `in-progress` / `review` / `validated` → same, local branch renamed `wa/<n>-<slug>`, pushed; ticket lands `grilled`. User re-claims to continue — never auto-claim for a session that may be gone.
+- `done` / `canceled` → not imported, history stays in git.
+- then delete `{backlog}` in one commit. GitHub → local: not supported.
 
 ## 2. Scaffold
 
@@ -75,7 +96,7 @@ Create directory and files (do not overwrite existing without asking).
   incrementalBuildsEnabled: true
   ```
   Skip if the file already exists (don't clobber a user's config). This is why an implementer with no `build.command` builds through XcodeBuildMCP — command-line `xcodebuild` ignores this file and rebuilds from scratch. With a `build.command` set, the wrapper owns the build dir instead, and this file is just harmless.
-- `{backlog}` — copy `${CLAUDE_PLUGIN_ROOT}/templates/BACKLOG.md`.
+- `{backlog}` — copy `${CLAUDE_PLUGIN_ROOT}/templates/BACKLOG.md`. **Skip under `backlog.provider: github`.**
 - `{wiki}/index.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/wiki-index.md`.
 - Create empty `{tasks}/` and `{reports}/` directories (`.gitkeep` fine).
 
