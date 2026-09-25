@@ -1,7 +1,7 @@
 {
   "name": "whackagent",
   "owner": {
-    "name": "Benjamin Pisano"
+    "name": "rlatapy-luna"
   },
   "metadata": {
     "description": "Orchestrated dev workflow: backlog + wiki + task lifecycle with isolated subagents and an overnight autopilot.",

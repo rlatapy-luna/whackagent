@@ -13,7 +13,7 @@ A Claude Code plugin for your entire development flow.
 Add the marketplace, then install the plugin:
 
 ```bash
-/plugin marketplace add bpisano/whackagent
+/plugin marketplace add rlatapy-luna/whackagent
 /plugin install whackagent@whackagent
 ```
 
