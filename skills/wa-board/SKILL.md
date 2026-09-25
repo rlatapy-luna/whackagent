@@ -29,7 +29,9 @@ Same list format, sections by contract state, render order: **Coding → Review 
 - `⏳ stale claims` — `claims` rows with `stale: true`: `#12 coding · <agent> · 2d, no push` → suggest `/wa-task release 12`.
 - `📝 drafts` — Project draft items: not tickets, convert to issue on GitHub.
 
-Next action (GitHub): unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-task <#>` · `review` → review/merge PR on GitHub (not agent job) · several unclaimed `grilled` → `/wa-autopilot`. Never suggest ticket someone else holds.
+**Review section splits draft vs ready** — `gh pr list --json number,headRefName,isDraft`: draft → `🧪 draft #<pr>` (your test), ready → `🔀 ready #<pr>` (merge on GitHub).
+
+Next action (GitHub): `review` + draft → `/wa-feedback <#> <notes>` or `/wa-validate <#>` (`/wa-close <#>` when task file says `phase: validated`) · unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-task <#>` · `review` + ready → merge PR on GitHub (not agent job) · several unclaimed `grilled` → `/wa-autopilot`. Never suggest ticket someone else holds.
 
 ## Display format
 
@@ -109,7 +111,10 @@ Canonical, every skill. `backlog.provider` in config (missing → `local`) decid
   - **Ticket id = issue number.** Display `#12`. Task file `{tasks}/<n>-<slug>.md` lives **on ticket branch** `<branch.prefix><n>-<slug>`, not on base — frontmatter `issue: <n>`, `phase:`, `wiki:`, `note:`, `created:`. No `title`/`summary`/`status`/`size`/`sprint`/`grilled` there.
   - **States = contract states** (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`). Agent writes only through `claim` / `release`. `grilled`, `review`, `done` come from hooks — never set them, never "help" a lagging hook. Hook late → wait/re-read, or tell user.
   - **Claim before touching.** Grilling or coding a ticket = `claim` first. Exit 3 (taken) → name owner, never retry or steal; pick next or stop. Exit 4 (wrong state) → say state, stop.
-  - **Coding sub-phase** (`in-progress` → `review` → `validated`) = task file `phase:` on ticket branch, where local writes `status:`. `phase: review` ≠ board `review`: first = coded, verifier not run, still `coding`; second = PR open.
+  - **Coding sub-phase** (`in-progress` → `review` → `validated`) = task file `phase:` on ticket branch, where local writes `status:`. `phase: review` ≠ board `review`: first = coded, verifier not run; second = PR open, humans on turn.
+  - **Agent round — `coding` is transient.** Board `coding` = an agent works *now*, never "waiting for user". Every round that touches ticket branch (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`): `claim <n> coding` (from `grilled` or `review`) → work → commit (task file `phase:` + notes included) → **push**. First delivery opens **draft PR**; later rounds push to it. Hook sees `opened`/`synchronize`, sets `review`, drops claim. Round ends with nothing to push → `release <n> coding --reset-to review` (PR open) or `--reset-to grilled` (no PR). Exit 3 on claim → someone mid-round: say who, stop.
+  - **Draft PR** — `gh pr create --draft --assignee @me --base <fork point> --head <branch> --title "<ticket title>" --body` = summary + `Closes #<n>` + acceptance criteria checklist + line `Draft — verifier not run yet. Test, then /wa-feedback · /wa-validate · /wa-close.` Base = branch ticket forked from (sprint branch, else `close.target`). Draft already open → push only. Draft = human tests; ready (`/wa-close` → `gh pr ready`) = human merges. Both `review`.
+  - **Hooks version gate** — before first push, `git show origin/<base>:.github/workflows/whackagent-board.yml | head -1` → `template version: <v>`. `v ≥ 6` → rules above. `3 ≤ v < 6` → draft leaves ticket in `coding`, claim kept until `/wa-close` marks ready: same-host holder counts as yours (`claims[].agent` host = `whoami` host). `v < 3` / missing → **no draft** (opened PR = ready): push only. Either legacy case → say `hooks v<v> on <base> — /wa-setup backlog to upgrade`.
   - **Forced config:** `branch.per_task: true`, `close.strategy: pr`. Config says otherwise → provider wins, say so once.
   - **Sprint = milestone** — `set-field <n> sprint <name>`; progress from `list --sprint`.
   - `list` lags new tickets 1–3 min (GitHub indexing); `get`/`claim` always current.

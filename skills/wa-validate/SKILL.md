@@ -38,7 +38,7 @@ Review every round burn one verifier per note, review code about to change anywa
 
 ## GitHub provider
 
-`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve `#n` / index; coding claim must be held from this host (`wa-backlog get` vs `whoami`, host part) — else stop, say who holds it. Board untouched here: `validated` is whackagent-internal, ticket stays `coding` until `/wa-close` opens PR. **Scope = ticket range** (`git diff $start^` + working tree, **wa-board → Backlog provider**), not `branch.base..HEAD`: squash-merged parent or stack makes that diff drag in already-landed code.
+`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve `#n` / index. One **agent round** (**wa-board → Backlog provider**): `claim <n> coding` from `review` first (exit 3 → someone mid-round, say who, stop; legacy hooks: same-host holder counts as yours), verify + autofix, then commit task file (`phase: validated`, `## Review`) + autofix code, push to draft PR. Hook sets `review`, drops claim — ticket waits for your retest in `review`, not `coding`. `validated` stays whackagent-internal (task file), board never shows it. **Scope = ticket range** (`git diff $start^` + working tree, **wa-board → Backlog provider**), not `branch.base..HEAD`: squash-merged parent or stack makes that diff drag in already-landed code.
 
 ## Interaction with the rest
 
@@ -50,7 +50,7 @@ Review every round burn one verifier per note, review code about to change anywa
 
 - Never mark task `done` — that's `/wa-close`, after user retests reviewed code.
 - Never review task user hasn't validated: without their yes, you review feature still moving.
-- Never commit, merge, push, open PR or delete branch — **git belong to `/wa-close`**.
+- Never commit, merge, push, open PR or delete branch — **git belong to `/wa-close`**. GitHub provider exception: round-end commit + push to existing draft PR (above) — never merge, never mark ready.
 - Never write code yourself — findings go to implementer, same as `/wa-code`.
 
 ## Asking

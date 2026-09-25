@@ -18,13 +18,15 @@ Shared lifecycle, provider-neutral names. Provider maps them onto its own column
 | `todo` | ticket exists, not grilled | creation (agent or human on tracker UI) |
 | `grilling` | **locked** — one agent grilling it | agent `claim <id> grilling` |
 | `grilled` | spec written, ready to code | **data**: ticket branch holds spec with acceptance criteria (hook) |
-| `coding` | **locked** — one agent in code → feedback → validate → wiki loop | agent `claim <id> coding` |
-| `review` | change proposed (PR open, not draft) | **data**: PR opened or marked ready, or fix round pushed (hook). Draft PR = still `coding` |
+| `coding` | **locked, transient** — one agent working a round (code, feedback, validate, close) | agent `claim <id> coding` |
+| `review` | change proposed (PR open, draft or not) — humans on turn: test (draft) or merge (ready) | **data**: PR opened, or agent round pushed to it (hook) |
 | `done` | change landed | **data**: PR merged (hook) |
 
 Agents only ever write `grilling` / `coding` (through `claim`) and resets through `release`. Every other transition comes from repo events — agent never sets `grilled`, `review`, `done` itself. Code drives board, not agent's word.
 
-Inside `coding`, whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task file frontmatter `phase:` — coding lock guarantee single writer, board stay coarse. Same word, two levels: board `review` = PR open, humans review; `phase: review` = coded, verifier not run yet, still inside `coding`.
+`coding` never waits on human. Agent round = claim → work → commit → push; push opens draft PR or updates it, hook moves ticket to `review` and drops claim. Round aborted without push → `release <id> coding --reset-to review` when PR open, else `--reset-to grilled`.
+
+Whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task file frontmatter `phase:`, pushed with each round — coding lock guarantee single writer per round, board stay coarse. Same word, two levels: board `review` = PR open, humans on turn; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed, waiting user retest then `/wa-close`.
 
 ## Verbs
 

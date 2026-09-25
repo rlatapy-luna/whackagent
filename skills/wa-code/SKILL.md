@@ -34,9 +34,10 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 1. **Resolve** arg: `#12` / `12` / display index. No arg → top unclaimed `grilled` from `wa-backlog list --state grilled`.
 2. **Claim** `wa-backlog claim <n> coding`. Exit 3 → `#12 coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`review`: `todo` means not grilled → suggest `/wa-task <n>`; stop.
 3. **Branch** — ticket branch already exists (grilling pushed it): `wa-backlog branch <n>`, fetch, check out **in current worktree**. Dirty tree → stop and ask first. Never create fresh branch: spec lives on this one. Git refusing because another local worktree holds branch → say which, stop.
-4. **Spec** = `{tasks}/<n>-<slug>.md` on that branch. Set `phase: in-progress` there (local writes `status:`), commit with first brick. **Never push during coding** — push = `/wa-close` job. Ticket claimed back from `review` has an open PR: any push fires `synchronize`, hook ends round and **drops your claim** while you still code. Draft PR (autopilot delivery) exempt: hook ignores drafts.
-5. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `#<n>`.
-6. **Blocked / user drops it** → `wa-backlog release <n> coding --reset-to grilled --reason "<why>"`. Coding lock never left dangling on abandon.
+4. **Spec** = `{tasks}/<n>-<slug>.md` on that branch. Set `phase: in-progress` there (local writes `status:`). **No push mid-round** — any push to branch with open PR fires `synchronize`: hook ends round and drops your claim while you still code.
+5. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `#<n>` + PR URL.
+6. **Deliver = end of round** (**wa-board → Backlog provider**, *Agent round*): commit code + task file (`commit.author_*`, never as Claude), push, open **draft PR** (or push to existing one). Board moves to `review` by itself: ticket never waits for your test in `coding`. First push of ticket = outward-facing → one-line plan (`push wa/12-… + draft PR → sprint/x`) + yes, first time only; later rounds push without asking.
+7. **Blocked / user drops it** → `wa-backlog release <n> coding --reset-to grilled --reason "<why>"` (`--reset-to review` when PR already open). Coding lock never left dangling on abandon.
 
 ## 1. Plan
 
@@ -142,7 +143,7 @@ build ✅ · tests ✅ · run ✅ · review → /wa-validate
 
 ## 5. Closing — not yours
 
-Commit, branch landing and `status: done` belong to **`/wa-close`**. Nothing in this file commits or moves branch after step 0.
+Commit, branch landing and `status: done` belong to **`/wa-close`**. Nothing in this file commits or moves branch after step 0 — **except GitHub provider** step 0b.6: delivery commit + push + draft PR, so ticket leaves `coding`. Landing (ready PR, merge) still `/wa-close`.
 
 ## Asking
 

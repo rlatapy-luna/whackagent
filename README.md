@@ -225,8 +225,8 @@ Every ticket goes through six states. Agents only ever *take* a ticket; the rest
 | `todo` | an issue is opened (by `/wa-task`, or by hand on GitHub) |
 | `grilling` | an agent claims it with `/wa-task #12`, a lock, so no other agent grills it |
 | `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
-| `coding` | an agent claims it with `/wa-code 12` or `/wa-autopilot`, a lock covering code, feedback, validate and wiki |
-| `review` | the hooks workflow, when `/wa-close` opens the PR or marks the `/wa-autopilot` draft PR ready (or a fix round is pushed to it). A draft PR leaves the ticket in `coding` |
+| `coding` | an agent claims it for one round (`/wa-code 12`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`), a lock held only while the agent works |
+| `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; `/wa-close` marks it ready = your turn to merge |
 | `done` | the hooks workflow, when the PR is merged. The issue is closed, and the sprint milestone too once empty. |
 
 A closed-unmerged PR sends the ticket back to `grilled`.

@@ -36,12 +36,13 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 |---|---|---|
 | `issues: opened` | no `wa-ignore` | add to Project, `todo` |
 | `push` to `wa/**` | branch `wa/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
-| `pull_request: opened/reopened/ready_for_review` | head `wa/<n>-…`, same repo, not draft, not `done` | `review`, coding claim deleted |
-| `pull_request: opened/synchronize`, **draft** | head `wa/<n>-…` | nothing moves, claim kept — draft = review surface while still coding (`/wa-autopilot` delivery) |
-| `pull_request: converted_to_draft` | state `review` | `grilled` — claim was released at ready, so ticket must be re-claimed (`/wa-code <n>`) |
-| `pull_request: synchronize` | coding claim exists | `review`, claim deleted (fix round over) |
+| `pull_request: opened/reopened` | head `wa/<n>-…`, same repo, not `done` — **draft or not** | `review`, coding claim deleted |
+| `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges |
+| `pull_request: synchronize` | coding claim exists | `review`, claim deleted (agent round over) |
 | `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted, milestone closed when empty |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |
+
+**`coding` is transient.** Held only while an agent works: every agent round (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`) claims from `grilled`/`review` and ends with a push — first delivery opens the draft PR (`opened`), later rounds push to it (`synchronize`). Either way hook releases claim, ticket waits for humans in `review`. Draft vs ready tells who looks next: draft = test it, ready = merge it.
 
 Workflow runs from default branch for `issues`, from pushed ref for `push`/`pull_request` — so it must be merged on default branch **and** present on ticket branches (branches forked after merge carry it).
 

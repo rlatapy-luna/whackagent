@@ -1,14 +1,15 @@
-# whackagent board hooks — template version: 5
+# whackagent board hooks — template version: 6
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo
 #   push to wa/<n>-<slug> holding its spec → grilled   (releases the grilling claim)
-#   PR opened / reopened / ready for review → review (releases the coding claim)
-#   draft PR opened or pushed               → nothing moves (still coding, claim kept)
-#   PR converted back to draft              → grilled (claim is gone: re-claim to code again)
-#   push to an open PR while coding claimed → review (end of a fix round)
+#   PR opened / reopened, draft or not      → review (releases the coding claim)
+#   draft marked ready / back to draft      → nothing moves (already review)
+#   push to an open PR while coding claimed → review (end of an agent round)
 #   PR merged (any base)                   → done, issue closed, milestone closed when empty
 #   PR closed unmerged                     → grilled
+# `coding` is transient: an agent holds it only while it works. Every round ends with a push,
+# so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
 # Settings are repository variables written by `wa-backlog provision`. Projects v2 writes need
 # the WA_PROJECT_TOKEN secret (classic PAT, scopes: project, repo). Everything else uses GITHUB_TOKEN.
 # Custom branch prefix? Change the `branches` filter below to match WA_BRANCH_PREFIX.
@@ -186,23 +187,21 @@ jobs:
               }
               const action = payload.action;
 
-              if (action === "converted_to_draft") {
-                if (ticket.state !== "review") return;
-                await setState(ticket, "grilled");
-                await comment(number, `↩️ **grilled** — #${pr.number} back to draft; re-claim (\`/wa-code ${number}\`) to keep coding`);
-                return;
-              }
-
-              if (pr.draft && action !== "closed") {
-                if (action === "opened") await comment(number, `📝 **draft** — #${pr.number} → \`${pr.base.ref}\`, still coding`);
-                return;
-              }
-
-              if (action === "opened" || action === "reopened" || action === "ready_for_review") {
+              if (action === "opened" || action === "reopened") {
                 if (ticket.state === "done") return;
                 await setState(ticket, "review");
                 await release(number, "coding");
-                await comment(number, `🔀 **review** — #${pr.number} → \`${pr.base.ref}\``);
+                const kind = pr.draft ? "draft " : "";
+                await comment(number, `🔀 **review** — ${kind}#${pr.number} → \`${pr.base.ref}\``);
+                return;
+              }
+
+              if (action === "ready_for_review" || action === "converted_to_draft") {
+                // draft ↔ ready changes who looks next (tester or merger), not the state. Never touches the
+                // claim: an agent mid-round may flip it (`gh pr ready --undo` before a fix), its push ends the round.
+                if (action === "ready_for_review" && ticket.state !== "done") {
+                  await comment(number, `✅ **ready** — #${pr.number} ready to merge`);
+                }
                 return;
               }
 
@@ -210,7 +209,7 @@ jobs:
                 if (!(await claimExists(number, "coding"))) return;
                 await setState(ticket, "review");
                 await release(number, "coding");
-                await comment(number, `🔀 **review** — fix round pushed to #${pr.number}`);
+                await comment(number, `🔀 **review** — round pushed to #${pr.number}`);
                 return;
               }
 
