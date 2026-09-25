@@ -19,12 +19,14 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | Contract | GitHub |
 |---|---|
 | ticket id | issue number |
+| ticket branch | `wa/<n>-<slug>`, created by `gh issue develop` → linked in issue **Development**. Only branches GitHub creates can be linked — never `git checkout -b` + push |
 | title / summary | issue title / first non-empty body line |
 | state | Project `Status` single-select, options named per `WA_STATES` |
 | priority | Project item position (top = next) |
 | size | Project `Size` single-select: `quickwin`, `medium`, `large` |
 | sprint | milestone — created on first use, closed by hook when last issue done |
 | excluded | label `wa-ignore` |
+| dependencies | issue **Relationships** (blocked by) — `depend`, read back in `get` → `blocked_by` |
 
 Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: no number, no branch, no `Closes #`. `/wa-board` lists them to convert.
 
@@ -34,7 +36,9 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 |---|---|---|
 | `issues: opened` | no `wa-ignore` | add to Project, `todo` |
 | `push` to `wa/**` | branch `wa/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
-| `pull_request: opened/reopened` | head `wa/<n>-…`, same repo, not `done` | `ready-to-merge`, coding claim deleted |
+| `pull_request: opened/reopened/ready_for_review` | head `wa/<n>-…`, same repo, not draft, not `done` | `ready-to-merge`, coding claim deleted |
+| `pull_request: opened/synchronize`, **draft** | head `wa/<n>-…` | nothing moves, claim kept — draft = review surface while still coding (`/wa-autopilot` delivery) |
+| `pull_request: converted_to_draft` | state `ready-to-merge` | `grilled` — claim was released at ready, so ticket must be re-claimed (`/wa-code <n>`) |
 | `pull_request: synchronize` | coding claim exists | `ready-to-merge`, claim deleted (fix round over) |
 | `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted, milestone closed when empty |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |

@@ -28,6 +28,7 @@ Local keeps its own finer statuses in task frontmatter `status:`. Mapping onto c
 | `move` | reorder lines inside `{backlog}` section |
 | `set-field` | edit frontmatter `size:` / `sprint:` |
 | `comment` | no-op |
+| `depend` | task `note:` `Depends on …` line (graph lives in text) |
 | `claims` | always empty |
 | `branch` | `<branch.prefix><slug>` when `branch.per_task`, else current branch |
 

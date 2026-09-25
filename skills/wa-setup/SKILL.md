@@ -76,7 +76,7 @@ Follow `${CLAUDE_PLUGIN_ROOT}/providers/github/README.md` → **Setup**, one ste
 **Migrating an existing local backlog** (reconfigure `local` → `github`) — offer once, apply on yes, per task:
 - not `done`/`canceled` → `wa-backlog create` (title, summary, size, sprint), board order = `{backlog}` order.
 - `todo` + `grilled: false` → stays `todo`.
-- `todo` + `grilled: true` → rename file `{tasks}/<n>-<slug>.md`, rewrite frontmatter to GitHub shape (`issue: <n>`), commit on `wa/<n>-<slug>`, push — hook moves it to `grilled` (tests hook for real).
+- `todo` + `grilled: true` → rename file `{tasks}/<n>-<slug>.md`, rewrite frontmatter to GitHub shape (`issue: <n>`), create `wa/<n>-<slug>` with `gh issue develop <n> --name … --base <fork point> --checkout` (linked to issue), commit there, push — hook moves it to `grilled` (tests hook for real).
 - `in-progress` / `review` / `validated` → same, local branch renamed `wa/<n>-<slug>`, pushed; ticket lands `grilled`. User re-claims to continue — never auto-claim for a session that may be gone.
 - `done` / `canceled` → not imported, history stays in git.
 - then delete `{backlog}` in one commit. GitHub → local: not supported.

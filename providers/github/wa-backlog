@@ -415,6 +415,7 @@ def op_get(args):
     config = load()
     ticket = find(config, args.number)
     ticket["branch"] = remote_branch(config, args.number)
+    ticket["blocked_by"] = blocked_by(config, args.number)
     emit(ticket)
 
 
@@ -558,6 +559,31 @@ def op_comment(args):
     config = load()
     comment(config, args.number, args.text)
     emit({"number": args.number, "commented": True})
+
+
+def op_depend(args):
+    """Record that <number> is blocked by each ticket in --on (issue Relationships). Idempotent."""
+    config = load()
+    blocked = issue_node_id(config, args.number)
+    added, kept = [], []
+    for blocker in args.on:
+        try:
+            graphql(
+                "mutation($i:ID!,$b:ID!){addBlockedBy(input:{issueId:$i,blockingIssueId:$b}){issue{number}}}",
+                i=blocked,
+                b=issue_node_id(config, blocker),
+            )
+            added.append(blocker)
+        except Failure as error:
+            if "already" not in str(error).lower():
+                raise
+            kept.append(blocker)
+    emit({"number": args.number, "blocked_by_added": added, "blocked_by_existing": kept})
+
+
+def blocked_by(config, number):
+    rows = rest("GET", f"repos/{config['repo']}/issues/{number}/dependencies/blocked_by")
+    return [{"number": r["number"], "state": r["state"]} for r in rows]
 
 
 def op_claims(args):
@@ -759,6 +785,11 @@ def parser():
     s.add_argument("number", type=int)
     s.add_argument("text")
     s.set_defaults(func=op_comment)
+
+    s = sub.add_parser("depend", help="ticket is blocked by others (issue Relationships)")
+    s.add_argument("number", type=int)
+    s.add_argument("--on", required=True, type=lambda v: [int(x) for x in v.split(",") if x], help="blocker ids, comma-separated")
+    s.set_defaults(func=op_depend)
 
     s = sub.add_parser("claims", help="every live claim, owner, last activity, stale flag")
     s.set_defaults(func=op_claims)

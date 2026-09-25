@@ -113,6 +113,7 @@ Canonical, every skill. `backlog.provider` in config (missing → `local`) decid
   - **Forced config:** `branch.per_task: true`, `close.strategy: pr`. Config says otherwise → provider wins, say so once.
   - **Sprint = milestone** — `set-field <n> sprint <name>`; progress from `list --sprint`.
   - `list` lags new tickets 1–3 min (GitHub indexing); `get`/`claim` always current.
+  - **Squash merge assumed.** PRs land squashed: base never contains ticket's original commits, so `git merge-base` and plain rebase lie once any parent or stacked ticket landed. **Ticket range** = ticket's own commits, from its spec commit on: `start=$(git log --format=%H --grep="^task: grill #<n> " <branch> | tail -1)`, range `$start^..<branch>`. Diff = `git diff $start^ <branch>`; rebase = `git rebase --onto <base> $start^`. Works squash or not — use it always, never `<base>..HEAD` / `<base>...HEAD`.
 
 ## Paths
 

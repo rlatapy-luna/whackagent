@@ -1,9 +1,11 @@
-# whackagent board hooks — template version: 2
+# whackagent board hooks — template version: 4
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo
 #   push to wa/<n>-<slug> holding its spec → grilled   (releases the grilling claim)
-#   PR opened / reopened                   → ready-to-merge (releases the coding claim)
+#   PR opened / reopened / ready for review → ready-to-merge (releases the coding claim)
+#   draft PR opened or pushed               → nothing moves (still coding, claim kept)
+#   PR converted back to draft              → grilled (claim is gone: re-claim to code again)
 #   push to an open PR while coding claimed → ready-to-merge (end of a fix round)
 #   PR merged (any base)                   → done, issue closed, milestone closed when empty
 #   PR closed unmerged                     → grilled
@@ -19,7 +21,7 @@ on:
   push:
     branches: ["wa/**"]
   pull_request:
-    types: [opened, reopened, synchronize, closed]
+    types: [opened, reopened, ready_for_review, converted_to_draft, synchronize, closed]
 
 permissions:
   contents: write
@@ -27,7 +29,9 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: whackagent-board-${{ github.event.issue.number || github.head_ref || github.ref_name }}
+  # event + action in the group: GitHub keeps one pending run per group and cancels the older one, so a
+  # force push (synchronize) followed by `gh pr ready` (ready_for_review) would drop one of them.
+  group: whackagent-board-${{ github.event.issue.number || github.head_ref || github.ref_name }}-${{ github.event_name }}-${{ github.event.action }}
   cancel-in-progress: false
 
 jobs:
@@ -182,7 +186,19 @@ jobs:
               }
               const action = payload.action;
 
-              if (action === "opened" || action === "reopened") {
+              if (action === "converted_to_draft") {
+                if (ticket.state !== "ready-to-merge") return;
+                await setState(ticket, "grilled");
+                await comment(number, `↩️ **grilled** — #${pr.number} back to draft; re-claim (\`/wa-code ${number}\`) to keep coding`);
+                return;
+              }
+
+              if (pr.draft && action !== "closed") {
+                if (action === "opened") await comment(number, `📝 **draft** — #${pr.number} → \`${pr.base.ref}\`, still coding`);
+                return;
+              }
+
+              if (action === "opened" || action === "reopened" || action === "ready_for_review") {
                 if (ticket.state === "done") return;
                 await setState(ticket, "ready-to-merge");
                 await release(number, "coding");

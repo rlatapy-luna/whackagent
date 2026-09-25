@@ -38,7 +38,7 @@ Review every round burn one verifier per note, review code about to change anywa
 
 ## GitHub provider
 
-`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve `#n` / index; coding claim must be held from this host (`wa-backlog get` vs `whoami`, host part) — else stop, say who holds it. Board untouched here: `validated` is whackagent-internal, ticket stays `coding` until `/wa-close` opens PR.
+`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve `#n` / index; coding claim must be held from this host (`wa-backlog get` vs `whoami`, host part) — else stop, say who holds it. Board untouched here: `validated` is whackagent-internal, ticket stays `coding` until `/wa-close` opens PR. **Scope = ticket range** (`git diff $start^` + working tree, **wa-board → Backlog provider**), not `branch.base..HEAD`: squash-merged parent or stack makes that diff drag in already-landed code.
 
 ## Interaction with the rest
 

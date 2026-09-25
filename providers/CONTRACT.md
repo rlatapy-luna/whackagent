@@ -19,7 +19,7 @@ Shared lifecycle, provider-neutral names. Provider maps them onto its own column
 | `grilling` | **locked** — one agent grilling it | agent `claim <id> grilling` |
 | `grilled` | spec written, ready to code | **data**: ticket branch holds spec with acceptance criteria (hook) |
 | `coding` | **locked** — one agent in code → feedback → validate → wiki loop | agent `claim <id> coding` |
-| `ready-to-merge` | change proposed (PR open) | **data**: PR opened, or fix round pushed (hook) |
+| `ready-to-merge` | change proposed (PR open, not draft) | **data**: PR opened or marked ready, or fix round pushed (hook). Draft PR = still `coding` |
 | `done` | change landed | **data**: PR merged (hook) |
 
 Agents only ever write `grilling` / `coding` (through `claim`) and resets through `release`. Every other transition comes from repo events — agent never sets `grilled`, `ready-to-merge`, `done` itself. Code drives board, not agent's word.
@@ -33,7 +33,7 @@ All print JSON on stdout, messages on stderr.
 | Verb | Does | Output / exit |
 |---|---|---|
 | `list [--state s,…] [--sprint x] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,claims,url}]`; draft rows `{draft:true,title}` only when unfiltered |
-| `get <id>` | one ticket + its branch | object, `branch` null before grilling pushed |
+| `get <id>` | one ticket + its branch + its blockers | object, `branch` null before grilling pushed, `blocked_by: [{number,state}]` |
 | `create --title --summary [--size] [--sprint] [--note]` | new ticket in `todo`, bottom of board | `{number,url,state}` |
 | `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |
 | `release <id> <phase> [--reset-to s] [--reason r]` | drop lock, optional state reset, trail comment | object |
@@ -41,6 +41,7 @@ All print JSON on stdout, messages on stderr.
 | `move <id> --top\|--bottom\|--before n\|--after n` | reprioritize | object |
 | `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` | fields; sprint created on first use | object |
 | `comment <id> <text>` | human-facing trail | object |
+| `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |
 | `branch <id>` | remote branch carrying ticket | `{branch}` |
 | `whoami [--agent a]` | agent id used for claims (`WA_AGENT` env, else `<host>:<worktree>`) | `{agent}` |
