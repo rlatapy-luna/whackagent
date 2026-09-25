@@ -105,6 +105,8 @@ CHECKS:                          ← only when you owed a runtime proof and ran 
   ✅ <criterion> — <what you saw>
   ❌ <criterion> — expected <x>, saw <y>
 EVIDENCE: <screenshot paths or command + trimmed output, mapped to the check they prove>
+SCREENSHOTS: <only when the diff changes UI: final-state screenshots for the PR, one per platform proved
+             (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
 NOTES: <decisions, anything the verifier should know>
 BLOCKED: <question, only if RESULT=blocked>
 ```

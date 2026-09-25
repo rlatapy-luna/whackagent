@@ -9,6 +9,8 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 """
 
 import argparse
+import base64
+import re
 import concurrent.futures
 import hashlib
 import datetime as dt
@@ -588,6 +590,52 @@ def op_depend(args):
     emit({"number": args.number, "blocked_by_added": added, "blocked_by_existing": kept})
 
 
+MEDIA_BRANCH = "wa-media"
+SHOTS_START, SHOTS_END = "<!-- wa-screenshots -->", "<!-- /wa-screenshots -->"
+
+
+def op_screenshots(args):
+    """Upload screenshots to the orphan `wa-media` branch and show them in PR <pr>'s body. Idempotent per file name.
+
+    Never on the ticket branch: images would land in the code diff and the base. The branch holds only
+    `pr-<pr>/` folders, no workflow files, so no `workflow` token scope is needed.
+    """
+    config = load()
+    repo = config["repo"]
+    code, head = rest("GET", f"repos/{repo}/git/ref/heads/{MEDIA_BRANCH}", check=False)
+    parent = head["object"]["sha"] if code == 0 else None
+    entries = []
+    for file in args.files:
+        blob = rest("POST", f"repos/{repo}/git/blobs", {
+            "content": base64.b64encode(Path(file).read_bytes()).decode(), "encoding": "base64",
+        })
+        entries.append({"path": f"pr-{args.pr}/{Path(file).name}", "mode": "100644", "type": "blob", "sha": blob["sha"]})
+    tree_body = {"tree": entries}
+    if parent:
+        tree_body["base_tree"] = rest("GET", f"repos/{repo}/git/commits/{parent}")["tree"]["sha"]
+    tree = rest("POST", f"repos/{repo}/git/trees", tree_body)
+    commit = rest("POST", f"repos/{repo}/git/commits", {
+        "message": f"screenshots for #{args.pr}", "tree": tree["sha"], "parents": [parent] if parent else [],
+    })
+    if parent:
+        rest("PATCH", f"repos/{repo}/git/refs/heads/{MEDIA_BRANCH}", {"sha": commit["sha"]})
+    else:
+        rest("POST", f"repos/{repo}/git/refs", {"ref": f"refs/heads/{MEDIA_BRANCH}", "sha": commit["sha"]})
+    urls = [f"https://github.com/{repo}/blob/{commit['sha']}/{e['path']}?raw=true" for e in entries]
+    cells = "".join(
+        f'<td align="center"><img src="{url}" width="{args.width}"><br><sub>{Path(file).stem}</sub></td>'
+        for file, url in zip(args.files, urls)
+    )
+    section = f"{SHOTS_START}\n## Screenshots\n\n<table><tr>{cells}</tr></table>\n{SHOTS_END}"
+    body = rest("GET", f"repos/{repo}/pulls/{args.pr}")["body"] or ""
+    if SHOTS_START in body:
+        body = re.sub(re.escape(SHOTS_START) + ".*?" + re.escape(SHOTS_END), lambda _: section, body, flags=re.S)
+    else:
+        body = body.rstrip() + "\n\n" + section + "\n"
+    rest("PATCH", f"repos/{repo}/pulls/{args.pr}", {"body": body})
+    emit({"pr": args.pr, "urls": urls})
+
+
 def op_link_pr(args):
     """Give PR <pr> the ticket's milestone and a manual closing link (PR Development). Idempotent.
 
@@ -821,6 +869,12 @@ def parser():
     s.add_argument("number", type=int)
     s.add_argument("pr", type=int)
     s.set_defaults(func=op_link_pr)
+
+    s = sub.add_parser("screenshots", help="upload images to wa-media, show them in the PR body")
+    s.add_argument("pr", type=int)
+    s.add_argument("files", nargs="+", help="PNG/JPEG/WebP paths, file stem = caption")
+    s.add_argument("--width", type=int, default=260, help="display width in px")
+    s.set_defaults(func=op_screenshots)
 
     s = sub.add_parser("claims", help="every live claim, owner, last activity, stale flag")
     s.set_defaults(func=op_claims)

@@ -81,7 +81,7 @@ Ticket sits in `review` between rounds (**wa-board → Backlog provider**, *Agen
 - **Claim first** — `wa-backlog claim <n> coding` (exit 3 → someone mid-round, say who, stop; legacy hooks: same-host holder counts as yours). Check out ticket branch, rebase not needed yet.
 - **Input** = user notes **plus PR review threads** (`gh pr view <pr> --comments`, `gh api repos/{repo}/pulls/<pr>/comments`) — quote reviewer words as feedback items, triage same way.
 - **PR already ready** (not draft) → `gh pr ready --undo` before first commit: code moving after validation, nobody merges it meanwhile. Board stays `review`.
-- **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) with `commit.author_*`, push to PR. Hook keeps `review`, drops claim. Next: your retest.
+- **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) with `commit.author_*`, push to PR. UI changed → refresh screenshots (**wa-board → Backlog provider**, *Screenshots*). Hook keeps `review`, drops claim. Next: your retest.
 
 Never mark ready, never merge — `/wa-close` job.
 

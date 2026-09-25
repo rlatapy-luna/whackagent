@@ -28,6 +28,7 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | excluded | label `wa-ignore` |
 | dependencies | issue **Relationships** (blocked by) — `depend`, read back in `get` → `blocked_by` |
 | ticket PR | milestone = ticket milestone, issue linked in PR **Development** — `link-pr <n> <pr>` right after `gh pr create` (`Closes #<n>` alone links only when base = default branch) |
+| PR screenshots | orphan branch `wa-media`, `pr-<pr>/<name>` — `screenshots <pr> <files>` uploads and rewrites the body's `## Screenshots` section (UI changes only) |
 
 Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: no number, no branch, no `Closes #`. `/wa-board` lists them to convert.
 
