@@ -44,12 +44,12 @@ Review every round burn one verifier per note, review code about to change anywa
 
 - **`/wa-feedback` on `validated` task** → code moved after its review: status go back to `review`, task need `/wa-validate` again. Never close on review predating last edit.
 - **`review.when: each_round`** → rounds already reviewed; this pass still run, over cumulative diff, and it's one that counts. Short: most findings already fixed.
-- **`/wa-autopilot`** deliver tasks at `review`, uncommitted-by-you and unreviewed by verifier — that's deal, your review async. Each one need own `/wa-validate`.
+- **`/wa-autopilot`** runs this command's steps 3–7 itself, unattended, its runtime check standing in for your green light — tasks arrive `validated` (clean) or `review` (findings open). Clean → nothing to do here unless code moved; `/wa-close` after your test.
 
 ## Never
 
 - Never mark task `done` — that's `/wa-close`, after user retests reviewed code.
-- Never review task user hasn't validated: without their yes, you review feature still moving.
+- Never review task user hasn't validated: without their yes, you review feature still moving. Only exception: `/wa-autopilot`, where its green runtime check is the yes.
 - Never commit, merge, push, open PR or delete branch — **git belong to `/wa-close`**. GitHub provider exception: round-end commit + push to existing draft PR (above) — never merge, never mark ready.
 - Never write code yourself — findings go to implementer, same as `/wa-code`.
 

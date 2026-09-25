@@ -93,7 +93,8 @@ stateDiagram-v2
     direction LR
 
     [*] --> in_progress: /wa-code claims
-    in_progress --> phase_review: /wa-code or /wa-autopilot delivers<br/>(draft PR opened)
+    in_progress --> phase_review: /wa-code delivers<br/>(draft PR opened)
+    in_progress --> validated: /wa-autopilot delivers<br/>(runtime check + verifier clean, draft PR)
     phase_review --> phase_review: /wa-feedback round
     phase_review --> validated: /wa-validate<br/>(verifier clean)
     validated --> phase_review: /wa-feedback<br/>(review now stale)
