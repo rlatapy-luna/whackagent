@@ -8,7 +8,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `.claude-plugin/marketplace.json`: marketplace entry. Carries the version twice (`metadata.version` and `plugins[0].version`).
 - `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
-- `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift is split into modules, TypeScript and generic are one file each.
+- `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift and Kotlin are multi-module packs with the same file names; TypeScript and generic (fallback for every other language) are one file each.
 - `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
 - `README.md`: public doc on GitHub. No agent reads it.
 
@@ -23,6 +23,8 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 Keep each step's ownership intact when editing. For example, only `/wa-close` commits in attended runs (`/wa-autopilot` commits on its own task branch only), and the orchestrator skills never write code themselves.
 
 ## Rules when editing
+
+- **Platform-neutral engine.** Skills, agents and templates must work the same for iOS, Android, web, desktop, server, CLI and libraries. Platform- or language-specific rules belong in `conventions/`; platform-specific tooling (XcodeBuildMCP, `./gradlew`, mobile-mcp, browser MCP) appears only as one entry of a per-platform list, never as the default path.
 
 - **English only**, in every file. The target project's chat language is a runtime setting (`discussion_language`), not something the repo is written in.
 - **Skills, agents, conventions and templates are caveman-compressed** (terse, no articles, fragments). Match that style when editing them. `README.md` and this file stay in normal prose.

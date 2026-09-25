@@ -26,10 +26,12 @@ One agent, not one per lens: isolated agent cost ~50k tokens before read one lin
 
 Tag each finding with its lens. Finding belong to exactly one.
 
-- **`style`** — one type per file, explicit types + `.init()`, member order, comment + doc discipline, file header, multi-line formatting, SwiftUI structure, test/mock shape.
-- **`elegance`** — idiomatic Swift, not C-in-Swift: value types, enums for state, optionals over sentinels, functional transforms, `guard`, protocol-oriented, structured concurrency (no Combine).
-- **`structure`** — layer boundaries (Coordinator → ViewModel → Store → View), responsibilities in right place, naming, dependency direction, **and file tree**: grouped by feature not by type, no flat dump, proper nesting, every file in right folder.
-- **`correctness`** — does it work. Real bugs only: logic errors, edge cases, force-unwraps that crash, data races, broken async, off-by-one, wrong conditions — plus **does diff meet task acceptance criteria**. No module govern this one; pure reasoning over change.
+Lens content come from modules — what below lists is shape, module carry rules for project language.
+
+- **`style`** — per style module (+ UI module if any): file/type layout, naming, member order, explicit types, comment + doc discipline, file header, formatting, UI code structure, test/fake shape.
+- **`elegance`** — per elegance module: idiomatic for project language, not patterns ported from another — immutability, closed types for state, null-safety over sentinels, functional transforms, early exit, structured concurrency.
+- **`structure`** — per architecture modules: layer boundaries, responsibilities in right place, naming, dependency direction, **and file tree**: grouped by feature not by type, no flat dump, proper nesting, every file in right folder.
+- **`correctness`** — does it work. Real bugs only: logic errors, edge cases, crashes (forced unwraps, `!!`, unchecked casts), data races, broken async, off-by-one, wrong conditions, leaked resources — plus **does diff meet task acceptance criteria**. No module govern this one; pure reasoning over change.
 
 **Sweep one at a time, in that order, and say so.** Failure mode: do first well, let rest evaporate — pass that never ask where files sit, or never ask whether thing work, not review. `correctness` last and easiest to lose after three module reads: also one user feel. **Before write `VERDICT`, confirm all four ran** — lens with nothing to report is `clean`, not silence.
 

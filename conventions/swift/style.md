@@ -1,6 +1,6 @@
 # Swift — Coding style
 
-> whackagent convention module · reviewer: **conventions**. `wa-implementer` obeys it too.
+> whackagent convention module · lens: **style**. `wa-implementer` obeys it too.
 
 ## One type per file
 
@@ -85,7 +85,7 @@ Keep default Xcode header: filename, project name, blank line, then `Created by`
 //  File.swift
 //  ProjectName
 //
-//  Created by Benjamin Pisano on 20/05/2026.
+//  Created by <Author> on <DD/MM/YYYY>.
 //
 ```
 

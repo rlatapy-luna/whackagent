@@ -3,8 +3,10 @@
 discussion_language: en        # language Claude talk to you in
 code_language: en              # identifiers, comments, log messages, commits
 ui_strings_language: en        # user-facing strings
-primary_language: swift        # swift | typescript | generic | ...
-project_kind: app              # app | package | cli | server  (pick architecture module)
+primary_language: generic      # swift | kotlin | typescript | generic  (picks convention pack;
+                               # any other language → generic)
+project_kind: app              # app | web | server | cli | package  (picks architecture module)
+                               # app = mobile or desktop GUI; package = library/SDK
 
 paths:                         # WHERE whackagent keep each kind of file. Skills refer as
                                # {backlog} {tasks} {wiki} {reports} {conventions} — never literal path.
@@ -40,10 +42,11 @@ review:
                                # false → every change go through implementer, whatever size.
   autofix: true                # wa-code verify phase re-dispatch implementer until clean
   public_doc: true             # require doc on public API — flip false per company
-  modules: [style.md, elegance.md, swiftui.md, testing.md, architecture-global.md, architecture-app.md]
-                               # what single wa-verifier load before judging. Setup drop
-                               # swiftui.md if no SwiftUI, and swap architecture-app.md for
-                               # architecture-package.md. Paths relative to {conventions}.
+  modules: [generic.md]        # what single wa-verifier load before judging. Setup write
+                               # what it actually copied: UI module (swiftui.md, compose.md)
+                               # only if project use that toolkit,
+                               # architecture-package.md for non-app kinds, single <lang>.md for
+                               # one-file packs. Paths relative to {conventions}.
                                # ONE verifier, not one per lens: isolated agent cost ~50k tokens
                                # context before reading a line, and every lens judge same diff
                                # against same rulebook — splitting pay twice, leave duplicate
@@ -53,15 +56,17 @@ review:
                                # union of its lists.
 
 build:                         # how THIS project build — project win over plugin default
-  command: ""                  # e.g. "ign app", "make build", "./scripts/build.sh". Empty → XcodeBuildMCP
-                               # for Apple targets, `swift build` for SwiftPM, project runner otherwise.
-  test_command: ""             # e.g. "make test". Empty → language default (`swift test`, …).
+  command: ""                  # e.g. "make build", "./scripts/build.sh", "./gradlew assembleDebug".
+                               # Empty → build tool detected in repo: XcodeBuildMCP (Xcode project),
+                               # ./gradlew (Gradle), swift build (SwiftPM), package.json scripts,
+                               # cargo, go, dotnet, mvn, make… — see wa-implementer.
+  test_command: ""             # e.g. "make test". Empty → same tool's test task.
 
 verify:                        # runtime check — implementer drive app it just built
   mode: autopilot              # WHO exercise app after green build:
                                #   autopilot — agent drive it in /wa-autopilot only (nobody there
                                #     to test); attended /wa-code + /wa-feedback stop at build + tests and
-                               #     YOU validate by testing app yourself. Default for app targets.
+                               #     YOU validate by testing app yourself. Default for anything runnable.
                                #   always — agent drive it every run, attended or not.
                                #   off — agent never drive it; build + tests whole proof.
                                # Under `autopilot` and `off` implementer may STILL launch app when
@@ -69,8 +74,16 @@ verify:                        # runtime check — implementer drive app it just
                                # layout, follow nav flow). That implementation, not proof: it drive
                                # minimum it need and say so in NOTES.
                                # Legacy `enabled: true` / `false` read as `always` / `off`.
-  platform: ios                # ios | android | both  (ios drive via XcodeBuildMCP, else mobile-mcp)
-  target: simulator            # simulator | emulator | device
+  platform: none               # WHAT gets driven, and with which tool (list allowed: [ios, android]):
+                               #   ios     — XcodeBuildMCP (simulator), mobile-mcp (device)
+                               #   android — mobile-mcp (emulator or device)
+                               #   web     — browser automation MCP (Playwright, Chrome)
+                               #   desktop — desktop/computer-use MCP when one configured
+                               #   server  — start it, hit endpoints (curl), read responses + logs
+                               #   cli     — run binary with task inputs, check output + exit code
+                               #   none    — library, nothing to drive; build + tests whole proof
+                               # Legacy `both` read as [ios, android].
+  target: local                # simulator | emulator | device | browser | local
 
 commit:
   auto_commit_after_validation: false   # may Claude commit once YOU validate feature?

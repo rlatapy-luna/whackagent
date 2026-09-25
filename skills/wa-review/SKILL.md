@@ -19,7 +19,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 ## Conventions
 
 - `.whackagent/config.md` exists: use its `review.modules` + project `{conventions}/` — `paths.conventions`, default `.whackagent/conventions/` (project copies + toggles win).
-- No config (fresh existing project): detect language + kind, fall back to plugin defaults in `${CLAUDE_PLUGIN_ROOT}/conventions/` — load `swift/` modules (style, elegance, matching architecture-\*, swiftui if SwiftUI, testing) or single `<lang>.md`. Tell user it run on defaults; suggest `/wa-setup` to customize.
+- No config (fresh existing project): detect language + kind, fall back to plugin defaults in `${CLAUDE_PLUGIN_ROOT}/conventions/` — multi-module pack (`swift/`, `kotlin/`: style, elegance, testing, architecture-global, matching architecture-\*, UI module — `swiftui.md`/`compose.md` — only if project use that toolkit), or single `<lang>.md`, else `generic.md`. Tell user it run on defaults; suggest `/wa-setup` to customize.
 
 ## Do
 
@@ -34,7 +34,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 
 ## Lenses
 
-**style** — how written. **elegance** — idiomatic, not C-in-Swift. **structure** — layers, boundaries, naming, file tree. **correctness** — real bugs, and whether code does what it claims. One agent sweep all four: isolated agent cost ~50k tokens context before it read a line, and every lens judge same diff against same rulebook. Cost of one agent: forgetting lens now silent — that what `LENSES:` line is for.
+**style** — how written. **elegance** — idiomatic for project language, not patterns ported from another. **structure** — layers, boundaries, naming, file tree. **correctness** — real bugs, and whether code does what it claims. One agent sweep all four: isolated agent cost ~50k tokens context before it read a line, and every lens judge same diff against same rulebook. Cost of one agent: forgetting lens now silent — that what `LENSES:` line is for.
 
 ## Note
 

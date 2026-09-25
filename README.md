@@ -6,7 +6,17 @@ A Claude Code plugin for your entire development flow.
 
 - **codebase knowledge**: project knowledge base — a wiki the skills read before searching the code.
 - **task management**: create, prioritize, and track tasks.
-- **code pipeline**: implement a task, review it, and prove it runs — for app targets, the implementer can drive the app it just built on a simulator/device (taps + screenshots) to confirm the task actually works. On by default where it matters most, unattended runs (`verify.mode`); attended, you test it yourself. Build stays your project's own command when it has one (`build.command`), else XcodeBuildMCP (iOS) / gradle (Android). iOS drives through XcodeBuildMCP too; Android and physical devices need [mobile-mcp](https://github.com/mobile-next/mobile-mcp).
+- **code pipeline**: implement a task, review it, and prove it runs — the implementer exercises what it just built to confirm the task actually works. On by default where it matters most, unattended runs (`verify.mode`); attended, you test it yourself.
+- **any stack**: iOS, Android, KMP, web, desktop, server, CLI, library. Build uses your project's own command when it has one (`build.command`), else the build tool it finds (XcodeBuildMCP, `./gradlew`, package scripts, cargo, go, dotnet, …). The runtime check picks its driver from `verify.platform`:
+
+| Platform | Driver |
+| --- | --- |
+| iOS | XcodeBuildMCP (simulator), [mobile-mcp](https://github.com/mobile-next/mobile-mcp) (device) |
+| Android | mobile-mcp (emulator or device) |
+| Web | browser automation MCP (Playwright, Claude in Chrome) |
+| Desktop | desktop / computer-use MCP when configured |
+| Server | starts it, hits endpoints with `curl`, reads the logs |
+| CLI | runs the binary, checks output and exit code |
 
 ## Installation
 
@@ -117,7 +127,7 @@ A single command runs the whole coding cycle, orchestrating isolated subagents:
 1. **Plan**: read the task, search the existing code to avoid rewriting, write a **BRIEF** (existing files + their sizes, what to reuse, layer boundaries, target layout) handed to every subagent so nobody re-explores the same ground, break it into bricks, plan the tests.
 2. **Code**: one `wa-implementer` for the whole task, fed brick by brick (sequential) — it writes the feature *and* the tests and proves the build. Keeping the same agent across bricks means the conventions and the BRIEF are read once, and brick 2 already knows what brick 1 built.
 
-   **Who tests the app is a setting** (`verify.mode`). Default `autopilot`: unattended runs get driven by the agent — taps, screenshots, acceptance criteria checked on screen, because nobody else is there — while an attended `/wa-code` stops at build + tests and **you** validate by using the app. `always` drives it every time; `off` never. Whatever the mode, the implementer may still launch the app when it can't write the feature without seeing it run (reproduce a bug, judge a layout) — that's implementation, and it says so rather than passing it off as proof.
+   **Who tests it is a setting** (`verify.mode`). Default `autopilot`: unattended runs get driven by the agent — taps and screenshots, a browser, `curl` against the service, or a CLI run, acceptance criteria checked against what it sees, because nobody else is there — while an attended `/wa-code` stops at build + tests and **you** validate by using it. `always` drives it every time; `off` never. Whatever the mode, the implementer may still launch the app when it can't write the feature without seeing it run (reproduce a bug, judge a layout) — that's implementation, and it says so rather than passing it off as proof.
 3. **Report**: same card every time — **Problem**, **Goal**, **Done**, **To test** (checklist of what the agent didn't prove + regression zones), then a build · tests · run · review status line. Saved in `.whackagent/reports/login-apple.md`, task moved to `review` — meaning *waiting for you to test it*. `/wa-autopilot` and `/wa-feedback` use the same card.
 
 **3. Test it, iterate — `/wa-feedback`**, then **4. give the green light — `/wa-validate`**
@@ -198,7 +208,7 @@ When the **last task of a sprint** closes, the sprint branch becomes the thing t
 
 Updates the wiki after a feature lands. Never commits before your validation.
 
-> Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **code**: built, run on the simulator, committed on its branch, task left at `review`. The verifier doesn't run there — your review is asynchronous, so it waits for your `/wa-validate` on each branch, exactly like an attended run.
+> Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **code**: built, run, committed on its branch, task left at `review`. The verifier doesn't run there — your review is asynchronous, so it waits for your `/wa-validate` on each branch, exactly like an attended run.
 
 > **Branch per task.** Set `branch.per_task: true` (asked at `/wa-setup`) and `/wa-code` codes on `wa/<slug>` instead of your current branch. Combine it with `commit.auto_commit_after_validation` and `/wa-close` commits the task, then checks out the next task's branch for you — chain tasks without touching git.
 >
@@ -256,20 +266,22 @@ note:                       # trigger / free context (optional)
 
 ## Conventions
 
-Conventions are **modular**, one file per rule set, and **self-contained** (no dependency on another plugin). Swift:
+Conventions are **modular**, one file per rule set, and **self-contained** (no dependency on another plugin). Two languages ship as multi-module packs with the same layout:
 
 ```
-conventions/swift/
-  style.md             # one-type-per-file, explicit types, member order, comments/doc, format
-  elegance.md          # code speaks for itself, idiomatic Swift (resultBuilder & co, not C in Swift), concurrency (no Combine)
-  architecture-global.md   # YAGNI · SOLID · DRY, composition/DI, testability — every Swift project
-  architecture-app.md  # iOS tree: Coordinator → ViewModel → Store → View, group-by-feature
-  architecture-package.md  # non-iOS Swift tree (package/CLI/server): looser but defined rules
-  swiftui.md           # SwiftUI rules — copied ONLY if the project uses SwiftUI
-  testing.md           # Swift Testing + mocks
+conventions/swift/                    conventions/kotlin/
+  style.md                              style.md                 # file layout, naming, member order, doc/comments, format
+  elegance.md                           elegance.md              # idiomatic code, not another language ported over; concurrency
+  architecture-global.md                architecture-global.md   # YAGNI · SOLID · DRY, composition, DI, testability
+  architecture-app.md                   architecture-app.md      # app tree: iOS (Coordinator → ViewModel → Store → View) / Android + KMP (UI → ViewModel → Repository)
+  architecture-package.md               architecture-package.md  # library / CLI / server tree
+  swiftui.md                            compose.md               # UI toolkit rules — copied ONLY if the project uses it
+  testing.md                            testing.md               # Swift Testing / JUnit + coroutines-test, fakes
 ```
 
-`/wa-setup` detects the language, the **kind** (app vs package) and SwiftUI usage, then copies **only the useful modules** into `.whackagent/conventions/` (e.g. no `swiftui.md` in a package without SwiftUI). You edit these copies to adapt per project (e.g. drop public doc). TypeScript and generic have a single file.
+Single-file packs: `typescript.md` (front end and back end) and `generic.md` — the fallback for every other language (Rust, Go, Python, C#, Java, Dart, …). Generic is a starting point to grow with your team's rules, not a lesser mode: the pipeline, the runtime check and the review work the same whatever pack is loaded.
+
+`/wa-setup` detects the language, the **kind** (`app` · `web` · `server` · `cli` · `package`) and the UI toolkit, then copies **only the useful modules** into `.whackagent/conventions/` (no `swiftui.md` in a package without SwiftUI, no `compose.md` in a Ktor server). You edit these copies to adapt per project (e.g. drop public doc). A polyglot repo (KMP shared code + iOS app) can load two packs.
 
 The copied list lands in `review.modules` — the verifier reads exactly that, and nothing else in the tree.
 

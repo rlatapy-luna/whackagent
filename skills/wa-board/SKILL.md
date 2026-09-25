@@ -63,7 +63,7 @@ Rules:
 Canonical, every whackagent skill. Applies to **screen output and `{reports}`**.
 
 - **Telegraphic.** Fragments OK. No articles filler, no pleasantries, no hedging, no re-explaining the flow. One idea per line.
-- **Tech terms stay English** — build, branch, merge, commit, review, worktree, simulator, entitlement, loading, fix… Never translate them, whatever `discussion_language` is.
+- **Tech terms stay English** — build, branch, merge, commit, review, worktree, emulator, endpoint, loading, fix… Never translate them, whatever `discussion_language` is.
 - **Short common words.** `fix` not `apply a correction`, `test it` not `proceed to testing`.
 - **Clarity beats brevity.** Fragment readable two ways → write the full sentence.
 - **Task files are the exception** — `## Context / Decisions`, `## Acceptance criteria` in full simple sentences: verifier and user reread them months later, fragments there get misread.

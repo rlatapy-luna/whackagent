@@ -1,6 +1,6 @@
 # Swift — Testing & mocks
 
-> whackagent convention module · reviewer: **conventions**.
+> whackagent convention module · lens: **style**.
 
 ## Testing
 

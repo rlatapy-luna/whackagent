@@ -1,6 +1,6 @@
 # Conventions — Generic
 
-> whackagent convention module · language-agnostic fallback, read by both verifiers (`conventions`, `correctness`). Replace or extend with the project's real conventions.
+> whackagent convention module · language-agnostic fallback for any language without its own pack (Rust, Go, Python, C#, Java, Dart, …). Read by `wa-verifier`, written against by `wa-implementer`. Replace or extend with the project's real conventions.
 
 ## Toggles
 
@@ -17,8 +17,10 @@ match_surrounding_style: true
 3. **Idiomatic** — code read like surrounding codebase: match naming, structure, patterns. Use language standard idioms, not patterns ported from other language.
 4. **Match surrounding style** (`match_surrounding_style`) — naming, formatting, error handling, file layout follow existing files in same module.
 5. **Errors** — handle and surface errors; no silent swallow.
-6. **Testing** — tests live where project keep them, named clear.
-7. **YAGNI · SOLID · DRY** — no speculative generality (YAGNI); one responsibility per unit, depend on abstractions, small composable pieces (SOLID); no duplicated logic — factor it, reuse what exists (DRY).
+6. **Testing** — tests live where project keep them, named clear. Fakes over mocks except at true external boundaries.
+7. **Concurrency** — language's structured concurrency; no fire-and-forget work, no shared mutable state without synchronization.
+8. **UI testability** — interactive UI elements carry stable identifier (accessibility id, test tag, `data-testid`); runtime checks target them, not coordinates or copy.
+9. **YAGNI · SOLID · DRY** — no speculative generality (YAGNI); one responsibility per unit, depend on abstractions, small composable pieces (SOLID); no duplicated logic — factor it, reuse what exists (DRY).
 
 ## Architecture (review category: architecture)
 
@@ -29,4 +31,4 @@ match_surrounding_style: true
 
 ## Build proof
 
-Implementer must show project build and tests pass before report done.
+Implementer must show project build and tests pass before report done — project's documented command, else its build tool's standard tasks.

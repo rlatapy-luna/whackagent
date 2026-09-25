@@ -1,6 +1,6 @@
 # Conventions — TypeScript
 
-> whackagent convention module · single file, read by both verifiers (`conventions`, `correctness`). `wa-implementer` writes against it. Edit the **Toggles** block per project.
+> whackagent convention module · single file, front end and back end. Read by `wa-verifier`; `wa-implementer` writes against it. Edit the **Toggles** block per project.
 
 ## Toggles
 
@@ -19,7 +19,7 @@ no_default_export: true   # named exports only
 4. **Idiomatic** — `const` over `let`, immutability, `map`/`filter`/`reduce`, optional chaining / nullish coalescing, early return.
 5. **Modules** (`no_default_export`) — named exports; one main concept per file.
 6. **Async** — `async`/`await`, never floating promises; handle rejections.
-7. **Testing** — colocated `*.test.ts`, one `describe` per unit, clear test names.
+7. **Testing** — colocated `*.test.ts`, one `describe` per unit, clear test names. UI: query by role/label/`data-testid`, never CSS selectors or copy.
 8. **YAGNI · SOLID · DRY** — no speculative generality (YAGNI); single responsibility, depend on abstractions (interfaces/types) not concretions, small composable units (SOLID); no duplicated logic — factor it, reuse what exists (DRY).
 
 ## Architecture (review category: architecture)

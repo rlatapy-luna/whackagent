@@ -59,7 +59,7 @@ Receipts:
 - `RESULT: blocked` → **stop and ask** the `BLOCKED:` question. Dispatch nothing further until resolved.
 
 **Runtime proof — `verify.mode` decides, and here you attended:**
-- `always` → implementer drives app after green build; holds build session, so proof cost it almost nothing. Its `CHECKS:` lines land in `## Verification`.
+- `always` → implementer exercises what it built (app, web, server, CLI — per `verify.platform`) after green build; holds build session, so proof cost it almost nothing. Its `CHECKS:` lines land in `## Verification`.
 - `autopilot` (default) or `off` → **it doesn't.** You at keyboard: build + tests are receipt, and **you** validate by testing app. Say it in report — `run: yours` — so nobody mistake unrun app for passing one. Write that in `## Verification` too: *"manual validation — not run by agent"*.
 - Either way implementer may launch app **because it needs to** (reproduce bug, judge layout) — lands in its `NOTES:`, not `CHECKS:`, and don't turn into proof pass.
 
@@ -109,7 +109,7 @@ Canonical end-of-task report — here, each delivered task of `/wa-autopilot`, e
 **Done**
 - Sign in with Apple button on login (`LoginView`)
 - Apple login creates/finds user (`AuthService`)
-- Sign in with Apple entitlement enabled
+- Apple provider registered in auth config
 
 **To test**
 - [ ] Cancel sheet → stays on login
@@ -123,9 +123,9 @@ build ✅ · tests ✅ · run ✅ · review → /wa-validate
 
 - **Header** = size + title + sprint tag, as in wa-board list.
 - **Problem / Goal** — one line each, from `## Context / Decisions`. Empty (non-grilled quick win) → from `title` + `summary`. Why the task exists, what it aims for — not how.
-- **Done** — what changes for the app, key file as short ref. **5 bullets max.** Full file list only in saved report.
+- **Done** — what changes for the user, key file as short ref. **5 bullets max.** Full file list only in saved report.
 - **To test** — checklist: acceptance criteria agent did **not** prove, plus regression zones the diff touches. Agent proved everything → `nothing required` + one optional smoke test. Never empty silently.
-- **✅ verified by agent** — one line, criteria the runtime check proved (+ screenshot path). Omit when nothing proven.
+- **✅ verified by agent** — one line, criteria the runtime check proved (+ screenshot path or command). Omit when nothing proven.
 - **Status line** — build · tests · run (`✅` / `yours`) · review (`clean` / `→ /wa-validate`). Never claim check nobody ran.
 - Headings follow `discussion_language` (translated when not `en`).
 

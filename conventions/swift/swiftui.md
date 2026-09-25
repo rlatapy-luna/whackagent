@@ -1,6 +1,6 @@
 # Swift — SwiftUI
 
-> whackagent convention module · reviewer: **conventions**. Only present when the project actually uses SwiftUI.
+> whackagent convention module · lens: **style**. Only present when the project actually uses SwiftUI.
 
 ## View structure
 

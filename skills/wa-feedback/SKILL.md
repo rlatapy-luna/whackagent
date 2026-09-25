@@ -32,7 +32,7 @@ Isolated agent cost ~50k tokens before reading line. For "make button secondary"
 Anything else → **implementer**. Doubt → **implementer**. `review.inline_micro_fixes: false` in config → implementer, always.
 
 **Applying micro-fix yourself, cost of shortcut:**
-1. **Read governing convention module first** — `style.md`, plus `swiftui.md` for view, `elegance.md` for logic. Once per session enough. You hold rules for this edit; nobody hand them to you.
+1. **Read governing convention module first** — `style.md`, plus UI module (`swiftui.md`, `compose.md`) for view code, `elegance.md` for logic — or single `<lang>.md` for one-file packs. Once per session enough. You hold rules for this edit; nobody hand them to you.
 2. **Minimal diff, no explanatory comments** (`style.md`), same as implementer would.
 3. **Re-run build + tests** yourself (`build.command` / `build.test_command`, else language default). Red → fix or escalate; never leave red tree.
 4. **Re-run app** only when `verify.mode: always` and surface run. Can't drive from here → escalate to implementer, it hold build session. Other modes → nothing to drive, user test it.
