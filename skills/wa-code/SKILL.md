@@ -25,11 +25,11 @@ Set task `status: in-progress` (reflect in `{backlog}`).
 2. **Fork point** = `branch.base`, **unless task carry `sprint:`** and `branch.sprint_prefix` non-empty. Then base = sprint branch `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`): create from `branch.base` if absent, check up to date otherwise. Why it exist — task 3 of sprint fork off task 1 merged work, not rediscover it as conflict. `/wa-close` merges back into it.
 3. Already on it → nothing. Exists but not checked out → check out, don't recreate. Absent → create from fork point above (`current` = where you are; else named branch, fetched first if tracks remote).
 4. **Dirty tree → stop and ask** before any checkout: carry over, stash, or stay? Never move uncommitted work silently.
-5. Echo: `branche: wa/<slug> (base: sprint/login-refacto)` — name sprint branch when it one, say when you just created it.
+5. Echo: `branch: wa/<slug> (base: sprint/login-refacto)` — name sprint branch when it one, say when you just created it.
 
 ## 1. Plan
 
-Read task and its `## Contexte / Décisions`. Then **one exploration pass — here, once, for everybody.**
+Read task and its `## Context / Decisions`. Then **one exploration pass — here, once, for everybody.**
 
 Targeted Grep/Glob over task neighborhood: related code, callers, layer boundaries, what already does part of job. Write **BRIEF** — every subagent gets it verbatim instead of re-deriving same map six times:
 
@@ -55,19 +55,19 @@ Then **decompose** into bricks, fix **file/folder layout up front** per architec
 - **Bricks 2..n** — `SendMessage` that id next brick **alone**. No conventions dir, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
 
 Receipts:
-- `RESULT: done` → record files + build/test/run proof in `## Implémentation`, continue.
+- `RESULT: done` → record files + build/test/run proof in `## Implementation`, continue.
 - `RESULT: blocked` → **stop and ask** the `BLOCKED:` question. Dispatch nothing further until resolved.
 
 **Runtime proof — `verify.mode` decides, and here you attended:**
-- `always` → implementer drives app after green build; holds build session, so proof cost it almost nothing. Its `CHECKS:` lines land in `## Vérification`.
-- `autopilot` (default) or `off` → **it doesn't.** You at keyboard: build + tests are receipt, and **you** validate by testing app. Say it in report — `run: à toi` — so nobody mistake unrun app for passing one. Write that in `## Vérification` too: *"validation manuelle — non exécutée par l'agent"*.
+- `always` → implementer drives app after green build; holds build session, so proof cost it almost nothing. Its `CHECKS:` lines land in `## Verification`.
+- `autopilot` (default) or `off` → **it doesn't.** You at keyboard: build + tests are receipt, and **you** validate by testing app. Say it in report — `run: yours` — so nobody mistake unrun app for passing one. Write that in `## Verification` too: *"manual validation — not run by agent"*.
 - Either way implementer may launch app **because it needs to** (reproduce bug, judge layout) — lands in its `NOTES:`, not `CHECKS:`, and don't turn into proof pass.
 
 ## 3. Verify — only when `review.when: each_round`
 
-`review.when: on_validation` (default) → **skip this step entirely.** Echo `review: à /wa-validate`, go to step 4.
+`review.when: on_validation` (default) → **skip this step entirely.** Echo `review: at /wa-validate`, go to step 4.
 
-Why it wait: feature not feature until user say so. Reviewing now review code three feedback rounds about to move — well-reviewed, still wrong thing. **`/wa-validate` is user feu vert on spec, and that fires verifier**, once, over whole diff. Nothing escape review; just happen when reviewing worth something.
+Why it wait: feature not feature until user say so. Reviewing now review code three feedback rounds about to move — well-reviewed, still wrong thing. **`/wa-validate` is user green light on spec, and that fires verifier**, once, over whole diff. Nothing escape review; just happen when reviewing worth something.
 
 All bricks green → spawn **one `wa-verifier`**. Note its `agentId`.
 
@@ -94,7 +94,7 @@ Then:
 - Set `status: review` — means *waiting for user to test it*, nothing more.
 - **Say what to do next, in this order**: test it. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`**, which fires verifier; **`/wa-close <slug>`** ends it after your retest.
 - **Iteration is `/wa-feedback` job.** Never patch code from this thread — even one-liner. `/wa-feedback` only place inline fixes are bounded, tagged, built, flagged to verifier (see its *Micro-fix or implementer*); untracked touch-up here undoes review it about to get.
-- **Never set `done` yourself, never commit here.** `review` → `/wa-validate` → `validated` → `/wa-close` → `done`; user "ok c'est ça" = spec approval, not close.
+- **Never set `done` yourself, never commit here.** `review` → `/wa-validate` → `validated` → `/wa-close` → `done`; user "ok that's it" = spec approval, not close.
 
 ### Report card
 
@@ -103,31 +103,31 @@ Canonical end-of-task report — here, each delivered task of `/wa-autopilot`, e
 ```
 ## 🟢 Login Apple · `login-refacto`
 
-**Problème** — login email only, friction à l'onboarding.
-**Objectif** — Sign in with Apple sur l'écran de login.
+**Problem** — email-only login, onboarding friction.
+**Goal** — Sign in with Apple on login screen.
 
-**Fait**
-- Bouton Sign in with Apple sur login (`LoginView`)
-- Login Apple crée/retrouve le user (`AuthService`)
-- Entitlement Sign in with Apple activé
+**Done**
+- Sign in with Apple button on login (`LoginView`)
+- Apple login creates/finds user (`AuthService`)
+- Sign in with Apple entitlement enabled
 
-**À tester**
-- [ ] Cancel sheet → reste sur login
-- [ ] Régression : login email marche toujours
+**To test**
+- [ ] Cancel sheet → stays on login
+- [ ] Regression: email login still works
 
-✅ vérifié par l'agent : tap Apple → sheet, login OK → Home
+✅ verified by agent: tap Apple → sheet, login OK → Home
 
 build ✅ · tests ✅ · run ✅ · review → /wa-validate
-→ next : teste, puis /wa-feedback ou /wa-validate login-apple
+→ next: test it, then /wa-feedback or /wa-validate login-apple
 ```
 
 - **Header** = size + title + sprint tag, as in wa-board list.
-- **Problème / Objectif** — one line each, from `## Contexte / Décisions`. Empty (non-grilled quick win) → from `title` + `summary`. Why the task exists, what it aims for — not how.
-- **Fait** — what changes for the app, key file as short ref. **5 bullets max.** Full file list only in saved report.
-- **À tester** — checklist: acceptance criteria agent did **not** prove, plus regression zones the diff touches. Agent proved everything → `rien d'obligatoire` + one optional smoke test. Never empty silently.
-- **✅ vérifié par l'agent** — one line, criteria the runtime check proved (+ screenshot path). Omit when nothing proven.
-- **Status line** — build · tests · run (`✅` / `à toi`) · review (`clean` / `→ /wa-validate`). Never claim check nobody ran.
-- Headings follow `discussion_language` (`Problem / Goal / Done / To test` in en).
+- **Problem / Goal** — one line each, from `## Context / Decisions`. Empty (non-grilled quick win) → from `title` + `summary`. Why the task exists, what it aims for — not how.
+- **Done** — what changes for the app, key file as short ref. **5 bullets max.** Full file list only in saved report.
+- **To test** — checklist: acceptance criteria agent did **not** prove, plus regression zones the diff touches. Agent proved everything → `nothing required` + one optional smoke test. Never empty silently.
+- **✅ verified by agent** — one line, criteria the runtime check proved (+ screenshot path). Omit when nothing proven.
+- **Status line** — build · tests · run (`✅` / `yours`) · review (`clean` / `→ /wa-validate`). Never claim check nobody ran.
+- Headings follow `discussion_language` (translated when not `en`).
 
 ## 5. Closing — not yours
 
@@ -143,4 +143,4 @@ Never write code yourself. Never commit — closing is `/wa-close` job. Never ma
 
 ## Next step
 
-Test it. Notes → **`/wa-feedback`**. Conforme → **`/wa-validate <slug>`** (verifier), puis **`/wa-close <slug>`** after retest. Closed → **`/wa-wiki`**.
+Test it. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`** (verifier), then **`/wa-close <slug>`** after retest. Closed → **`/wa-wiki`**.

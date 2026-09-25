@@ -15,7 +15,7 @@ Given tasks, or every `todo` task if none (confirm list first if user present). 
 
 **Args take slugs, display indexes or sprint name**, mixed, any order: `/wa-autopilot login-apple`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-autopilot 3 sync-offline`, `/wa-autopilot login-refacto`. Indexes = `#` from wa-board list — resolve per **wa-board → Task indexes**. Always **echo resolved list** (`2 → login-apple`). Bad index → stop, say which, no guess.
 
-**Sprint name expands to its `todo` tasks**, backlog order — `in-progress`, `review`, `validated` already moving or waiting on user, don't touch. Resolve per **wa-board → Sprints**; echo expansion (`login-refacto → login-apple · login-layout · login-errors (3 todo, 2 déjà en review)`) so user see what left out. Sprint with no todo task → say so, stop. Sprint tasks usually touch same screen, so expect most land in **separate waves** — wave planner doing job, not failure.
+**Sprint name expands to its `todo` tasks**, backlog order — `in-progress`, `review`, `validated` already moving or waiting on user, don't touch. Resolve per **wa-board → Sprints**; echo expansion (`login-refacto → login-apple · login-layout · login-errors (3 todo, 2 already in review)`) so user see what left out. Sprint with no todo task → say so, stop. Sprint tasks usually touch same screen, so expect most land in **separate waves** — wave planner doing job, not failure.
 
 ## 1. Plan the batch — what can run at once
 
@@ -33,8 +33,8 @@ Group batch into **waves**: everything in wave runs parallel, waves run one afte
 Echo plan before start:
 
 ```
-vague 1 (∥) : login-apple · export-csv
-vague 2      : sync-offline   (touche AuthStore, comme login-apple)
+wave 1 (∥): login-apple · export-csv
+wave 2     : sync-offline   (touches AuthStore, like login-apple)
 ```
 
 ## 2. Run a wave — one worktree per task
@@ -78,9 +78,9 @@ Print and save `{reports}/autopilot-<date>.md`:
 ```
 # Autopilot · 2026-09-18 · 🏁 login-refacto 2/3
 
-2 · 🟢 **Login Apple** — à tester
-3 · 🟡 **Login layout** — à tester
-5 · 🟢 **Forgot password** — ⛔ bloquée
+2 · 🟢 **Login Apple** — to test
+3 · 🟡 **Login layout** — to test
+5 · 🟢 **Forgot password** — ⛔ blocked
 
 ---
 ## 🟢 Login Apple · branch wa/login-apple
@@ -91,15 +91,15 @@ Print and save `{reports}/autopilot-<date>.md`:
 
 ---
 ## ⛔ Forgot password
-Question : reset par email ou magic link ?
-Reco : magic link, déjà en place pour le signup.
+Question: reset by email or magic link?
+Rec: magic link, already in place for signup.
 
-→ next : /wa-validate login-apple
+→ next: /wa-validate login-apple
 ```
 
 Three parts, always this order:
 
-1. **Recap** — every task of the batch, **wa-board list format** (line 1 only), suffix `— à tester` or `— ⛔ bloquée`. Sprint in play → progress line in title; several sprints → group recap by sprint.
+1. **Recap** — every task of the batch, **wa-board list format** (line 1 only), suffix `— to test` or `— ⛔ blocked`. Sprint in play → progress line in title; several sprints → group recap by sprint.
 2. **One card per delivered task** — **wa-code → Report card**, branch in header instead of sprint tag. Same skeleton as attended `/wa-code`.
 3. **Blocked** — per task: open question + your recommended answer, one line each. Kept worktree → say so.
 
@@ -107,4 +107,4 @@ One branch per task still, never one per sprint: user reviews and merges task by
 
 ## Next step
 
-Test the delivered branches. Notes on one → **`/wa-feedback <slug> <notes>`** (checks it out, applies them through the same pipeline). Conforme → **`/wa-validate <slug>`** (verifier on the whole branch), then **`/wa-close <slug>`** after your retest — it merges into the sprint branch or lands per `close.strategy`. Then **`/wa-wiki`**.
+Test the delivered branches. Notes on one → **`/wa-feedback <slug> <notes>`** (checks it out, applies them through the same pipeline). Matches spec → **`/wa-validate <slug>`** (verifier on the whole branch), then **`/wa-close <slug>`** after your retest — it merges into the sprint branch or lands per `close.strategy`. Then **`/wa-wiki`**.

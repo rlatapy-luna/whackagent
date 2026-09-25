@@ -27,7 +27,7 @@ Detect first, ask second. Scan repo to guess:
 
 Then confirm with user:
 
-1. **Discussion language** — which language to talk in? (default: detect from user; fr/en)
+1. **Discussion language** — which language to talk in? (default: detect from user, else en)
 2. **Primary language + project kind** — confirm detected language and kind (app / package / cli / server). Kind picks architecture module.
 3. **When to review** — _"Review the code at every step (after coding, and after each feedback round), or once when you run `/wa-validate` — your green light saying the feature matches the spec? (recommended: at `/wa-validate` — you iterate fast, and the review reads the final diff instead of code that's still moving)"_ → sets `review.when` (`each_round` | `on_validation`). Say trade plainly: `each_round` catch drift earlier but add verifier round to every note; `on_validation` review whole diff one pass. Either way nothing close unreviewed: `/wa-close` refuse task verifier never saw.
 4. **Review toggles** — surface public-doc one explicitly, vary by company: _"Require `///` documentation on every public API? (some teams skip this)"_ → sets `review.public_doc`. Offer flip other toggles too.
@@ -91,12 +91,12 @@ The project already works. You're here to **change settings and pick up what the
 One table — current value, and a flag on anything worth attention:
 
 ```
-| Réglage      | Actuel                | |
+| Setting      | Current               | |
 |--------------|-----------------------|-|
 | review.when  | on_validation         | |
-| paths.wiki   | .whackagent/wiki      | 🆕 déplaçable (docs/wiki) pour partage équipe |
+| paths.wiki   | .whackagent/wiki      | 🆕 movable (docs/wiki) for team sharing |
 | verify.mode  | autopilot             | |
-| build.command| (vide)                | ⚠️ `make build` détecté depuis |
+| build.command| (empty)               | ⚠️ `make build` detected since |
 ```
 
 Then **one question: what do you want to change?** Re-ask a full question (step 1's wording) only for what they name, plus every new key from stock-taking step 3 — those they've never been asked. Current value is the default in every one; "leave it" is always a valid answer. Don't walk all eight questions at somebody who came to flip one toggle.

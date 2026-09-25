@@ -30,18 +30,18 @@ Canonical way tasks shown anywhere in flow (here, `/wa-task` prioritization pass
 ### In progress
 
 1 · 🟡 **Export CSV**
-    Export des reports en CSV
+    Export reports as CSV
 
 ### Todo
 
 2 · 🟢 **Login Apple** · `login-refacto`
-    Sign in with Apple sur l'écran de login
+    Sign in with Apple on login screen
 3 · 🟡 **Login layout** · `login-refacto`
-    Refonte du form de login
+    Login form redesign
 4 · 🔴 **Sync offline** ⚠
-    Queue + conflits offline
+    Offline queue + conflicts
 
-🟢 quick win · 🟡 moyen · 🔴 gros · ⚠ pas grillée
+🟢 quick win · 🟡 medium · 🔴 large · ⚠ not grilled
 🏁 login-refacto — 0/2 (2 todo)
 ```
 
@@ -54,41 +54,41 @@ Rules:
 - **⚠** only on non-grilled tasks. Grilled = nothing — no ✅ on every line.
 - **Sprint tag** only on tasks that have one. Filtered run (`/wa-board <sprint>`) drops it — every task is that sprint.
 - Skip empty sections. Show only few recent under **Done**.
-- Legend once below list; `⚠ pas grillée` only when a ⚠ is on screen.
+- Legend once below list; `⚠ not grilled` only when a ⚠ is on screen.
 - At least one sprint in play → one **progress line per sprint** under legend, done+canceled excluded from numerator only:
-  `🏁 login-refacto — 2/5 (1 en review, 2 todo)`. Filtered run → that single line, above list.
+  `🏁 login-refacto — 2/5 (1 in review, 2 todo)`. Filtered run → that single line, above list.
 
 ## Voice
 
 Canonical, every whackagent skill. Applies to **screen output and `{reports}`**.
 
 - **Telegraphic.** Fragments OK. No articles filler, no pleasantries, no hedging, no re-explaining the flow. One idea per line.
-- **Tech terms stay English** — build, branch, merge, commit, review, worktree, simulator, entitlement, loading, fix… Never translate them. Franglais welcome: `bouton Apple pas disabled pendant loading`.
-- **Short common words.** `fix` not `procéder à la correction`, `teste` not `procédez au test`.
+- **Tech terms stay English** — build, branch, merge, commit, review, worktree, simulator, entitlement, loading, fix… Never translate them, whatever `discussion_language` is.
+- **Short common words.** `fix` not `apply a correction`, `test it` not `proceed to testing`.
 - **Clarity beats brevity.** Fragment readable two ways → write the full sentence.
-- **Task files are the exception** — `## Contexte / Décisions`, `## Critères d'acceptation` in full simple sentences (franglais OK): verifier and user reread them months later, fragments there get misread.
-- Headings and labels follow `discussion_language`.
+- **Task files are the exception** — `## Context / Decisions`, `## Acceptance criteria` in full simple sentences: verifier and user reread them months later, fragments there get misread.
+- Screen headings and labels follow `discussion_language`. Task file section headings stay English always — skills look them up by name.
 
-### Titres et summaries
+### Titles and summaries
 
-Titre = **étiquette**, pas phrase. Nomme la chose + ce qu'on lui fait. ≤ 5 mots. Doit se lire comme un dev l'écrit dans un ticket.
+Title = **label**, not sentence. Names the thing + what is done to it. ≤ 5 words. Must read like a dev wrote it in a ticket.
 
-- **Jamais une phrase narrative.** Sujet-verbe-complément qui raconte = titre raté. `Le dashboard pose les questions à la place des commandes` → `Prompts dans le dashboard`.
-- **Jamais de métaphore ni d'image.** `Des tests rougissent au hasard` ne veut rien dire pour personne → `Fix tests flaky CLI`.
-- **Termes tech en anglais**, ici aussi — flaky, job, watermark, toggle, prompt, scope, seed, dashboard, child process. Les traduire produit du charabia : `marqueurs des jobs`, `interrupteur`, `process fils`, `réglage`.
-- **Pas de reformulation élégante.** L'utilisateur dit `rework UI` → écris `Rework UI`, pas `Un style commun pour les écrans`.
+- **Never a narrative sentence.** Subject-verb-object that tells a story = failed title. `The dashboard asks the questions instead of the commands` → `Prompts in dashboard`.
+- **Never a metaphor or image.** `Tests turn red at random` means nothing to anyone → `Fix flaky CLI tests`.
+- **Tech terms stay tech terms**, here too — flaky, job, watermark, toggle, prompt, scope, seed, dashboard, child process. Paraphrasing or translating them produces gibberish.
+- **No elegant rewording.** User says `rework UI` → write `Rework UI`, not `A shared style for the screens`.
 
-Summary = **l'objectif en clair**, ≤ 8 mots. Ce que ça donne une fois fait. Pas le mécanisme, pas l'histoire, pas la liste de ce qui disparaît.
+Summary = **the goal, plainly**, ≤ 8 words. What it gives once done. Not the mechanism, not the story, not the list of what disappears.
 
-| ❌ | ✅ titre | ✅ summary |
+| ❌ | ✅ title | ✅ summary |
 |---|---|---|
-| Après une purge, les jobs ne se rejouent pas | `Rejouer les jobs après purge` | purge reset pas les watermarks |
-| Importer toute la France, ou juste une région | `Scope d'import configurable` | DATA_SCOPE : région en local, France en prod |
-| Des tests de la CLI rougissent au hasard | `Fix tests flaky CLI` | 4 tests TUI fail en suite, passent isolés |
-| Un style commun pour les écrans de la CLI | `Rework UI écrans CLI` | design system partagé dans tui/design/ |
-| Le dashboard pose les questions à la place des commandes | `Prompts dans le dashboard` | commandes prennent des options, dashboard demande |
-| La navigation du dashboard suit l'arbre des commandes | `Nav dashboard par groupe` | un onglet = un groupe, plus de MENU_* |
-| L'écran Données lit la liste des jobs du backend | `Écran Données lit GET /admin/jobs` | plus de catalogue de jobs dupliqué en CLI |
+| After a purge, jobs don't replay | `Replay jobs after purge` | purge doesn't reset watermarks |
+| Import the whole country, or just a region | `Configurable import scope` | DATA_SCOPE: region locally, country in prod |
+| CLI tests turn red at random | `Fix flaky CLI tests` | 4 TUI tests fail in suite, pass isolated |
+| A shared style for the CLI screens | `Rework CLI screens UI` | shared design system in tui/design/ |
+| The dashboard asks the questions instead of the commands | `Prompts in dashboard` | commands take options, dashboard asks |
+| Dashboard navigation follows the command tree | `Dashboard nav by group` | one tab = one group, no more MENU_* |
+| The Data screen reads the backend job list | `Data screen reads GET /admin/jobs` | no more job catalog duplicated in CLI |
 
 ## Paths
 

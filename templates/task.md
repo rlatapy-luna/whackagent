@@ -1,6 +1,6 @@
 ---
-title:                  # étiquette ≤ 5 mots, pas une phrase ("Fix tests flaky CLI", pas "Des tests rougissent au hasard")
-summary:                # ≤ 8 mots, l'objectif en clair — jamais le mécanisme, jamais répéter le titre
+title:                  # label ≤ 5 words, not a sentence ("Fix flaky CLI tests", not "Tests turn red at random")
+summary:                # ≤ 8 words, the goal plainly — never the mechanism, never repeat the title
 size: medium            # quickwin | medium | large  → 🟢 | 🟡 | 🔴 in backlog list
 sprint:                 # OPTIONAL kebab-case label group big work ("login-refacto").
                         # Empty = standalone task. Sprint exist because task name it —
@@ -15,16 +15,17 @@ note:                   # free-form trigger / context (optional, not auto-evalua
 created:                # YYYY-MM-DD
 ---
 
-## Contexte / Décisions
+## Context / Decisions
 
 <!-- Fill by /wa-task. What, why, scope (YAGNI), decisions resolved in grill. -->
 
-## Critères d'acceptation
+## Acceptance criteria
 
 <!-- Fill by /wa-task. Observable checks mean "done" — each one thing you see
-     on screen or state input must produce. wa-verifier drive these on device. -->
+     on screen or state input must produce. wa-implementer drives these on device
+     when verify.mode puts runtime proof on agent; wa-verifier checks diff meets them. -->
 
-## Implémentation
+## Implementation
 
 <!-- Fill by /wa-code. Approach, files touched, build proof, notes from wa-implementer. -->
 
@@ -34,9 +35,10 @@ created:                # YYYY-MM-DD
      lens (style / elegance / structure / correctness) + what autofix changed, one block per
      round. -->
 
-## Vérification
+## Verification
 
-<!-- Fill by /wa-code (verify phase). wa-verifier checks (✅/❌) + screenshot paths per criterion. -->
+<!-- Fill by /wa-code and /wa-feedback. wa-implementer runtime CHECKS (✅/❌) + screenshot paths per
+     criterion, or "manual validation — not run by agent" when verify.mode leaves the run to you. -->
 
 ## Feedback
 

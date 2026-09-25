@@ -28,7 +28,7 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
 6. **Clean up** — *Cleanup* below. Worktree then branch, that order, `close.delete_branch` decide.
 7. **`status: done`**, reflect in `{backlog}` (move line under **Done**, keep `· <sprint>` suffix).
 8. **Sprint complete?** Last task of sprint just closed → *Sprint landing*.
-9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> fermée → branche wa/<next-slug> prête · /wa-code <next-slug>`.
+9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch wa/<next-slug> ready · /wa-code <next-slug>`.
 10. **Report** — after-state, four lines max: what landed where, what deleted, sprint progress, next command.
 
 ## Plan block
@@ -36,15 +36,15 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
 Say what you about to do to git **before** doing it, in their terms. Landing outward-facing, half irreversible:
 
 ```
-Fermeture login-apple
+Closing login-apple
 
-commit    : 2 fichiers non commités → commit (Benjamin Pisano)
+commit    : 2 uncommitted files → commit (Benjamin Pisano)
 sprint    : merge wa/login-apple → sprint/login-refacto
-branche   : wa/login-apple supprimée (mergée)
-worktree  : ../.wa-worktrees/login-apple supprimé
-après     : 🏁 login-refacto — 3/5
+branch    : wa/login-apple deleted (merged)
+worktree  : ../.wa-worktrees/login-apple removed
+after     : 🏁 login-refacto — 3/5
 
-ok ? [o/n]
+ok? [y/n]
 ```
 
 Rules:
@@ -65,8 +65,8 @@ Rules:
 
 **Standalone task** (no sprint, or `sprint_prefix` empty) → `close.strategy`:
 
-- **`nothing`** (default) — stop after commit. Branch stay exactly where it is. Say plainly (`branche wa/login-apple gardée — la PR est à toi`) so nobody wait on PR that not coming.
-- **`pr`** — push branch, then `gh pr create --base <close.target>`. Title = task title, body = task `summary` plus its `## Critères d'acceptation`. Print URL. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
+- **`nothing`** (default) — stop after commit. Branch stay exactly where it is. Say plainly (`branch wa/login-apple kept — PR is yours`) so nobody wait on PR that not coming.
+- **`pr`** — push branch, then `gh pr create --base <close.target>`. Title = task title, body = task `summary` plus its `## Acceptance criteria`. Print URL. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
 - **`merge`** — merge into `close.target` locally, **no push**. Target checked out elsewhere or dirty → say so, stop. Conflict → same rule as sprint merge: leave it, name files.
 
 **`branch.per_task: false`** — task coded on whatever branch you were on. Nothing to land, nothing to delete: commit, mark done, say so. Skip *Landing* and *Cleanup* whole.
@@ -86,11 +86,11 @@ Order matter — worktree holding branch block deleting it.
 
 Last task of sprint reach `done` — no task of that sprint left in `todo`, `in-progress`, `review` or `validated`:
 
-1. Say it: `🏁 login-refacto — 5/5, dernière tâche fermée.`
+1. Say it: `🏁 login-refacto — 5/5, last task closed.`
 2. **Propose** applying `close.strategy` to sprint branch, onto `close.target` — same three behaviours as standalone task, recommendation first:
    ```
-   → Recommandé : PR sprint/login-refacto → main   (close.strategy: pr)
-     Sinon : garder la branche, tu la livres toi-même.
+   → Recommended: PR sprint/login-refacto → main   (close.strategy: pr)
+     Otherwise: keep the branch, you ship it yourself.
    ```
 3. **Only on yes.** No is a normal answer — the branch stays, the sprint stays complete, nothing is lost. Never fold this into the task's own confirmation at step 3: two different things landing, two yeses.
 4. Sprint branch merged or PR'd → `delete_branch` applies to it the same way it applies to a task branch.

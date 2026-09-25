@@ -28,7 +28,7 @@ Add the marketplace, then install the plugin:
 | `/wa-task` | No argument: prioritization pass only — reorders, YAGNI, can split |
 | `/wa-code <task>` | Full pipeline: understand → code + test → review → verify → report |
 | `/wa-feedback [task] <notes>` | Applies your notes on what was built — micro-fix inline, bigger changes through the isolated pipeline |
-| `/wa-validate [task]` | Your feu vert: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
+| `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
 | `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR, or nothing — `close.strategy`), delete branch + worktree, `done` |
 | `/wa-autopilot [tasks\|sprint]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel |
 | `/wa-review [scope]` | Standalone review, 4 lenses (diff / path / project) — audit, optional `--fix` |
@@ -62,7 +62,7 @@ There is no sprint file and no command to create one. A sprint exists the moment
 
 Where it shows up:
 
-- **`/wa-board`** grows a `Sprint` column (only when at least one task has a sprint) and prints progress per sprint: `🏁 login-refacto — 2/5 (1 en review, 2 todo)`. `/wa-board login-refacto` narrows the whole board to that sprint.
+- **`/wa-board`** grows a `Sprint` column (only when at least one task has a sprint) and prints progress per sprint: `🏁 login-refacto — 2/5 (1 in review, 2 todo)`. `/wa-board login-refacto` narrows the whole board to that sprint.
 - **`/wa-task`** sets it: when you name one, or when the grill splits a `large` task — the children are born into the same sprint, which is the case sprints exist for. It never invents one silently; it proposes in one line.
 - **Prioritization** keeps a sprint's tasks contiguous in the backlog. The sprint moves as a block, and you order tasks inside it (dependencies first). Pulling one out of the block is allowed, and it says why.
 - **`/wa-autopilot login-refacto`** batches the sprint's `todo` tasks — leaving alone the ones already in review or validated, and echoing what it skipped.
@@ -124,7 +124,7 @@ A single command runs the whole coding cycle, orchestrating isolated subagents:
 
 The order matters, and it's the whole point of the flow: **code → you test → you validate → the verifier runs.** A review that happens before you've said "yes, that's the feature" reviews code three feedback rounds are about to move.
 
-`/wa-validate <task>` is that green light. It says *"this matches my cahier des charges"* — nothing more. It does **not** close the task:
+`/wa-validate <task>` is that green light. It says *"this matches my spec"* — nothing more. It does **not** close the task:
 
 1. It dispatches one `wa-verifier`, which sweeps four lenses over the diff — **style**, **elegance**, **structure** (layers, boundaries, file tree) and **correctness** (real bugs, plus whether the diff meets the acceptance criteria) — and reports which ones ran. It's handed the diff hunks, so it judges the change instead of hunting for it, then autofix loops until clean. One agent rather than one per lens is a measured call: an isolated agent costs ~50k tokens of context before it reads a line, and every lens judges the same diff against the same rulebook — paying that twice bought nothing but duplicate findings to dedupe. And every round resumes the *same* agent rather than spawning a new one — it already holds its modules and the code, so round 2 costs a diff instead of a full re-read.
 
@@ -155,15 +155,15 @@ Retested and still good? This ends the task and puts the branch where it belongs
 So it always shows the plan first and waits for a yes:
 
 ```
-Fermeture login-apple
+Closing login-apple
 
-commit    : 2 fichiers non commités → commit (Benjamin Pisano)
+commit    : 2 uncommitted files → commit (Benjamin Pisano)
 sprint    : merge wa/login-apple → sprint/login-refacto
-branche   : wa/login-apple supprimée (mergée)
-worktree  : ../.wa-worktrees/login-apple supprimé
-après     : 🏁 login-refacto — 3/5
+branch    : wa/login-apple deleted (merged)
+worktree  : ../.wa-worktrees/login-apple removed
+after     : 🏁 login-refacto — 3/5
 
-ok ? [o/n]
+ok? [y/n]
 ```
 
 Where the work lands depends on one thing: whether the task is in a sprint.
@@ -185,9 +185,9 @@ A branch is only deleted once its code exists somewhere else: merged into its sp
 When the **last task of a sprint** closes, the sprint branch becomes the thing to deliver, so the same `close.strategy` is offered for it — proposed, never done silently:
 
 ```
-🏁 login-refacto — 5/5, dernière tâche fermée.
-→ Recommandé : PR sprint/login-refacto → main   (close.strategy: pr)
-  Sinon : garder la branche, tu la livres toi-même.
+🏁 login-refacto — 5/5, last task closed.
+→ Recommended: PR sprint/login-refacto → main   (close.strategy: pr)
+  Otherwise: keep the branch, you ship it yourself.
 ```
 
 **6. Keep knowledge fresh — `/wa-wiki`**
@@ -247,8 +247,11 @@ note:                       # trigger / free context (optional)
 ---
 
 ## Context / Decisions
+## Acceptance criteria
 ## Implementation
 ## Review
+## Verification
+## Feedback
 ```
 
 ## Conventions

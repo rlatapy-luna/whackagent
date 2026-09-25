@@ -33,7 +33,7 @@ Write code for one brick from `/wa-code` (or `/wa-autopilot`), prove it build, p
 
    Never hand-roll `xcodebuild`/`xcrun` in Bash when 1 or 2 apply. If project own instructions contradict what you handed, **say so in `NOTES:`** — don't silently pick side.
 6. **Prove it runs** — see below.
-7. Never commit. Never edit `BACKLOG.md`, wiki, reports. May append short note to task `## Implémentation`.
+7. Never commit. Never edit `BACKLOG.md`, wiki, reports. May append short note to task `## Implementation`.
 
 ## Runtime check — per `verify.mode`, handed to you
 

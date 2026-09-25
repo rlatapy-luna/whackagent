@@ -1,6 +1,6 @@
 ---
 # whackagent config — written by /wa-setup, edit freely.
-discussion_language: fr        # language Claude talk to you in
+discussion_language: en        # language Claude talk to you in
 code_language: en              # identifiers, comments, log messages, commits
 ui_strings_language: en        # user-facing strings
 primary_language: swift        # swift | typescript | generic | ...
@@ -24,7 +24,7 @@ paths:                         # WHERE whackagent keep each kind of file. Skills
 
 review:
   when: on_validation          # WHEN wa-verifier run.
-                               #   on_validation — once, at /wa-validate: your feu vert say feature
+                               #   on_validation — once, at /wa-validate: your green light say feature
                                #     match spec, and THAT fire review over whole diff (code + every
                                #     feedback round). Coding and feedback round stay fast; nothing
                                #     reviewed while still moving.
