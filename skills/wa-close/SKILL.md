@@ -118,7 +118,7 @@ A sprint is never `done` as a thing — there's no sprint status to set. It's co
 
 - **`/wa-validate`** sets `validated` and stops there. It never commits, never touches a branch, never sets `done`.
 - **`/wa-feedback` on a `validated` task** → status back to `review`, needs `/wa-validate` again before it can be closed.
-- **`/wa-autopilot`** leaves tasks `validated` (verifier clean) on their own branches, worktrees already removed (except blocked ones) — straight to `/wa-close` after your test. Findings left open → `review`, `/wa-feedback` or `/wa-validate` first.
+- **`/wa-autopilot`** leaves tasks `validated` (verifier clean, wiki synced) on their own branches, worktrees already removed (except blocked ones). GitHub provider: PR already ready — merge it, no `/wa-close`. Local: straight to `/wa-close` after your test. Findings left open → `review`, `/wa-feedback` or `/wa-validate` first.
 - **`/wa-wiki`** runs **inside** `/wa-close` (step 2b), never after: wiki lands in same commit/PR as code it describes. Standalone `/wa-wiki` stays for syncs outside a task (query mode, catch-up).
 
 ## Never
