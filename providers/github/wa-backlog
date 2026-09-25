@@ -19,13 +19,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-STATES = ["todo", "grilling", "grilled", "coding", "ready-to-merge", "done"]
+STATES = ["todo", "grilling", "grilled", "coding", "review", "done"]
 DEFAULT_STATE_NAMES = {
     "todo": "Todo",
     "grilling": "Grilling",
     "grilled": "Grilled",
     "coding": "Coding",
-    "ready-to-merge": "Ready to merge",
+    "review": "Review",
     "done": "Done",
 }
 STATE_COLORS = {
@@ -33,7 +33,7 @@ STATE_COLORS = {
     "grilling": "ORANGE",
     "grilled": "BLUE",
     "coding": "PURPLE",
-    "ready-to-merge": "YELLOW",
+    "review": "YELLOW",
     "done": "GREEN",
 }
 STATE_DESCRIPTIONS = {
@@ -41,13 +41,13 @@ STATE_DESCRIPTIONS = {
     "grilling": "Locked: an agent is grilling it",
     "grilled": "Spec on its branch, ready to code",
     "coding": "Locked: an agent is coding it",
-    "ready-to-merge": "PR open",
+    "review": "PR open",
     "done": "PR merged",
 }
 SIZES = ["quickwin", "medium", "large"]
 SIZE_COLORS = {"quickwin": "GREEN", "medium": "YELLOW", "large": "RED"}
 # Phase claimed → states the ticket may be in when the claim is taken.
-CLAIM_FROM = {"grilling": {"todo"}, "coding": {"grilled", "ready-to-merge"}}
+CLAIM_FROM = {"grilling": {"todo"}, "coding": {"grilled", "review"}}
 CLAIM_NAMESPACE = "wa-claims"
 IGNORE_LABEL = "wa-ignore"
 
@@ -170,7 +170,9 @@ def load(refresh=False):
     project_id, url, fields = project_fields(owner_kind, owner, number)
     status_name = variables.get("WA_STATUS_FIELD", "Status")
     size_name = variables.get("WA_SIZE_FIELD", "Size")
-    state_names = {**DEFAULT_STATE_NAMES, **json.loads(variables.get("WA_STATES", "{}"))}
+    custom = json.loads(variables.get("WA_STATES", "{}"))
+    # Unknown keys ignored: a transitional WA_STATES may still carry an old state id for older hooks.
+    state_names = {s: custom.get(s, DEFAULT_STATE_NAMES[s]) for s in STATES}
     status = fields.get(status_name)
     if not status:
         raise Failure(f"project has no single-select field {status_name!r}")

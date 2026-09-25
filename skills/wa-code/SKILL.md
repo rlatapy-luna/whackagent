@@ -32,9 +32,9 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 `backlog.provider: github` (rules **wa-board → Backlog provider**) replaces grill gate, status write and step 0:
 
 1. **Resolve** arg: `#12` / `12` / display index. No arg → top unclaimed `grilled` from `wa-backlog list --state grilled`.
-2. **Claim** `wa-backlog claim <n> coding`. Exit 3 → `#12 coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`ready-to-merge`: `todo` means not grilled → suggest `/wa-task <n>`; stop.
+2. **Claim** `wa-backlog claim <n> coding`. Exit 3 → `#12 coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`review`: `todo` means not grilled → suggest `/wa-task <n>`; stop.
 3. **Branch** — ticket branch already exists (grilling pushed it): `wa-backlog branch <n>`, fetch, check out **in current worktree**. Dirty tree → stop and ask first. Never create fresh branch: spec lives on this one. Git refusing because another local worktree holds branch → say which, stop.
-4. **Spec** = `{tasks}/<n>-<slug>.md` on that branch. Set `phase: in-progress` there (local writes `status:`), commit with first brick. **Never push during coding** — push = `/wa-close` job. Ticket claimed back from `ready-to-merge` has an open PR: any push fires `synchronize`, hook ends round and **drops your claim** while you still code. Draft PR (autopilot delivery) exempt: hook ignores drafts.
+4. **Spec** = `{tasks}/<n>-<slug>.md` on that branch. Set `phase: in-progress` there (local writes `status:`), commit with first brick. **Never push during coding** — push = `/wa-close` job. Ticket claimed back from `review` has an open PR: any push fires `synchronize`, hook ends round and **drops your claim** while you still code. Draft PR (autopilot delivery) exempt: hook ignores drafts.
 5. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `#<n>`.
 6. **Blocked / user drops it** → `wa-backlog release <n> coding --reset-to grilled --reason "<why>"`. Coding lock never left dangling on abandon.
 

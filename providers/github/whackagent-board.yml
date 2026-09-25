@@ -1,12 +1,12 @@
-# whackagent board hooks — template version: 4
+# whackagent board hooks — template version: 5
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo
 #   push to wa/<n>-<slug> holding its spec → grilled   (releases the grilling claim)
-#   PR opened / reopened / ready for review → ready-to-merge (releases the coding claim)
+#   PR opened / reopened / ready for review → review (releases the coding claim)
 #   draft PR opened or pushed               → nothing moves (still coding, claim kept)
 #   PR converted back to draft              → grilled (claim is gone: re-claim to code again)
-#   push to an open PR while coding claimed → ready-to-merge (end of a fix round)
+#   push to an open PR while coding claimed → review (end of a fix round)
 #   PR merged (any base)                   → done, issue closed, milestone closed when empty
 #   PR closed unmerged                     → grilled
 # Settings are repository variables written by `wa-backlog provision`. Projects v2 writes need
@@ -63,7 +63,7 @@ jobs:
             const statusField = env.WA_STATUS_FIELD || "Status";
             const states = {
               todo: "Todo", grilling: "Grilling", grilled: "Grilled", coding: "Coding",
-              "ready-to-merge": "Ready to merge", done: "Done",
+              "review": "Review", done: "Done",
               ...JSON.parse(env.WA_STATES || "{}"),
             };
 
@@ -187,7 +187,7 @@ jobs:
               const action = payload.action;
 
               if (action === "converted_to_draft") {
-                if (ticket.state !== "ready-to-merge") return;
+                if (ticket.state !== "review") return;
                 await setState(ticket, "grilled");
                 await comment(number, `↩️ **grilled** — #${pr.number} back to draft; re-claim (\`/wa-code ${number}\`) to keep coding`);
                 return;
@@ -200,17 +200,17 @@ jobs:
 
               if (action === "opened" || action === "reopened" || action === "ready_for_review") {
                 if (ticket.state === "done") return;
-                await setState(ticket, "ready-to-merge");
+                await setState(ticket, "review");
                 await release(number, "coding");
-                await comment(number, `🔀 **ready-to-merge** — #${pr.number} → \`${pr.base.ref}\``);
+                await comment(number, `🔀 **review** — #${pr.number} → \`${pr.base.ref}\``);
                 return;
               }
 
               if (action === "synchronize") {
                 if (!(await claimExists(number, "coding"))) return;
-                await setState(ticket, "ready-to-merge");
+                await setState(ticket, "review");
                 await release(number, "coding");
-                await comment(number, `🔀 **ready-to-merge** — fix round pushed to #${pr.number}`);
+                await comment(number, `🔀 **review** — fix round pushed to #${pr.number}`);
                 return;
               }
 

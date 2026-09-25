@@ -36,10 +36,10 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 |---|---|---|
 | `issues: opened` | no `wa-ignore` | add to Project, `todo` |
 | `push` to `wa/**` | branch `wa/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
-| `pull_request: opened/reopened/ready_for_review` | head `wa/<n>-…`, same repo, not draft, not `done` | `ready-to-merge`, coding claim deleted |
+| `pull_request: opened/reopened/ready_for_review` | head `wa/<n>-…`, same repo, not draft, not `done` | `review`, coding claim deleted |
 | `pull_request: opened/synchronize`, **draft** | head `wa/<n>-…` | nothing moves, claim kept — draft = review surface while still coding (`/wa-autopilot` delivery) |
-| `pull_request: converted_to_draft` | state `ready-to-merge` | `grilled` — claim was released at ready, so ticket must be re-claimed (`/wa-code <n>`) |
-| `pull_request: synchronize` | coding claim exists | `ready-to-merge`, claim deleted (fix round over) |
+| `pull_request: converted_to_draft` | state `review` | `grilled` — claim was released at ready, so ticket must be re-claimed (`/wa-code <n>`) |
+| `pull_request: synchronize` | coding claim exists | `review`, claim deleted (fix round over) |
 | `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted, milestone closed when empty |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |
 

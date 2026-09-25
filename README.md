@@ -226,7 +226,7 @@ Every ticket goes through six states. Agents only ever *take* a ticket; the rest
 | `grilling` | an agent claims it with `/wa-task #12`, a lock, so no other agent grills it |
 | `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
 | `coding` | an agent claims it with `/wa-code 12` or `/wa-autopilot`, a lock covering code, feedback, validate and wiki |
-| `ready-to-merge` | the hooks workflow, when `/wa-close` opens the PR or marks the `/wa-autopilot` draft PR ready (or a fix round is pushed to it). A draft PR leaves the ticket in `coding` |
+| `review` | the hooks workflow, when `/wa-close` opens the PR or marks the `/wa-autopilot` draft PR ready (or a fix round is pushed to it). A draft PR leaves the ticket in `coding` |
 | `done` | the hooks workflow, when the PR is merged. The issue is closed, and the sprint milestone too once empty. |
 
 A closed-unmerged PR sends the ticket back to `grilled`.

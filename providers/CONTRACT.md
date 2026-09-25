@@ -19,12 +19,12 @@ Shared lifecycle, provider-neutral names. Provider maps them onto its own column
 | `grilling` | **locked** — one agent grilling it | agent `claim <id> grilling` |
 | `grilled` | spec written, ready to code | **data**: ticket branch holds spec with acceptance criteria (hook) |
 | `coding` | **locked** — one agent in code → feedback → validate → wiki loop | agent `claim <id> coding` |
-| `ready-to-merge` | change proposed (PR open, not draft) | **data**: PR opened or marked ready, or fix round pushed (hook). Draft PR = still `coding` |
+| `review` | change proposed (PR open, not draft) | **data**: PR opened or marked ready, or fix round pushed (hook). Draft PR = still `coding` |
 | `done` | change landed | **data**: PR merged (hook) |
 
-Agents only ever write `grilling` / `coding` (through `claim`) and resets through `release`. Every other transition comes from repo events — agent never sets `grilled`, `ready-to-merge`, `done` itself. Code drives board, not agent's word.
+Agents only ever write `grilling` / `coding` (through `claim`) and resets through `release`. Every other transition comes from repo events — agent never sets `grilled`, `review`, `done` itself. Code drives board, not agent's word.
 
-Inside `coding`, whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task file frontmatter `phase:` — coding lock guarantee single writer, board stay coarse.
+Inside `coding`, whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task file frontmatter `phase:` — coding lock guarantee single writer, board stay coarse. Same word, two levels: board `review` = PR open, humans review; `phase: review` = coded, verifier not run yet, still inside `coding`.
 
 ## Verbs
 
@@ -50,7 +50,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 
 
 ## Claim rules
 
-- `grilling` claimable from `todo`. `coding` claimable from `grilled` or `ready-to-merge` (fix round on open PR). Closed ticket, or ticket in column outside the six states (`state: null`, `column: "Blocked"`) → exit 4, never touched.
+- `grilling` claimable from `todo`. `coding` claimable from `grilled` or `review` (fix round on open PR). Closed ticket, or ticket in column outside the six states (`state: null`, `column: "Blocked"`) → exit 4, never touched.
 - Lost claim (exit 3) → never retry same ticket, never steal. Next ticket, or report owner to user.
 - Lock released by data (hook) on next transition, or by `release` on explicit abort / stale cleanup — **human-triggered only**. No expiry: grilling interactive, human may answer in two days.
 - `claims` flags `stale` past `stale_after` with no push on ticket branch. `/wa-board` shows them; `/wa-task release <id>` clears.

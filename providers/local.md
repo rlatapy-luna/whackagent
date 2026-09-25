@@ -12,8 +12,10 @@ Local keeps its own finer statuses in task frontmatter `status:`. Mapping onto c
 | `grilling` | — (transient, lives in `/wa-task` session only) |
 | `grilled` | `status: todo`, `grilled: true` |
 | `coding` | `status: in-progress` / `review` / `validated` |
-| `ready-to-merge` | — (`/wa-close` with `close.strategy: pr` go straight to `done`) |
+| `review` | — (`/wa-close` with `close.strategy: pr` go straight to `done`) |
 | `done` | `status: done` |
+
+Local `status: review` sits inside contract `coding` (coded, verifier not run) — not contract `review`.
 
 ## Verbs
 

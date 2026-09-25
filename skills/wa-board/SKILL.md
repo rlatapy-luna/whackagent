@@ -24,12 +24,12 @@ Dashboard. Lift lid on backlog, point next move.
 
 ## GitHub board
 
-Same list format, sections by contract state, render order: **Coding → Ready to merge → Grilled → Grilling → Todo → Done**. Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
+Same list format, sections by contract state, render order: **Coding → Review → Grilled → Grilling → Todo → Done**. Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
 
 - `⏳ stale claims` — `claims` rows with `stale: true`: `#12 coding · <agent> · 2d, no push` → suggest `/wa-task release 12`.
 - `📝 drafts` — Project draft items: not tickets, convert to issue on GitHub.
 
-Next action (GitHub): unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-task <#>` · `ready-to-merge` → review/merge PR on GitHub (not agent job) · several unclaimed `grilled` → `/wa-autopilot`. Never suggest ticket someone else holds.
+Next action (GitHub): unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-task <#>` · `review` → review/merge PR on GitHub (not agent job) · several unclaimed `grilled` → `/wa-autopilot`. Never suggest ticket someone else holds.
 
 ## Display format
 
@@ -107,9 +107,9 @@ Canonical, every skill. `backlog.provider` in config (missing → `local`) decid
 - **`github`** — `${CLAUDE_PLUGIN_ROOT}/providers/github/wa-backlog <verb>` for **every** backlog read or write, run from repo root. Details: `providers/github/README.md`. Then:
   - **No `{backlog}` file, no local mirror.** Board = the Project. Never write order, state, size, sprint, title into any file.
   - **Ticket id = issue number.** Display `#12`. Task file `{tasks}/<n>-<slug>.md` lives **on ticket branch** `<branch.prefix><n>-<slug>`, not on base — frontmatter `issue: <n>`, `phase:`, `wiki:`, `note:`, `created:`. No `title`/`summary`/`status`/`size`/`sprint`/`grilled` there.
-  - **States = contract states** (`todo`, `grilling`, `grilled`, `coding`, `ready-to-merge`, `done`). Agent writes only through `claim` / `release`. `grilled`, `ready-to-merge`, `done` come from hooks — never set them, never "help" a lagging hook. Hook late → wait/re-read, or tell user.
+  - **States = contract states** (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`). Agent writes only through `claim` / `release`. `grilled`, `review`, `done` come from hooks — never set them, never "help" a lagging hook. Hook late → wait/re-read, or tell user.
   - **Claim before touching.** Grilling or coding a ticket = `claim` first. Exit 3 (taken) → name owner, never retry or steal; pick next or stop. Exit 4 (wrong state) → say state, stop.
-  - **Coding sub-phase** (`in-progress` → `review` → `validated`) = task file `phase:` on ticket branch, where local writes `status:`.
+  - **Coding sub-phase** (`in-progress` → `review` → `validated`) = task file `phase:` on ticket branch, where local writes `status:`. `phase: review` ≠ board `review`: first = coded, verifier not run, still `coding`; second = PR open.
   - **Forced config:** `branch.per_task: true`, `close.strategy: pr`. Config says otherwise → provider wins, say so once.
   - **Sprint = milestone** — `set-field <n> sprint <name>`; progress from `list --sprint`.
   - `list` lags new tickets 1–3 min (GitHub indexing); `get`/`claim` always current.

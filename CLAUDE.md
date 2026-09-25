@@ -10,7 +10,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
 - `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift and Kotlin are multi-module packs with the same file names; TypeScript and generic (fallback for every other language) are one file each.
 - `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
-- `providers/`: backlog providers. `CONTRACT.md` defines the verbs and the six states (`todo`, `grilling`, `grilled`, `coding`, `ready-to-merge`, `done`) every skill uses. `local.md` maps the default file-based backlog onto it; `github/` holds the `wa-backlog` script, the `whackagent-board.yml` hooks workflow and its README.
+- `providers/`: backlog providers. `CONTRACT.md` defines the verbs and the six states (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`) every skill uses. `local.md` maps the default file-based backlog onto it; `github/` holds the `wa-backlog` script, the `whackagent-board.yml` hooks workflow and its README.
 - `README.md`: public doc on GitHub. No agent reads it.
 
 ## Task lifecycle
@@ -39,7 +39,7 @@ Keep each step's ownership intact when editing. For example, only `/wa-close` co
 ## Backlog providers
 
 - Skills must speak only the contract verbs and states, never tracker terms. The canonical rules for providers live in `wa-board` under "Backlog provider"; each skill that behaves differently under GitHub has its own "GitHub provider" section.
-- Under the GitHub provider, agents only write `grilling` and `coding`, always through an atomic `claim`. `grilled`, `ready-to-merge` and `done` are set by the hooks workflow from repository events. Don't add a skill step that sets them directly.
+- Under the GitHub provider, agents only write `grilling` and `coding`, always through an atomic `claim`. `grilled`, `review` and `done` are set by the hooks workflow from repository events. Don't add a skill step that sets them directly.
 - A new tracker means a new `providers/<name>/` folder implementing the same verbs, states and exit codes, plus whatever automation moves the data-driven states.
 - Test provider changes in the playground repo `rlatapy-luna/whackagent-playground` (worktree `~/dev/whackagent-playground-worktrees/cocorico`, Project #1). The workflow must be merged on its default branch to react to `issues` events.
 
