@@ -96,4 +96,4 @@ Triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always 
 
 ## Next step
 
-More notes → run again. Feature matches spec → **`/wa-validate <slug>`** (verifier on whole diff), then **`/wa-close <slug>`** after your retest. Closed → **`/wa-wiki`**.
+More notes → run again. Feature matches spec → **`/wa-validate <slug>`** (verifier on whole diff), then **`/wa-close <slug>`** after your retest (syncs wiki itself).

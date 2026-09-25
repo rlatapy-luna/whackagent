@@ -73,7 +73,7 @@ Each task get own checkout, so parallel implementers never see each other's edit
 ## 3. Close each task
 
 1. **Commit in its worktree**, on its branch, with the configured author name/email. **Never as Claude. Never merge to base. Never touch another branch.** The commit is the delivery, not a close: the code is unreviewed by the verifier and unseen by the user, sitting on a branch nobody merged.
-2. **`status: review`** + notes — never `done`, never `validated`. A task leaves autopilot waiting for the user to test it, exactly like one from `/wa-code`. **Never merge into the sprint branch here** — that's `/wa-close`, after the user's review; an unreviewed merge poisons the base of every later task in the sprint. **Don't** sync wiki/graph unattended — that's `/wa-wiki` after it closes.
+2. **`status: review`** + notes — never `done`, never `validated`. A task leaves autopilot waiting for the user to test it, exactly like one from `/wa-code`. **Never merge into the sprint branch here** — that's `/wa-close`, after the user's review; an unreviewed merge poisons the base of every later task in the sprint. **Don't** sync wiki/graph unattended — `/wa-close` does it when task closes.
 3. **Remove the worktree** (`git worktree remove ../.wa-worktrees/<slug>`) — the branch survives, that's what you review later. A blocked task keeps its worktree; say so in the report.
 
 Skip the report-and-iterate phase entirely — nobody's there to iterate with. Save the report to `{reports}/<slug>.md` (`{…}` from the config's `paths:` block, see **wa-board → Paths**) — **in the main checkout, never inside a worktree**: the worktree gets removed and the report with it.
@@ -123,4 +123,4 @@ One branch per task still, never one per sprint: user reviews and merges task by
 
 ## Next step
 
-Test the delivered branches. Notes on one → **`/wa-feedback <slug> <notes>`** (checks it out, applies them through the same pipeline). Matches spec → **`/wa-validate <slug>`** (verifier on the whole branch), then **`/wa-close <slug>`** after your retest — it merges into the sprint branch or lands per `close.strategy`. Then **`/wa-wiki`**.
+Test the delivered branches. Notes on one → **`/wa-feedback <slug> <notes>`** (checks it out, applies them through the same pipeline). Matches spec → **`/wa-validate <slug>`** (verifier on the whole branch), then **`/wa-close <slug>`** after your retest — it syncs the wiki, then merges into the sprint branch or lands per `close.strategy`.

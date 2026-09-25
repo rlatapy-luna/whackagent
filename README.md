@@ -206,7 +206,7 @@ When the **last task of a sprint** closes, the sprint branch becomes the thing t
 /wa-wiki
 ```
 
-Updates the wiki after a feature lands. Never commits before your validation.
+Updates the wiki. `/wa-close` runs it on every close, so the wiki lands in the same commit/PR as the code it describes; run it yourself only for a catch-up sync.
 
 > Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **code**: built, run, committed on its branch, task left at `review`. The verifier doesn't run there — your review is asynchronous, so it waits for your `/wa-validate` on each branch, exactly like an attended run.
 

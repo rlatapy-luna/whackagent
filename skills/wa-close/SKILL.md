@@ -21,6 +21,7 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
    - `status: in-progress` → not coded. Stop.
    - `status: done` / `canceled` → already closed. Say what branch did, stop.
 2. **Check nothing moved** since review round — `git diff` against state `## Review` recorded. Code changed → say what, send back to `/wa-validate` for delta. Review only worth tree it read.
+2b. **Sync wiki — always, before plan.** Run **`/wa-wiki`** update mode scoped to this task (its diff + task file, `wiki:` pages it flagged), on task branch. Wiki pages edited → listed in plan block, committed **with task** in step 4 (one commit, one PR — wiki never lands separately or later). Nothing to update → say `wiki: nothing to sync`. Wiki edits don't count as "code moved" for step 2: docs, not reviewed code.
 3. **Show landing plan, get yes.** One block, before touching git — see *Plan block*. Only confirmation command ask; everything after run without more prompting.
 4. **Commit** — when `commit.auto_commit_after_validation`. `commit.author_name` / `commit.author_email` (empty → repo's git identity), **never as Claude**. Already clean → skip, say so.
    - Nothing committed and tree dirty → **stop before any branch move.** Uncommitted work plus merge = how work disappear.
@@ -36,7 +37,7 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
 `backlog.provider: github` (rules **wa-board → Backlog provider**). End of `coding` = PR opened; board moves itself. Replaces steps 5–9:
 
 1. **Resolve** `#12` / `12` / index. Check coding claim held from this host (`wa-backlog get <n>` → `claims[].agent` host part = `wa-backlog whoami` host part — autopilot worktree on same machine counts). Other host / none → stop: closing someone else's work, or work nobody claimed. `phase:` in task file plays role of `status:` in step 1.
-2. **Commit** (step 4) — always on ticket branch, task file included (`phase: validated`, Review/Verification filled).
+2. **Wiki + commit** (steps 2b + 4) — always on ticket branch, task file included (`phase: validated`, Review/Verification filled) and wiki pages step 2b touched: they ride in ticket PR.
 3. **Rebase onto PR base** — `sprint/<milestone>` when ticket has milestone, else `close.target`. Fetch first. Replay **ticket range only**: `git rebase --onto <base> $start^` (**wa-board → Backlog provider**, squash merge) — plain `git rebase <base>` replays squashed parents' commits and conflicts on every one. Stacked PR whose parent just landed: GitHub retargets it to parent's base once parent branch deleted; check `gh pr view --json baseRefName`, else `gh pr edit --base <base>`. PR base still another ticket's open branch (parent not landed) → **stop**: close parent first — rebasing ticket range onto sprint now drops parent's code. Conflicts mechanical (wiki index lines, import lists, generated files) → resolve yourself; touching logic → stop and ask with recommended resolution. Then **re-run build + tests**; red → stop, back to `/wa-feedback`.
 4. **Push + PR** — `git push --force-with-lease` (rebased), then `gh pr create --base <base> --head <branch> --title "<ticket title>" --body` = summary + `Closes #<n>` + acceptance criteria checklist. **Existing draft PR** for branch (autopilot delivery) → push, refresh body (`gh pr edit`), then `gh pr ready <pr>` — hook sees `ready_for_review`. **Existing open non-draft PR** (fix round) → push only, no new PR. Plan block names PR base and says it pushes; always confirmed, every time.
 5. **Board** — hook sets `ready-to-merge` and releases coding claim. Confirm `wa-backlog get <n>` (re-read once after ~30 s). Never set state yourself.
@@ -53,7 +54,8 @@ Say what you about to do to git **before** doing it, in their terms. Landing out
 ```
 Closing login-apple
 
-commit    : 2 uncommitted files → commit (Benjamin Pisano)
+wiki      : [[auth]] updated, [[login-apple]] created (/wa-wiki)
+commit    : 2 uncommitted files + 2 wiki pages → commit (Benjamin Pisano)
 sprint    : merge wa/login-apple → sprint/login-refacto
 branch    : wa/login-apple deleted (merged)
 worktree  : ../.wa-worktrees/login-apple removed
@@ -117,7 +119,7 @@ A sprint is never `done` as a thing — there's no sprint status to set. It's co
 - **`/wa-validate`** sets `validated` and stops there. It never commits, never touches a branch, never sets `done`.
 - **`/wa-feedback` on a `validated` task** → status back to `review`, needs `/wa-validate` again before it can be closed.
 - **`/wa-autopilot`** leaves tasks at `review` on their own branches, worktrees already removed (except blocked ones). Each still goes `/wa-validate` → `/wa-close`.
-- **`/wa-wiki`** is the step after, once the task is closed.
+- **`/wa-wiki`** runs **inside** `/wa-close` (step 2b), never after: wiki lands in same commit/PR as code it describes. Standalone `/wa-wiki` stays for syncs outside a task (query mode, catch-up).
 
 ## Never
 
@@ -134,4 +136,4 @@ Every question carries your recommended answer plus a one-line reason — confli
 
 ## Next step
 
-**`/wa-wiki`** to sync what this task taught the project, then `/wa-board` for what's next.
+`/wa-board` for what's next — wiki already synced by step 2b.

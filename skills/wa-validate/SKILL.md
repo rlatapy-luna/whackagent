@@ -59,4 +59,4 @@ Every question carry recommended answer + one-line reason — finding worth acce
 
 ## Next step
 
-Retest what review changed, then **`/wa-close <slug>`** — it commit, land branch (merge into sprint, PR, or nothing per `close.strategy`) and mark task `done`. Closed → **`/wa-wiki`**.
+Retest what review changed, then **`/wa-close <slug>`** — it commit, land branch (merge into sprint, PR, or nothing per `close.strategy`) and mark task `done`, wiki synced in same commit.

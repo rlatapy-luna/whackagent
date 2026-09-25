@@ -154,4 +154,4 @@ Never write code yourself. Never commit — closing is `/wa-close` job. Never ma
 
 ## Next step
 
-Test it. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`** (verifier), then **`/wa-close <slug>`** after retest. Closed → **`/wa-wiki`**.
+Test it. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`** (verifier), then **`/wa-close <slug>`** after retest (syncs wiki itself).
