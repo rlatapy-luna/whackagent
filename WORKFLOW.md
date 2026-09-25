@@ -67,6 +67,7 @@ sequenceDiagram
     A->>G: commit (task file phase included) + push
     alt first delivery
         A->>G: gh pr create --draft --assignee @me
+        A->>G: wa-backlog link-pr (milestone + Development)
         G->>H: pull_request: opened
     else later round
         G->>H: pull_request: synchronize

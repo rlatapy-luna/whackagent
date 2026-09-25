@@ -27,6 +27,7 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | sprint | milestone — created on first use, closed by hook when last issue done |
 | excluded | label `wa-ignore` |
 | dependencies | issue **Relationships** (blocked by) — `depend`, read back in `get` → `blocked_by` |
+| ticket PR | milestone = ticket milestone, issue linked in PR **Development** — `link-pr <n> <pr>` right after `gh pr create` (`Closes #<n>` alone links only when base = default branch) |
 
 Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: no number, no branch, no `Closes #`. `/wa-board` lists them to convert.
 

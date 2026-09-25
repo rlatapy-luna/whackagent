@@ -588,6 +588,25 @@ def op_depend(args):
     emit({"number": args.number, "blocked_by_added": added, "blocked_by_existing": kept})
 
 
+def op_link_pr(args):
+    """Give PR <pr> the ticket's milestone and a manual closing link (PR Development). Idempotent.
+
+    `Closes #n` in the body only links when the PR targets the default branch; sprint and
+    stacked PRs never do, so the link is added explicitly.
+    """
+    config = load()
+    issue = rest("GET", f"repos/{config['repo']}/issues/{args.number}")
+    milestone = (issue.get("milestone") or {}).get("number")
+    if milestone:
+        rest("PATCH", f"repos/{config['repo']}/issues/{args.pr}", {"milestone": milestone})
+    graphql(
+        "mutation($i:ID!,$p:[ID!]!){addCloseIssueReferences(input:{issueId:$i,pullRequestIds:$p}){clientMutationId}}",
+        i=issue["node_id"],
+        p=[rest("GET", f"repos/{config['repo']}/pulls/{args.pr}")["node_id"]],
+    )
+    emit({"number": args.number, "pr": args.pr, "milestone": (issue.get("milestone") or {}).get("title"), "linked": True})
+
+
 def blocked_by(config, number):
     rows = rest("GET", f"repos/{config['repo']}/issues/{number}/dependencies/blocked_by")
     return [{"number": r["number"], "state": r["state"]} for r in rows]
@@ -797,6 +816,11 @@ def parser():
     s.add_argument("number", type=int)
     s.add_argument("--on", required=True, type=lambda v: [int(x) for x in v.split(",") if x], help="blocker ids, comma-separated")
     s.set_defaults(func=op_depend)
+
+    s = sub.add_parser("link-pr", help="PR gets ticket milestone + closing link (Development)")
+    s.add_argument("number", type=int)
+    s.add_argument("pr", type=int)
+    s.set_defaults(func=op_link_pr)
 
     s = sub.add_parser("claims", help="every live claim, owner, last activity, stale flag")
     s.set_defaults(func=op_claims)
