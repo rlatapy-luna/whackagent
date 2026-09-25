@@ -721,6 +721,8 @@ def op_provision(args):
         number, created = project["number"], True
     project_id, url, fields = project_fields(owner_kind, owner, number)
     repo_id = rest("GET", f"repos/{repo}")["node_id"]
+    # Stacked PRs retarget to the next base only when their base branch is deleted on merge.
+    rest("PATCH", f"repos/{repo}", {"delete_branch_on_merge": True})
     graphql(
         "mutation($p:ID!,$r:ID!){linkProjectV2ToRepository(input:{projectId:$p,repositoryId:$r}){clientMutationId}}",
         p=project_id,
