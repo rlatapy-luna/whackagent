@@ -365,27 +365,6 @@ def claim_tree(config):
     return config["claim_tree"]
 
 
-def ticket_pulls(config, number):
-    """Open PRs whose head is the ticket branch (normally one)."""
-    branch = remote_branch(config, number)
-    if not branch:
-        return []
-    owner = config["repo"].split("/")[0]
-    return rest("GET", f"repos/{config['repo']}/pulls?state=open&head={owner}:{branch}")
-
-
-def set_assignees(config, number, logins):
-    """Assignee = human on turn. Issue and its open PRs carry the same set; [] clears them."""
-    for target in [number] + [p["number"] for p in ticket_pulls(config, number)]:
-        current = [a["login"] for a in rest("GET", f"repos/{config['repo']}/issues/{target}")["assignees"]]
-        drop = [login for login in current if login not in logins]
-        add = [login for login in logins if login not in current]
-        if drop:
-            rest("DELETE", f"repos/{config['repo']}/issues/{target}/assignees", {"assignees": drop})
-        if add:
-            rest("POST", f"repos/{config['repo']}/issues/{target}/assignees", {"assignees": add})
-
-
 def remote_branch(config, number):
     code, data = rest(
         "GET", f"repos/{config['repo']}/git/matching-refs/heads/{config['branch_prefix']}{number}-", check=False
@@ -488,8 +467,6 @@ def op_claim(args):
         existing = rest("GET", f"repos/{config['repo']}/git/ref/{ref.removeprefix('refs/')}")
         taken(config, args.number, phase, existing["object"]["sha"])
     set_state_raw(config, ticket, phase)
-    if phase == "coding":
-        set_assignees(config, args.number, [])  # agent on turn: nobody assigned until the round hands back
     comment(config, args.number, f"🔒 **{phase}** — `{agent}` · {now}")
     emit({"number": args.number, "phase": phase, "taken": False, "agent": agent, "since": now})
 
@@ -506,8 +483,6 @@ def op_release(args):
     code, _ = rest("DELETE", f"repos/{config['repo']}/git/refs/{ref}", check=False)
     if args.reset_to:
         set_state_raw(config, find(config, args.number, with_owners=False), args.reset_to)
-        if args.reset_to == "review":  # human on turn again, same as the hook's hand-back
-            set_assignees(config, args.number, [rest("GET", "user")["login"]])
     reason = f" — {args.reason}" if args.reason else ""
     target = f", back to **{args.reset_to}**" if args.reset_to else ""
     comment(config, args.number, f"🔓 **{args.phase}** released{target}{reason}")

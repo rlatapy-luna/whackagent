@@ -1,4 +1,4 @@
-# whackagent board hooks — template version: 7
+# whackagent board hooks — template version: 8
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo
@@ -10,8 +10,6 @@
 #   PR closed unmerged                     → grilled
 # `coding` is transient: an agent holds it only while it works. Every round ends with a push,
 # so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
-# Assignee = human on turn: PR author assigned (issue + PR) on entering review, cleared on grilled;
-# `wa-backlog claim … coding` clears it when an agent takes the ticket.
 # Settings are repository variables written by `wa-backlog provision`. Projects v2 writes need
 # the WA_PROJECT_TOKEN secret (classic PAT, scopes: project, repo). Everything else uses GITHUB_TOKEN.
 # Custom branch prefix? Change the `branches` filter below to match WA_BRANCH_PREFIX.
@@ -29,7 +27,7 @@ on:
 permissions:
   contents: write
   issues: write
-  pull-requests: write   # assignee on the PR (issues API on a PR number needs it)
+  pull-requests: read
 
 concurrency:
   # event + action in the group: GitHub keeps one pending run per group and cancels the older one, so a
@@ -126,20 +124,6 @@ jobs:
               } catch (e) { if (![404, 422].includes(e.status)) throw e; }
             }
 
-            // Assignee = human on turn: set when the ticket enters review, cleared when it leaves for
-            // grilled. `wa-backlog claim … coding` clears it too, so a ticket in coding has nobody assigned.
-            async function assign(number, pr, logins) {
-              for (const target of [number, pr.number]) {
-                const { data } = await github.rest.issues.get({ owner, repo, issue_number: target });
-                const current = data.assignees.map((a) => a.login);
-                const drop = current.filter((l) => !logins.includes(l));
-                const add = logins.filter((l) => !current.includes(l));
-                if (drop.length) await github.rest.issues.removeAssignees({ owner, repo, issue_number: target, assignees: drop });
-                if (add.length) await github.rest.issues.addAssignees({ owner, repo, issue_number: target, assignees: add });
-              }
-            }
-            const human = (pr) => (pr.user.type === "User" ? [pr.user.login] : []);
-
             const comment = (number, body) =>
               github.rest.issues.createComment({ owner, repo, issue_number: number, body });
 
@@ -207,7 +191,6 @@ jobs:
                 if (ticket.state === "done") return;
                 await setState(ticket, "review");
                 await release(number, "coding");
-                await assign(number, pr, human(pr));
                 const kind = pr.draft ? "draft " : "";
                 await comment(number, `🔀 **review** — ${kind}#${pr.number} → \`${pr.base.ref}\``);
                 return;
@@ -226,7 +209,6 @@ jobs:
                 if (!(await claimExists(number, "coding"))) return;
                 await setState(ticket, "review");
                 await release(number, "coding");
-                await assign(number, pr, human(pr));
                 await comment(number, `🔀 **review** — round pushed to #${pr.number}`);
                 return;
               }
@@ -254,7 +236,6 @@ jobs:
                 if (ticket.state === "done") return;
                 await setState(ticket, "grilled");
                 await release(number, "coding");
-                await assign(number, pr, []);
                 await comment(number, `↩️ **grilled** — #${pr.number} closed unmerged, spec kept on \`${pr.head.ref}\``);
               }
             }

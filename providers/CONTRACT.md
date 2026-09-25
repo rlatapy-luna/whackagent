@@ -26,8 +26,6 @@ Agents only ever write `grilling` / `coding` (through `claim`) and resets throug
 
 `coding` never waits on human. Agent round = claim → work → commit → push; push opens draft PR or updates it, hook moves ticket to `review` and drops claim. Round aborted without push → `release <id> coding --reset-to review` when PR open, else `--reset-to grilled`.
 
-Tracker assignee (when provider has one) = **human on turn**: cleared by `claim … coding`, set on entering `review`. Ticket in `coding` never has one.
-
 Whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task file frontmatter `phase:`, pushed with each round — coding lock guarantee single writer per round, board stay coarse. Same word, two levels: board `review` = PR open, humans on turn; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed, waiting user retest then `/wa-close`.
 
 ## Verbs
