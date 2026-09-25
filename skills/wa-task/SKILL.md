@@ -51,6 +51,8 @@ Owns two things: **writing task** (steps 1–5), **placing it** (step 6). Priori
 
 **Prioritization (step 6) under GitHub:** **not automatic.** Board order shared with humans and other agents — new ticket lands bottom of `todo`, full stop. Only explicit `/wa-task` (no arg): re-read `wa-backlog list` just before writing, show proposed order, apply with `wa-backlog move` **only on user yes**. Cancel = close issue `not planned` with reason comment, on yes.
 
+**Unattended grill** — `/wa-autopilot` AFK mode runs steps 2–5 itself, answering with its own recommendations, each tagged `(autopilot assumption)` in `## Context / Decisions`. Product-intent question → releases ticket back to `todo` with `BLOCKED:` reason, never guesses.
+
 **`/wa-task release <n>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <n> <phase> --reset-to <todo|grilled> --reason "stale: <age>, no push"` (`grilling` → `todo`, `coding` → `grilled`). Never on own initiative, never to take ticket another live agent holds.
 
 ## Sprints

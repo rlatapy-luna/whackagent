@@ -21,7 +21,7 @@ Given tasks, or every `todo` task if none (confirm list first if user present). 
 
 `backlog.provider: github` (rules **wa-board → Backlog provider**). Several autopilots, on several machines, may run on one board at once — claims keep them apart.
 
-- **Scope** = unclaimed `grilled` tickets, board order (`wa-backlog list --state grilled`); args = `#n`, indexes, or milestone name. Never `todo`: grilling needs user.
+- **Scope** = unclaimed `grilled` tickets, board order (`wa-backlog list --state grilled`); args = `#n`, indexes, or milestone name. Never `todo`: grilling needs user — except **AFK mode** (below).
 - **Claim each ticket before its worktree** — `wa-backlog claim <n> coding`. Exit 3 → drop from batch, echo `#12 skipped: coded by <agent>`. Claim just before wave starts, not whole batch up front: later waves' tickets stay free for others until needed.
 - **Also check open PRs** before planning waves: `gh pr list --json number,headRefName,files` — ticket whose BRIEF files overlap files of open PR → warn in plan (`#14 touches LoginView like open PR #9 — merge conflict likely`). Warning, not block.
 - **Worktree from existing ticket branch** (grilling pushed it) — fetch, then `git worktree add ../.wa-worktrees/<n>-<slug> <branch>`. Never `-b`: spec lives on that branch.
@@ -29,13 +29,23 @@ Given tasks, or every `todo` task if none (confirm list first if user present). 
 - **Handoff** — nothing held after delivery: `/wa-feedback`, `/wa-validate`, `/wa-close` each claim from `review` for their own round, from any worktree or machine. Legacy hooks (`v < 6`) keep autopilot's claim → same host only.
 - **Blocked ticket** → `wa-backlog release <n> coding --reset-to grilled --reason "BLOCKED: <question>"` — question lands on issue, ticket free for next attempt once answered.
 
+## AFK mode — whole backlog, nobody back before the end
+
+Arg says so (`afk`, `full afk`, "run the whole backlog"). Same pipeline, three limits lifted:
+
+- **Stack depth unlimited.** Every ticket with an unlanded blocker stacks; never "waits for next run".
+- **Multi-blocker → linearize.** Stack on the blocker branch that already contains every other open blocker (`git merge-base --is-ancestor`). None does → make one: the blocker not yet delivered stacks on the other at its own delivery (rebase its ticket range onto it, PR base = it). Result is mostly **one chain** — merge order forced bottom-up; say it in plan. Parallel only for leaves nothing later depends on, forked off chain tip; every wave rule above still holds.
+- **Grill `todo` tickets unattended.** `/wa-task` GitHub steps 2–5 (claim `grilling`, `gh issue develop`, spec, push), you answering each grill question with your own recommendation — read code + wiki first, YAGNI, most reversible option. Every such answer lands in `## Context / Decisions` tagged `(autopilot assumption)`, listed again in report card **To test** so user confirms or corrects. Grill needs product intent code can't give → don't guess: release `--reset-to todo --reason "BLOCKED: <question>"`, ticket stays out. Dependencies found → `wa-backlog depend`, then ticket enters plan like any `grilled` one.
+
+Plan echo shows chain + leaves: `chain: #23 → #18 → #19 → #22 → #24 …` · `leaf ∥: #25 on #24`.
+
 ## 1. Plan the batch — what can run at once
 
 Do `/wa-code` step 1 (**Plan**) for **every** task in batch, up front, main thread. Now hold one BRIEF per task — that tell you if two tasks share clock.
 
 **GitHub provider:** `wa-backlog get <n>` → `blocked_by` with open blocker → ticket waits for that blocker's wave (or skip it: blocker not in batch and not landed = forks off code that isn't there).
 
-**Stacking** — blocker in same batch, not landed: its wave delivers first, then dependent ticket **stacks on it**: worktree from ticket's own branch, `git rebase --onto origin/<blocker branch> $start^` (ticket range, **wa-board → Backlog provider**), `push --force-with-lease`, draft PR base = blocker branch. Only when blocker branch carries hooks v3+ (check above) — else no draft. One open blocker per stacked ticket: two unlanded blockers on different branches → can't stack, ticket waits for next run. Ask user max stack depth before planning (recommend 2: every feedback round on bottom ticket cascades one rebase per layer). Echo stack in plan: `wave 2 (∥): #17 · #20 · #26   ← stacked on #16`.
+**Stacking** — blocker in same batch, not landed: its wave delivers first, then dependent ticket **stacks on it**: worktree from ticket's own branch, `git rebase --onto origin/<blocker branch> $start^` (ticket range, **wa-board → Backlog provider**), `push --force-with-lease`, draft PR base = blocker branch. Only when blocker branch carries hooks v3+ (check above) — else no draft. One open blocker per stacked ticket: two unlanded blockers on different branches → can't stack, ticket waits for next run. Ask user max stack depth before planning (recommend 2: every feedback round on bottom ticket cascades one rebase per layer) — AFK mode: no limit, no question. Echo stack in plan: `wave 2 (∥): #17 · #20 · #26   ← stacked on #16`.
 
 **Two tasks independent when all hold:**
 - `FILES` + `LAYOUT` sets don't intersect — no shared file, no shared target folder;
