@@ -46,6 +46,8 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 
 **Assignee = human on turn.** `claim … coding` clears issue + PR assignees (agent working, nobody to ping). Hook assigns PR author to issue + PR when ticket enters `review` (`opened`, `synchronize` ending a round); `release --reset-to review` assigns the `gh` user; closed unmerged (`grilled`) clears. Skills never pass `--assignee`.
 
+**Conflicting PR = no hook.** GitHub skips `pull_request` workflows when PR merge ref conflicts: push to conflicting PR moves nothing, claim stays. Round end checks `mergeable`, rebases ticket range when `CONFLICTING`.
+
 Workflow runs from default branch for `issues`, from pushed ref for `push`/`pull_request` — so it must be merged on default branch **and** present on ticket branches (branches forked after merge carry it).
 
 Custom `branch.prefix` → edit `branches:` filter in workflow to match.
