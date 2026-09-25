@@ -32,7 +32,7 @@ All print JSON on stdout, messages on stderr.
 
 | Verb | Does | Output / exit |
 |---|---|---|
-| `list [--state s,…] [--sprint x] [--all] [--owners]` | board rows, **priority order**, `done` hidden unless `--all` | `[{number,title,summary,state,size,sprint,claims,url}]`; draft rows `{draft:true,title}` |
+| `list [--state s,…] [--sprint x] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,claims,url}]`; draft rows `{draft:true,title}` only when unfiltered |
 | `get <id>` | one ticket + its branch | object, `branch` null before grilling pushed |
 | `create --title --summary [--size] [--sprint] [--note]` | new ticket in `todo`, bottom of board | `{number,url,state}` |
 | `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |
@@ -49,7 +49,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 
 
 ## Claim rules
 
-- `grilling` claimable from `todo`. `coding` claimable from `grilled` or `ready-to-merge` (fix round on open PR).
+- `grilling` claimable from `todo`. `coding` claimable from `grilled` or `ready-to-merge` (fix round on open PR). Closed ticket, or ticket in column outside the six states (`state: null`, `column: "Blocked"`) → exit 4, never touched.
 - Lost claim (exit 3) → never retry same ticket, never steal. Next ticket, or report owner to user.
 - Lock released by data (hook) on next transition, or by `release` on explicit abort / stale cleanup — **human-triggered only**. No expiry: grilling interactive, human may answer in two days.
 - `claims` flags `stale` past `stale_after` with no push on ticket branch. `/wa-board` shows them; `/wa-task release <id>` clears.

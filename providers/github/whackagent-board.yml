@@ -1,4 +1,4 @@
-# whackagent board hooks — template version: 1
+# whackagent board hooks — template version: 2
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo
@@ -87,13 +87,14 @@ jobs:
               const p = await project();
               const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: number });
               const added = await projects.graphql(
-                `mutation($p:ID!,$c:ID!){addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id
-                  fieldValueByName(name:"${statusField}"){... on ProjectV2ItemFieldSingleSelectValue{name}}}}}`,
-                { p: p.id, c: issue.node_id });
+                `mutation($p:ID!,$c:ID!,$f:String!){addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id
+                  fieldValueByName(name:$f){... on ProjectV2ItemFieldSingleSelectValue{name}}}}}`,
+                { p: p.id, c: issue.node_id, f: statusField });
               const node = added.addProjectV2ItemById.item;
               const current = node.fieldValueByName?.name;
               const state = Object.keys(states).find((s) => states[s] === current) || null;
-              return { id: node.id, state, issue };
+              // column set but state null = a column whackagent doesn't own (Blocked, …): hands off
+              return { id: node.id, state, column: current || null, issue };
             }
 
             async function setState(ticket, state) {
@@ -150,7 +151,7 @@ jobs:
               if (payload.issue.pull_request) return;
               if (payload.issue.labels.some((l) => l.name === "wa-ignore")) return;
               const ticket = await item(payload.issue.number);
-              if (!ticket.state) await setState(ticket, "todo");
+              if (!ticket.column) await setState(ticket, "todo");
               return;
             }
 
@@ -162,7 +163,7 @@ jobs:
               const spec = await specReady(number, payload.after);
               if (!spec) return;
               const ticket = await item(number);
-              if (ticket.state && !["todo", "grilling"].includes(ticket.state)) return;
+              if (ticket.column && !["todo", "grilling"].includes(ticket.state)) return;
               await setState(ticket, "grilled");
               await release(number, "grilling");
               await comment(number, `✅ **grilled** — spec \`${spec}\` on \`${branch}\``);
@@ -175,6 +176,10 @@ jobs:
               const number = issueFromBranch(pr.head.ref);
               if (!number) return;
               const ticket = await item(number);
+              if (ticket.column && !ticket.state) {
+                core.info(`#${number} sits in column ${ticket.column}, not a whackagent state: untouched`);
+                return;
+              }
               const action = payload.action;
 
               if (action === "opened" || action === "reopened") {

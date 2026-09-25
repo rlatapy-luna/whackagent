@@ -9,6 +9,8 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 """
 
 import argparse
+import concurrent.futures
+import hashlib
 import datetime as dt
 import json
 import os
@@ -56,6 +58,10 @@ class Failure(Exception):
     def __init__(self, message, code=EXIT_ERROR):
         super().__init__(message)
         self.code = code
+
+
+class StaleCache(Exception):
+    """Board holds ids the cache doesn't know: the Project changed since the cache was built."""
 
 
 # ---------------------------------------------------------------- gh plumbing
@@ -132,7 +138,7 @@ def owner_node(owner):
 def project_fields(owner_kind, owner, number):
     data = graphql(
         f"""query($l:String!,$n:Int!){{{owner_kind}(login:$l){{projectV2(number:$n){{id url
-            fields(first:50){{nodes{{... on ProjectV2SingleSelectField{{id name options{{id name}}}}}}}}}}}}}}""",
+            fields(first:50){{nodes{{... on ProjectV2SingleSelectField{{id name options{{id name color description}}}}}}}}}}}}}}""",
         l=owner,
         n=number,
     )[owner_kind]["projectV2"]
@@ -142,12 +148,20 @@ def project_fields(owner_kind, owner, number):
     return data["id"], data["url"], fields
 
 
+def fingerprint(variables):
+    settings = {k: v for k, v in sorted(variables.items()) if k.startswith("WA_")}
+    return hashlib.sha256(json.dumps(settings).encode()).hexdigest()
+
+
 def load(refresh=False):
+    """Settings from repo variables, ids from the Project. The cache is reused only while the
+    variables are unchanged (one cheap call per run), so a re-provision elsewhere is picked up."""
     path = cache_path()
-    if path.exists() and not refresh:
-        return json.loads(path.read_text())
-    repo = current_repo()
+    cached = json.loads(path.read_text()) if path.exists() else None
+    repo = cached["repo"] if cached else current_repo()
     variables = repo_variables(repo)
+    if cached and not refresh and cached.get("fingerprint") == fingerprint(variables):
+        return cached
     if "WA_PROJECT_NUMBER" not in variables:
         raise Failure(f"{repo} has no WA_PROJECT_NUMBER variable — run /wa-setup backlog (provision)")
     owner = variables.get("WA_PROJECT_OWNER", repo.split("/")[0])
@@ -172,7 +186,9 @@ def load(refresh=False):
         "project_number": number,
         "project_id": project_id,
         "project_url": url,
+        "fingerprint": fingerprint(variables),
         "status_field": status["id"],
+        "status_option_names": {o["id"]: o["name"] for o in status["options"]},
         "state_options": {s: options[n] for s, n in state_names.items()},
         "state_names": state_names,
         "size_field": size["id"] if size else None,
@@ -194,7 +210,7 @@ ITEM_FIELDS = """
     ... on Issue { number title body url state
       milestone { title } labels(first:20) { nodes { name } } }
     ... on DraftIssue { title } }
-  fieldValues(first:20) { nodes {
+  fieldValues(first:50) { nodes {
     ... on ProjectV2ItemFieldSingleSelectValue { optionId field { ... on ProjectV2SingleSelectField { id } } } } }
 """
 
@@ -219,13 +235,15 @@ def items(config):
         after = page["pageInfo"]["endCursor"]
 
 
-def claims(config):
-    code, data = rest("GET", f"repos/{config['repo']}/git/matching-refs/{CLAIM_NAMESPACE}/", check=False)
+def claims(config, number=None):
+    """Live claims, all of them or one ticket's. Map by number, or list when number given."""
+    scope = f"{CLAIM_NAMESPACE}/{number}/" if number is not None else f"{CLAIM_NAMESPACE}/"
+    code, data = rest("GET", f"repos/{config['repo']}/git/matching-refs/{scope}", check=False)
     found = {}
     for ref in data or []:
-        _, _, number, phase = ref["ref"].split("/", 3)
-        found.setdefault(int(number), []).append({"phase": phase, "sha": ref["object"]["sha"]})
-    return found
+        _, _, held_by, phase = ref["ref"].split("/", 3)
+        found.setdefault(int(held_by), []).append({"phase": phase, "sha": ref["object"]["sha"]})
+    return found if number is None else found.get(number, [])
 
 
 def claim_owner(config, sha):
@@ -236,7 +254,7 @@ def claim_owner(config, sha):
     return {"agent": fields.get("agent", "?"), "since": commit["committer"]["date"]}
 
 
-def to_ticket(config, node, claim_map, with_owners=False):
+def to_ticket(config, node, claim_map, with_owners=False, keep_sha=False):
     content = node["content"] or {}
     if content.get("__typename") != "Issue":
         return {"draft": True, "title": content.get("title", ""), "item_id": node["id"]}
@@ -248,6 +266,9 @@ def to_ticket(config, node, claim_map, with_owners=False):
     by_option = {o: s for s, o in config["state_options"].items()}
     by_size = {o: s for s, o in config["size_options"].items()}
     number = content["number"]
+    status_option = values.get(config["status_field"])
+    if status_option and status_option not in config["status_option_names"]:
+        raise StaleCache(f"unknown Status option {status_option}")
     held = claim_map.get(number, [])
     if with_owners:
         held = [{**c, **claim_owner(config, c["sha"])} for c in held]
@@ -255,12 +276,13 @@ def to_ticket(config, node, claim_map, with_owners=False):
         "number": number,
         "title": content["title"],
         "summary": summary_of(content["body"]),
-        "state": by_option.get(values.get(config["status_field"])),
+        "state": by_option.get(status_option),
+        "column": config["status_option_names"].get(status_option),
         "size": by_size.get(values.get(config["size_field"])),
         "sprint": (content["milestone"] or {}).get("title"),
         "closed": content["state"] == "CLOSED",
         "ignored": IGNORE_LABEL in [l["name"] for l in content["labels"]["nodes"]],
-        "claims": [{k: v for k, v in c.items() if k != "sha"} for c in held],
+        "claims": [dict(c) if keep_sha else {k: v for k, v in c.items() if k != "sha"} for c in held],
         "url": content["url"],
         "item_id": node["id"],
     }
@@ -278,11 +300,10 @@ def find(config, number, with_owners=True):
             raise Failure(f"#{number} does not exist")
         for node in issue["projectItems"]["nodes"]:
             if node["project"]["id"] == config["project_id"]:
-                claim_map = {number: claims(config).get(number, [])}
-                ticket = to_ticket(config, node, claim_map, with_owners)
-                if ticket["state"] is None:
+                ticket = to_ticket(config, node, {number: claims(config, number)}, with_owners)
+                if ticket["column"] is None:  # no Status at all: fresh card, not a column we don't know
                     set_state_raw(config, ticket, "todo")
-                    ticket["state"] = "todo"
+                    ticket["state"] = ticket["column"] = "todo"
                 return ticket
         if attempt == 0:
             add_to_board(config, number)  # every issue is a ticket; the opened hook may have missed it
@@ -332,10 +353,14 @@ def agent_id(explicit=None):
     return f"{socket.gethostname().split('.')[0]}:{where}"
 
 
-def default_tree(config):
-    repo = rest("GET", f"repos/{config['repo']}")
-    head = rest("GET", f"repos/{config['repo']}/git/ref/heads/{repo['default_branch']}")
-    return rest("GET", f"repos/{config['repo']}/git/commits/{head['object']['sha']}")["tree"]["sha"]
+def claim_tree(config):
+    """Any tree already in the repo works for a claim commit; resolve once, keep it in the cache."""
+    if not config.get("claim_tree"):
+        repo = rest("GET", f"repos/{config['repo']}")
+        head = rest("GET", f"repos/{config['repo']}/commits/{repo['default_branch']}")
+        config["claim_tree"] = head["commit"]["tree"]["sha"]
+        cache_path().write_text(json.dumps(config, indent=2))
+    return config["claim_tree"]
 
 
 def remote_branch(config, number):
@@ -359,11 +384,14 @@ def op_list(args):
     wanted = set(args.state.split(",")) if args.state else None
     rows = []
     for node in items(config):
-        ticket = to_ticket(config, node, claim_map, with_owners=args.owners)
+        ticket = to_ticket(config, node, claim_map, keep_sha=args.owners)
         if ticket.get("draft"):
-            rows.append(ticket)
+            if not wanted and not args.sprint:  # drafts have no state or sprint: only in unfiltered lists
+                rows.append(ticket)
             continue
         if ticket["ignored"]:
+            continue
+        if ticket["closed"] and not args.all:  # canceled, split parent: closed without a merge
             continue
         if wanted and ticket["state"] not in wanted:
             continue
@@ -372,6 +400,14 @@ def op_list(args):
         if args.sprint and ticket["sprint"] != args.sprint:
             continue
         rows.append(ticket)
+    if args.owners:
+        claimed = [c for t in rows for c in t.get("claims", [])]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            for claim, owner in zip(claimed, pool.map(lambda c: claim_owner(config, c["sha"]), claimed)):
+                claim.update(owner)
+    for t in rows:
+        for c in t.get("claims", []):
+            c.pop("sha", None)
     emit(rows)
 
 
@@ -401,10 +437,15 @@ def op_claim(args):
     config = load()
     phase = args.phase
     ticket = find(config, args.number, with_owners=False)
-    if ticket["state"] not in CLAIM_FROM[phase] and not (phase == "grilling" and ticket["state"] is None):
-        raise Failure(
-            f"#{args.number} is {ticket['state']}, {phase} needs {sorted(CLAIM_FROM[phase])}", EXIT_WRONG_STATE
-        )
+    if ticket["closed"]:
+        raise Failure(f"#{args.number} is closed", EXIT_WRONG_STATE)
+    ref = f"refs/{CLAIM_NAMESPACE}/{args.number}/{phase}"
+    held = next((c for c in claims(config, args.number) if c["phase"] == phase), None)
+    if held:  # before the state check, so a loser learns who holds it; leaves no commit behind
+        taken(config, args.number, phase, held["sha"])
+    if ticket["state"] not in CLAIM_FROM[phase]:
+        where = ticket["state"] or f"in column {ticket['column']!r}"
+        raise Failure(f"#{args.number} is {where}, {phase} needs {sorted(CLAIM_FROM[phase])}", EXIT_WRONG_STATE)
     agent = agent_id(args.agent)
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     commit = rest(
@@ -412,20 +453,25 @@ def op_claim(args):
         f"repos/{config['repo']}/git/commits",
         {
             "message": f"wa-claim {phase} #{args.number}\n\nagent: {agent}\nclaimed: {now}\n",
-            "tree": default_tree(config),
+            "tree": claim_tree(config),
             "parents": [],
         },
     )
-    ref = f"refs/{CLAIM_NAMESPACE}/{args.number}/{phase}"
     code, data = rest("POST", f"repos/{config['repo']}/git/refs", {"ref": ref, "sha": commit["sha"]}, check=False)
     if code != 0:
+        if (data or {}).get("message") != "Reference already exists":
+            raise Failure(f"could not create claim ref {ref}: {(data or {}).get('message', 'unknown error')}")
         existing = rest("GET", f"repos/{config['repo']}/git/ref/{ref.removeprefix('refs/')}")
-        owner = claim_owner(config, existing["object"]["sha"])
-        emit({"number": args.number, "phase": phase, "taken": True, **owner})
-        raise Failure(f"#{args.number} {phase} already claimed by {owner['agent']} since {owner['since']}", EXIT_TAKEN)
+        taken(config, args.number, phase, existing["object"]["sha"])
     set_state_raw(config, ticket, phase)
     comment(config, args.number, f"🔒 **{phase}** — `{agent}` · {now}")
     emit({"number": args.number, "phase": phase, "taken": False, "agent": agent, "since": now})
+
+
+def taken(config, number, phase, sha):
+    owner = claim_owner(config, sha)
+    emit({"number": number, "phase": phase, "taken": True, **owner})
+    raise Failure(f"#{number} {phase} already claimed by {owner['agent']} since {owner['since']}", EXIT_TAKEN)
 
 
 def op_release(args):
@@ -451,8 +497,9 @@ def op_move(args):
     nodes = [n for n in items(config) if (n["content"] or {}).get("number") is not None]
     by_number = {n["content"]["number"]: n["id"] for n in nodes}
     order = [n["content"]["number"] for n in nodes]
-    if args.number not in by_number:
-        raise Failure(f"#{args.number} is not on the board")
+    for n in filter(lambda n: n is not None, [args.number, args.before, args.after]):
+        if n not in by_number:
+            raise Failure(f"#{n} is not on the board (or not listed yet — new cards show up after 1–3 min)", EXIT_USAGE)
     after = None
     if args.bottom:
         rest_order = [n for n in order if n != args.number]
@@ -516,28 +563,28 @@ def op_comment(args):
 def op_claims(args):
     config = load()
     now = dt.datetime.now(dt.timezone.utc)
-    rows = []
-    for number, held in sorted(claims(config).items()):
+
+    def row(number, claim):
         branch = remote_branch(config, number)
         last_push = None
         if branch:
             head = rest("GET", f"repos/{config['repo']}/commits/{branch}")
             last_push = head["commit"]["committer"]["date"]
-        for claim in held:
-            owner = claim_owner(config, claim["sha"])
-            latest = max(filter(None, [owner["since"], last_push]))
-            age = now - dt.datetime.fromisoformat(latest.replace("Z", "+00:00"))
-            rows.append(
-                {
-                    "number": number,
-                    "phase": claim["phase"],
-                    **owner,
-                    "branch": branch,
-                    "last_activity": latest,
-                    "stale": age.total_seconds() > config["stale_after_hours"] * 3600,
-                }
-            )
-    emit(rows)
+        owner = claim_owner(config, claim["sha"])
+        latest = max(filter(None, [owner["since"], last_push]))
+        age = now - dt.datetime.fromisoformat(latest.replace("Z", "+00:00"))
+        return {
+            "number": number,
+            "phase": claim["phase"],
+            **owner,
+            "branch": branch,
+            "last_activity": latest,
+            "stale": age.total_seconds() > config["stale_after_hours"] * 3600,
+        }
+
+    work = [(number, claim) for number, held in sorted(claims(config).items()) for claim in held]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        emit(list(pool.map(lambda job: row(*job), work)))
 
 
 def op_whoami(args):
@@ -554,21 +601,19 @@ def op_branch(args):
 
 def ensure_status_options(field, state_names):
     """Add missing state options, keeping existing ones (and their ids, so no card loses its Status)."""
-    existing = {o["name"]: o["id"] for o in field["options"]}
-    wanted = set(state_names.values())
-    options = [
-        {"id": oid, "name": name, "color": "GRAY", "description": ""}
-        for name, oid in existing.items()
-        if name not in wanted
-    ]
-    for state in STATES:
-        name = state_names[state]
-        option = {"name": name, "color": STATE_COLORS[state], "description": STATE_DESCRIPTIONS[state]}
-        if name in existing:
-            option["id"] = existing[name]
-        options.append(option)
-    if all(n in existing for n in wanted):
+    existing = {o["name"]: o for o in field["options"]}
+    missing = [s for s in STATES if state_names[s] not in existing]
+    if not missing:
         return False
+    # The mutation replaces the whole option list: resend every existing option exactly as it is
+    # (id, color, description) and append only the missing states.
+    options = [
+        {"id": o["id"], "name": o["name"], "color": o["color"], "description": o["description"] or ""}
+        for o in field["options"]
+    ]
+    options += [
+        {"name": state_names[s], "color": STATE_COLORS[s], "description": STATE_DESCRIPTIONS[s]} for s in missing
+    ]
     graphql(
         """mutation($f:ID!,$o:[ProjectV2SingleSelectFieldOptionInput!]){updateProjectV2Field(input:{
             fieldId:$f,singleSelectOptions:$o}){projectV2Field{... on ProjectV2SingleSelectField{id}}}}""",
@@ -744,7 +789,11 @@ def parser():
 def main():
     args = parser().parse_args()
     try:
-        args.func(args)
+        try:
+            args.func(args)
+        except StaleCache:
+            load(refresh=True)  # Project changed under the cache: rebuild once, rerun
+            args.func(args)
     except Failure as failure:
         note(f"wa-backlog: {failure}")
         sys.exit(failure.code)

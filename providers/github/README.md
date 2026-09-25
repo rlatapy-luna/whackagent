@@ -12,7 +12,7 @@
 | secret | `WA_PROJECT_TOKEN` | classic PAT, scopes `project` + `repo`. Workflow Projects writes only — `GITHUB_TOKEN` can't reach Projects v2. |
 | claims | refs `refs/wa-claims/<issue#>/<phase>` | lock. Ref points at empty commit whose message names agent. |
 
-Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all worktrees of clone). `wa-backlog config --refresh` rebuilds it — run after editing variables or Project fields.
+Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all worktrees of clone). Rebuilt automatically when repo variables change (fingerprint checked each run) or when board holds an option id cache doesn't know. `wa-backlog config --refresh` forces it.
 
 ## Mapping
 
@@ -54,5 +54,8 @@ Custom `branch.prefix` → edit `branches:` filter in workflow to match.
 ## Known behavior
 
 - **Project item list lags** writes by 1–3 min (GitHub indexing). `list` may miss brand-new tickets; `get`/`claim` read through issue — always current.
-- Claim race: N agents claim same ticket → exactly one exit 0, rest exit 3 (tested 6-way).
+- Claim race: N agents claim same ticket → exactly one exit 0, rest exit 3 with owner (tested 6-way). Only `Reference already exists` counts as taken; any other ref error surfaces as-is.
+- Columns outside the six states (board's own `Blocked`, default `In Progress`) are kept by provision with their colors/descriptions, and left alone by script and hooks: `state: null`, `column: <name>`, not claimable.
+- Closed issues (canceled, split parent) hidden from `list`, never claimable.
+- Right after someone moves a card by hand, a read may see previous column for a second or two (GitHub replica lag).
 - Organization project: works with same PAT scopes; GitHub App path (not tied to one person) not built yet.

@@ -46,7 +46,7 @@ Then confirm with user:
    - shared wiki or backlog want **committed, browsable** folder (`docs/`) — `.whackagent/` read fine for agents, bad for human on GitHub;
    - `paths.reports` = run output, not knowledge — leave local (and gitignore-able) unless asked.
    Absolute paths work too (wiki in sibling repo). `.whackagent/config.md` itself never move — it carry the paths.
-   **GitHub backlog** → no backlog file: ask only about **wiki** (and tasks folder). Wording: _"Keep the wiki inside `.whackagent/`, or put it where the team reads — `docs/wiki/`?"_ Never mention backlog location — it's the Project. Say task specs live in `{tasks}` **on each ticket branch**, merged with the code.
+   **GitHub backlog** → no backlog file: ask only about **wiki** (and tasks folder). Wording: _"Keep the wiki inside `.whackagent/`, or put it where the team reads — `docs/wiki/`? (recommended: `.whackagent/wiki` — agents read it fine; move it to `docs/wiki` only if teammates who don't run whackagent should browse it on GitHub)"_ Never mention backlog location — it's the Project. Say task specs live in `{tasks}` **on each ticket branch**, merged with the code.
 
 Keep short — 7 to 10 questions (build one fire only on detected wrapper; close policy only when `per_task` and backlog local). Rest take template default.
 
@@ -65,10 +65,12 @@ Driver missing → say so now, not at first autopilot run.
 Follow `${CLAUDE_PLUGIN_ROOT}/providers/github/README.md` → **Setup**, one step at a time, each confirmed:
 
 1. `gh auth status` has scope `project` — missing → give user `! gh auth refresh -h github.com -s project`, wait.
-2. Project: list theirs (`gh project list --owner <owner>`), propose reuse or new. Run `wa-backlog provision --title … | --project <n>` (+ `--state x=Name` when adopting a board whose column names differ — ask for any state it can't match; never rename their columns). Pass `--tasks-path {tasks}` and `--branch-prefix <branch.prefix>`.
+2. Project: list theirs (`gh project list --owner <owner>`), propose reuse or new — recommend **new** (`<repo> backlog`) unless they name a board the team already works from: a fresh board gets whackagent's six columns cleanly, an adopted one keeps its columns and needs `--state` mapping. Run `wa-backlog provision --title … | --project <n>` (+ `--state x=Name` when adopting a board whose column names differ — ask for any state it can't match; never rename their columns). Pass `--tasks-path {tasks}` and `--branch-prefix <branch.prefix>`.
 3. Workflow → branch `wa-setup/board-hooks`, copy `providers/github/whackagent-board.yml` to `.github/workflows/`, fix its `branches:` filter if prefix isn't `wa/`, PR onto default branch. Never push default branch. Hooks live once merged — say so.
 4. Secret `WA_PROJECT_TOKEN` — give token link + `! pbpaste | gh secret set WA_PROJECT_TOKEN -R <repo>`, wait, check `provision` / `gh secret list`.
-5. Offer (ask each): import open issues (`wa-backlog get <n>` adds each as `todo`); smoke test (README step 5).
+5. Offer (ask each, with recommendation):
+   - import open issues (`wa-backlog get <n>` adds each as `todo`) — recommend **yes** when repo has open issues: every issue is a ticket anyway, hook only catches new ones.
+   - smoke test (README step 5) — recommend **yes** once hooks PR merged: proves token, variables and hooks before real work; costs one throwaway issue.
 6. Scaffold without `{backlog}` file — board replaces it. `{tasks}` still created (holds specs on ticket branches).
 
 **Migrating an existing local backlog** (reconfigure `local` → `github`) — offer once, apply on yes, per task:
