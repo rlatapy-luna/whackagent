@@ -15,7 +15,7 @@ Runs on fresh project **and** on one already set up. Second time = **reconfigure
 
 `.whackagent/config.md` exists → **reconfigure** (jump to *Reconfigure mode*). Absent → **first setup**, steps 1–4.
 
-Optional arg narrow scope: `/wa-setup paths`, `/wa-setup review`, `/wa-setup build`, `/wa-setup branch`, `/wa-setup commit`, `/wa-setup verify`, `/wa-setup languages`. Reconfigure only — on fresh project arg meaningless, say so and run full setup.
+Optional arg narrow scope: `/wa-setup paths`, `/wa-setup review`, `/wa-setup build`, `/wa-setup branch`, `/wa-setup commit`, `/wa-setup verify`, `/wa-setup languages`, `/wa-setup backlog`. Reconfigure only — on fresh project arg meaningless, say so and run full setup.
 
 ## 1. Interactive config (ask one at a time, propose a default)
 
@@ -34,18 +34,21 @@ Then confirm with user:
 
 1. **Discussion language** — which language to talk in? (default: detect from user, else en)
 2. **Primary language + project kind** — confirm detected language and kind (app / package / cli / server). Kind picks architecture module.
-3. **When to review** — _"Review the code at every step (after coding, and after each feedback round), or once when you run `/wa-validate` — your green light saying the feature matches the spec? (recommended: at `/wa-validate` — you iterate fast, and the review reads the final diff instead of code that's still moving)"_ → sets `review.when` (`each_round` | `on_validation`). Say trade plainly: `each_round` catch drift earlier but add verifier round to every note; `on_validation` review whole diff one pass. Either way nothing close unreviewed: `/wa-close` refuse task verifier never saw.
-4. **Review toggles** — surface public-doc one explicitly, vary by company: _"Require doc comments (`///`, KDoc, TSDoc, …) on every public API? (some teams skip this)"_ → sets `review.public_doc`. Offer flip other toggles too.
-5. **Build command** — ask only when detection found wrapper: _"I see `<X>` — should the implementer build with it, or use the detected build tool (XcodeBuildMCP, `./gradlew`, package scripts, …)?"_ → sets `build.command` (+ `build.test_command` if test target exists). Nothing detected → leave both empty, don't ask. **Project win over plugin default**: repo that documents own build path documents it for agents too, and implementer torn between two mandates pick one silently.
-6. **Commit policy** — _"Once YOU validate a feature, may I commit it myself, or always wait for you to commit?"_ → sets `auto_commit_after_validation`. Fill `commit.author_name` / `author_email` from `git config user.name` / `user.email` and show them in one line to confirm; none set → ask. Remind: commits always use your name, never Claude's. Outside autopilot, nothing committed before you validate.
-7. **Branch policy** — _"Should `/wa-code` work on its own branch per task (`wa/<slug>`), or code straight on the current branch?"_ → sets `branch.per_task`. If yes, confirm `branch.prefix` and `branch.base` (`current`, or fixed base like `main`). Mention pairing: with per-task branches **and** auto-commit on, closing task commit it and check out next task branch for you (`branch.checkout_next`, on by default) — offer turn off. `/wa-autopilot` branch per task regardless. Say `branch.sprint_prefix` exist (`sprint/<sprint>`, tasks of sprint fork off it, `/wa-close` merge back) but **don't ask** — default work, sprints may never come up.
+3. **Where the backlog lives** — ask **early**: answer reshapes questions 8–9. _"Keep the backlog as files in the repo, or on a GitHub Project so several agents in different worktrees share it without stepping on each other? (recommended: files — nothing to wire up; switch to GitHub once you run agents in parallel)"_ → sets `backlog.provider` (`local` | `github`). Detect first: repo has GitHub remote and `gh` logged in → offer it; else don't ask, `local`. `github` → say it forces `branch.per_task: true` + `close.strategy: pr` and drops `{backlog}` file; run *GitHub backlog* below **after** the questions.
+4. **When to review** — _"Review the code at every step (after coding, and after each feedback round), or once when you run `/wa-validate` — your green light saying the feature matches the spec? (recommended: at `/wa-validate` — you iterate fast, and the review reads the final diff instead of code that's still moving)"_ → sets `review.when` (`each_round` | `on_validation`). Say trade plainly: `each_round` catch drift earlier but add verifier round to every note; `on_validation` review whole diff one pass. Either way nothing close unreviewed: `/wa-close` refuse task verifier never saw.
+5. **Review toggles** — surface public-doc one explicitly, vary by company: _"Require doc comments (`///`, KDoc, TSDoc, …) on every public API? (some teams skip this)"_ → sets `review.public_doc`. Offer flip other toggles too.
+6. **Build command** — ask only when detection found wrapper: _"I see `<X>` — should the implementer build with it, or use the detected build tool (XcodeBuildMCP, `./gradlew`, package scripts, …)?"_ → sets `build.command` (+ `build.test_command` if test target exists). Nothing detected → leave both empty, don't ask. **Project win over plugin default**: repo that documents own build path documents it for agents too, and implementer torn between two mandates pick one silently.
+7. **Commit policy** — _"Once YOU validate a feature, may I commit it myself, or always wait for you to commit?"_ → sets `auto_commit_after_validation`. Fill `commit.author_name` / `author_email` from `git config user.name` / `user.email` and show them in one line to confirm; none set → ask. Remind: commits always use your name, never Claude's. Outside autopilot, nothing committed before you validate.
+8. **Branch policy** — _"Should `/wa-code` work on its own branch per task (`wa/<slug>`), or code straight on the current branch?"_ → sets `branch.per_task`. If yes, confirm `branch.prefix` and `branch.base` (`current`, or fixed base like `main`). Mention pairing: with per-task branches **and** auto-commit on, closing task commit it and check out next task branch for you (`branch.checkout_next`, on by default) — offer turn off. `/wa-autopilot` branch per task regardless. Say `branch.sprint_prefix` exist (`sprint/<sprint>`, tasks of sprint fork off it, `/wa-close` merge back) but **don't ask** — default work, sprints may never come up.
+   **GitHub backlog** → don't ask `per_task` (forced `true`); confirm only `branch.base` (fork point of ticket branches). Prefix stays `wa/` unless they insist — hooks workflow `branches:` filter must match. Skip close question below: `close.strategy` forced `pr`, just confirm `close.target`.
    **Then, only when `per_task`: what happen to branch when its task close** — _"When a task is done, should I open a PR onto `main`, merge it locally, or leave the branch alone and let you do the PR? (recommended: leave it alone — you keep control of what gets proposed to the team; switch to `pr` once you trust the flow)"_ → sets `close.strategy` (`nothing` | `pr` | `merge`) + `close.target`. Two things to say: task in **sprint** always merge into its sprint branch first, this setting only decide what happen to sprint branch at end; and `pr` need `gh` authenticated, and **ask every time before opening one**. `close.delete_branch` stay `auto` unless they ask — delete only what already landed elsewhere.
-8. **Where things live** — _"Keep the backlog, tasks and wiki inside `.whackagent/`, or put some of them somewhere the team already reads — `docs/wiki/`, say? (recommended: `.whackagent/` — one folder, nothing to wire up; move them if teammates who don't run whackagent need to read them)"_ → sets `paths.*`. Ask **once, as one question**; split into per-path answers only if they say "some of them". Two things to say when they move something:
+9. **Where things live** — _"Keep the backlog, tasks and wiki inside `.whackagent/`, or put some of them somewhere the team already reads — `docs/wiki/`, say? (recommended: `.whackagent/` — one folder, nothing to wire up; move them if teammates who don't run whackagent need to read them)"_ → sets `paths.*`. Ask **once, as one question**; split into per-path answers only if they say "some of them". Two things to say when they move something:
    - shared wiki or backlog want **committed, browsable** folder (`docs/`) — `.whackagent/` read fine for agents, bad for human on GitHub;
    - `paths.reports` = run output, not knowledge — leave local (and gitignore-able) unless asked.
    Absolute paths work too (wiki in sibling repo). `.whackagent/config.md` itself never move — it carry the paths.
+   **GitHub backlog** → no backlog file: ask only about **wiki** (and tasks folder). Wording: _"Keep the wiki inside `.whackagent/`, or put it where the team reads — `docs/wiki/`? (recommended: `.whackagent/wiki` — agents read it fine; move it to `docs/wiki` only if teammates who don't run whackagent should browse it on GitHub)"_ Never mention backlog location — it's the Project. Say task specs live in `{tasks}` **on each ticket branch**, merged with the code.
 
-Keep short — 7 to 9 questions (build one fire only on detected wrapper; close policy only when `per_task`). Rest take template default.
+Keep short — 7 to 10 questions (build one fire only on detected wrapper; close policy only when `per_task` and backlog local). Rest take template default.
 
 **Only if project is runnable (kind `app`, `web`, `server`, `cli`):** ask **who tests it** after green build — _"In autopilot the agent exercises what it built itself (taps + screenshots, browser, curl, CLI run) since nobody's watching. When you're at the keyboard, should it do the same, or stop at build + tests and let you test? (recommended: you test — you'll run it anyway, and driving it costs a few minutes per round)"_ → sets `verify.mode` (`autopilot` | `always` | `off`). Name third option only if they push back on autopilot driving at all: `off` = nobody drives it, ever. `package` → `verify.platform: none`, don't ask.
 
@@ -57,11 +60,32 @@ Then set `verify.platform` + `verify.target` from detection (confirm in one line
 - `server`, `cli` → nothing to install: Bash (`curl`, the binary).
 Driver missing → say so now, not at first autopilot run.
 
+### GitHub backlog (only when `backlog.provider: github`)
+
+Follow `${CLAUDE_PLUGIN_ROOT}/providers/github/README.md` → **Setup**, one step at a time, each confirmed:
+
+1. `gh auth status` has scope `project` — missing → give user `! gh auth refresh -h github.com -s project`, wait.
+2. Project: list theirs (`gh project list --owner <owner>`), propose reuse or new — recommend **new** (`<repo> backlog`) unless they name a board the team already works from: a fresh board gets whackagent's six columns cleanly, an adopted one keeps its columns and needs `--state` mapping. Run `wa-backlog provision --title … | --project <n>` (+ `--state x=Name` when adopting a board whose column names differ — ask for any state it can't match; never rename their columns). Pass `--tasks-path {tasks}` and `--branch-prefix <branch.prefix>`.
+3. Workflow → branch `wa-setup/board-hooks`, copy `providers/github/whackagent-board.yml` to `.github/workflows/`, fix its `branches:` filter if prefix isn't `wa/`, PR onto default branch. Never push default branch. Hooks live once merged — say so.
+4. Secret `WA_PROJECT_TOKEN` — give token link + `! pbpaste | gh secret set WA_PROJECT_TOKEN -R <repo>`, wait, check `provision` / `gh secret list`.
+5. Offer (ask each, with recommendation):
+   - import open issues (`wa-backlog get <n>` adds each as `todo`) — recommend **yes** when repo has open issues: every issue is a ticket anyway, hook only catches new ones.
+   - smoke test (README step 5) — recommend **yes** once hooks PR merged: proves token, variables and hooks before real work; costs one throwaway issue.
+6. Scaffold without `{backlog}` file — board replaces it. `{tasks}` still created (holds specs on ticket branches).
+
+**Migrating an existing local backlog** (reconfigure `local` → `github`) — offer once, apply on yes, per task:
+- not `done`/`canceled` → `wa-backlog create` (title, summary, size, sprint), board order = `{backlog}` order.
+- `todo` + `grilled: false` → stays `todo`.
+- `todo` + `grilled: true` → rename file `{tasks}/<n>-<slug>.md`, rewrite frontmatter to GitHub shape (`issue: <n>`), create `wa/<n>-<slug>` with `gh issue develop <n> --name … --base <fork point> --checkout` (linked to issue), commit there, push — hook moves it to `grilled` (tests hook for real).
+- `in-progress` / `review` / `validated` → same, local branch renamed `wa/<n>-<slug>`, pushed; ticket lands `grilled`. User re-claims to continue — never auto-claim for a session that may be gone.
+- `done` / `canceled` → not imported, history stays in git.
+- then delete `{backlog}` in one commit. GitHub → local: not supported.
+
 ## 2. Scaffold
 
 Create directory and files (do not overwrite existing without asking).
 
-**Everything below land at its `paths.*` value, not at literal path written here** — `{tasks}`, `{wiki}`, `{backlog}`, `{reports}`, `{conventions}` = whatever step 1 question 8 settled on. Create parent folders as needed; path outside `.whackagent/` normal, not mistake. `config.md` one exception: always `.whackagent/config.md`.
+**Everything below land at its `paths.*` value, not at literal path written here** — `{tasks}`, `{wiki}`, `{backlog}`, `{reports}`, `{conventions}` = whatever step 1 question 9 settled on. Create parent folders as needed; path outside `.whackagent/` normal, not mistake. `config.md` one exception: always `.whackagent/config.md`.
 
 - `.whackagent/config.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/config.md`, fill answers above (including `paths:` block), set `review.modules` to modules you actually copy (next bullet).
 - `{conventions}/` — copy **only relevant** convention modules there:
@@ -75,7 +99,7 @@ Create directory and files (do not overwrite existing without asking).
   incrementalBuildsEnabled: true
   ```
   Skip if the file already exists (don't clobber a user's config). This is why an implementer with no `build.command` builds through XcodeBuildMCP — command-line `xcodebuild` ignores this file and rebuilds from scratch. With a `build.command` set, the wrapper owns the build dir instead, and this file is just harmless.
-- `{backlog}` — copy `${CLAUDE_PLUGIN_ROOT}/templates/BACKLOG.md`.
+- `{backlog}` — copy `${CLAUDE_PLUGIN_ROOT}/templates/BACKLOG.md`. **Skip under `backlog.provider: github`.**
 - `{wiki}/index.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/wiki-index.md`.
 - Create empty `{tasks}/` and `{reports}/` directories (`.gitkeep` fine).
 
@@ -113,7 +137,7 @@ One table — current value, and a flag on anything worth attention:
 | build.command| (empty)               | ⚠️ `make build` detected since |
 ```
 
-Then **one question: what do you want to change?** Re-ask a full question (step 1's wording) only for what they name, plus every new key from stock-taking step 3 — those they've never been asked. Current value is the default in every one; "leave it" is always a valid answer. Don't walk all eight questions at somebody who came to flip one toggle.
+Then **one question: what do you want to change?** Re-ask a full question (step 1's wording) only for what they name, plus every new key from stock-taking step 3 — those they've never been asked. Current value is the default in every one; "leave it" is always a valid answer. Don't walk all ten questions at somebody who came to flip one toggle.
 
 With an arg (`/wa-setup paths`), skip the table's unrelated rows and go straight to that section's questions.
 

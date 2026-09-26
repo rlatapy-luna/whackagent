@@ -24,6 +24,13 @@ paths:                         # WHERE whackagent keep each kind of file. Skills
                                # paths, so must sit at known spot.
                                # Move path after setup → move files too; nothing back-fill.
 
+backlog:
+  provider: local              # WHERE tickets live — providers/CONTRACT.md.
+                               #   local  — {backlog} + task files, one agent (default).
+                               #   github — GitHub Project + issues, many agents/worktrees.
+                               #     Settings in repo variables (wa-backlog provision), not here.
+                               #     Forces branch.per_task: true, close.strategy: pr.
+
 review:
   when: on_validation          # WHEN wa-verifier run.
                                #   on_validation — once, at /wa-validate: your green light say feature
@@ -34,7 +41,8 @@ review:
                                #     Catch drift earlier, cost verifier round each time. /wa-validate
                                #     still run final pass.
                                # Either way no task close unreviewed — /wa-close refuse task the
-                               # verifier never saw.
+                               # verifier never saw. /wa-autopilot ignore this key: it always run
+                               # /wa-validate itself after green runtime check.
   inline_micro_fixes: true     # /wa-feedback may apply MICRO-fix itself instead of spawn
                                # implementer (~50k tokens context for one-liner). Bounded: ≤2 files,
                                # ≤~20 lines, no new file/type/folder, no layer or public-API change.

@@ -72,6 +72,19 @@ Rules = `/wa-code` → *Resuming, rounds 2+*, in full — delta only, anti-stale
 7. **Log it.** Append round to task `## Feedback`: what user asked (their words), triage, what changed, review verdict (`deferred` when `review.when: on_validation`), verify verdict, any rule captured. Refresh `{reports}/<slug>.md`.
 8. **Report + loop.** **wa-code → Report card**, feedback variant: header `## 🟢 <title> · feedback #<n>`, **Asked** (user words, short) replaces Problem + Goal, rest identical — Done, To test, status line, next. More notes → run again, next round. Feature match spec now → **`/wa-validate <slug>`**: that fire verifier; **`/wa-close <slug>`** end it after your retest. **Never set `done` here, never commit** — say next command instead.
 
+## GitHub provider
+
+`backlog.provider: github` (rules **wa-board → Backlog provider**). Two entry points:
+
+Ticket sits in `review` between rounds (**wa-board → Backlog provider**, *Agent round*). One round here:
+
+- **Claim first** — `wa-backlog claim <n> coding` (exit 3 → someone mid-round, say who, stop; legacy hooks: same-host holder counts as yours). Check out ticket branch, rebase not needed yet.
+- **Input** = user notes **plus PR review threads** (`gh pr view <pr> --comments`, `gh api repos/{repo}/pulls/<pr>/comments`) — quote reviewer words as feedback items, triage same way.
+- **PR already ready** (not draft) → `gh pr ready --undo` before first commit: code moving after validation, nobody merges it meanwhile. Board stays `review`.
+- **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) with `commit.author_*`, push to PR. UI changed → refresh screenshots (**wa-board → Backlog provider**, *Screenshots*). Hook keeps `review`, drops claim. Next: your retest.
+
+Never mark ready, never merge — `/wa-close` job.
+
 ## Asking
 
 Triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always with your recommended answer** and one-line reason (which bucket you'd pick, what you'd change). Never bounce bare question back at user. Same rule as `/wa-task` grill.
@@ -83,8 +96,8 @@ Triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always 
 - Never leave inline fix unbuilt, untested, or untagged.
 - Never implement new feature arriving disguised as feedback.
 - Never add comments explaining fix (`style.md` — code carry meaning, task file carry rationale).
-- Never commit and never close — `/wa-validate` own review, `/wa-close` own commit and branch.
+- Never commit and never close — `/wa-validate` own review, `/wa-close` own commit and branch. GitHub provider exception: round-end commit + push (above).
 
 ## Next step
 
-More notes → run again. Feature matches spec → **`/wa-validate <slug>`** (verifier on whole diff), then **`/wa-close <slug>`** after your retest. Closed → **`/wa-wiki`**.
+More notes → run again. Feature matches spec → **`/wa-validate <slug>`** (verifier on whole diff), then **`/wa-close <slug>`** after your retest (syncs wiki itself).

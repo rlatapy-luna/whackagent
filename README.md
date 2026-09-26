@@ -206,13 +206,36 @@ When the **last task of a sprint** closes, the sprint branch becomes the thing t
 /wa-wiki
 ```
 
-Updates the wiki after a feature lands. Never commits before your validation.
+Updates the wiki. `/wa-close` runs it on every close, so the wiki lands in the same commit/PR as the code it describes; run it yourself only for a catch-up sync.
 
-> Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **code**: built, run, committed on its branch, task left at `review`. The verifier doesn't run there — your review is asynchronous, so it waits for your `/wa-validate` on each branch, exactly like an attended run.
+> Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **reviewed code**: built, run, then `/wa-validate` run by autopilot itself — its runtime check stands in for your green light — committed on its branch, task left at `validated`. You test it, then `/wa-close`. Findings the autofix couldn't clear stay open: task left at `review`, listed in the report.
 
 > **Branch per task.** Set `branch.per_task: true` (asked at `/wa-setup`) and `/wa-code` codes on `wa/<slug>` instead of your current branch. Combine it with `commit.auto_commit_after_validation` and `/wa-close` commits the task, then checks out the next task's branch for you — chain tasks without touching git.
 >
 > **Branch per sprint.** A task carrying a `sprint:` doesn't fork off `branch.base` — it forks off `sprint/<sprint>`, created from the base the first time a task of that sprint is coded (by `/wa-code` or by an `/wa-autopilot` wave). `/wa-close` merges each task back into it. That's the point: the third task of a login refacto starts from the first two instead of rediscovering them as a merge conflict. Nothing lands on a sprint branch before its task is reviewed and closed, so the base of the sprint stays code you approved. `branch.sprint_prefix: ""` turns it off.
+
+## Shared backlog on GitHub
+
+By default the backlog is files in your repo, for one agent at a time. Set `backlog.provider: github` (asked at `/wa-setup`) and it moves to a **GitHub Project**, so several agents in different worktrees, or on different machines, share one board without taking the same ticket.
+
+Every ticket goes through six states. Agents only ever *take* a ticket; the rest is moved by what happens in the repo:
+
+| State | Who moves it there |
+| --- | --- |
+| `todo` | an issue is opened (by `/wa-task`, or by hand on GitHub) |
+| `grilling` | an agent claims it with `/wa-task #12`, a lock, so no other agent grills it |
+| `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
+| `coding` | an agent claims it for one round (`/wa-code 12`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`), a lock held only while the agent works |
+| `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; `/wa-close` marks it ready = your turn to merge |
+| `done` | the hooks workflow, when the PR is merged. The issue is closed, and the sprint milestone too once empty. |
+
+A closed-unmerged PR sends the ticket back to `grilled`.
+
+- **Locks** are git refs (`refs/wa-claims/<issue>/<phase>`) created through the GitHub API. Creating a ref that already exists fails server-side, so when N agents claim the same ticket exactly one wins. The losers move on to the next ticket. The ref points at a commit naming the agent (`host:worktree`), so the board shows who holds what. Stale locks are flagged by `/wa-board` and cleared only by you (`/wa-task release 12`).
+- **Where data lives:** the issue holds title and summary; the Project holds Status, priority (card order) and Size; the milestone is the sprint. The spec is the task file on the ticket branch, merged with the code. There is no local mirror.
+- **Order is yours.** New tickets land at the bottom. Agents reorder only when you run `/wa-task` with no argument, and apply the new order on your yes.
+- **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR, and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). It can migrate an existing local backlog.
+- **Another tracker** (Jira, Linear, Trello, Notion) means a new folder under `providers/` implementing the same contract (`providers/CONTRACT.md`); the skills don't change.
 
 ## File tree created in your project
 

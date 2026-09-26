@@ -11,7 +11,7 @@ Dashboard. Lift lid on backlog, point next move.
 
 0. **Read arg.** None → whole backlog. Sprint name (`/wa-board login-refacto`) → **filtered view**: only that sprint tasks, plus progress line. Resolve per **Sprints** below; unknown name → say so, list known sprints, stop.
 1. Read `.whackagent/config.md` (respect discussion language). Missing → tell user run `/wa-setup`, stop.
-2. Read `{backlog}` + referenced task files (need each task `summary`, `size`, `grilled`, `sprint`).
+2. Read `{backlog}` + referenced task files (need each task `summary`, `size`, `grilled`, `sprint`). **GitHub provider** → `wa-backlog list` (+ `--sprint` when filtered) and `wa-backlog claims` instead; see *GitHub board* below.
 3. Render backlog as **list**, one section per status (see Display format below), priority order within each.
 4. Suggest exactly **one** next action, by state (filtered run → scope suggestion to sprint):
    - something in `validated` → reviewed, wait user retest: `/wa-close <slug>` to finish (or `/wa-feedback` if retest found something). Highest precedence — one step from done.
@@ -21,6 +21,17 @@ Dashboard. Lift lid on backlog, point next move.
    - top `todo` grilled → `/wa-code <slug>`. Backlog order maintained by `/wa-task` prioritization pass — never suggest reprioritizing as step (if user *asks* to reorder, that `/wa-task` with no arg).
    - nothing in todo → `/wa-task <description>` to create one
    - batch of small grilled tasks → mention `/wa-autopilot` as option
+
+## GitHub board
+
+Same list format, sections by contract state, render order: **Coding → Review → Grilled → Grilling → Todo → Done**. Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
+
+- `⏳ stale claims` — `claims` rows with `stale: true`: `#12 coding · <agent> · 2d, no push` → suggest `/wa-task release 12`.
+- `📝 drafts` — Project draft items: not tickets, convert to issue on GitHub.
+
+**Review section splits draft vs ready** — `gh pr list --json number,headRefName,isDraft`: draft → `🧪 draft #<pr>` (your test), ready → `🔀 ready #<pr>` (merge on GitHub).
+
+Next action (GitHub): `review` + draft → `/wa-feedback <#> <notes>` or `/wa-validate <#>` (`/wa-close <#>` when task file says `phase: validated`) · unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-task <#>` · `review` + ready → merge PR on GitHub (not agent job) · several unclaimed `grilled` → `/wa-autopilot`. Never suggest ticket someone else holds.
 
 ## Display format
 
@@ -89,6 +100,27 @@ Summary = **the goal, plainly**, ≤ 8 words. What it gives once done. Not the m
 | The dashboard asks the questions instead of the commands | `Prompts in dashboard` | commands take options, dashboard asks |
 | Dashboard navigation follows the command tree | `Dashboard nav by group` | one tab = one group, no more MENU_* |
 | The Data screen reads the backend job list | `Data screen reads GET /admin/jobs` | no more job catalog duplicated in CLI |
+
+## Backlog provider
+
+Canonical, every skill. `backlog.provider` in config (missing → `local`) decides where tickets live. Contract: `${CLAUDE_PLUGIN_ROOT}/providers/CONTRACT.md` — skills speak its verbs and six states, never tracker terms.
+
+- **`local`** — `{backlog}` + task file frontmatter, as every skill describes by default. Mapping: `providers/local.md`.
+- **`github`** — `${CLAUDE_PLUGIN_ROOT}/providers/github/wa-backlog <verb>` for **every** backlog read or write, run from repo root. Details: `providers/github/README.md`. Then:
+  - **No `{backlog}` file, no local mirror.** Board = the Project. Never write order, state, size, sprint, title into any file.
+  - **Ticket id = issue number.** Display `#12`. Task file `{tasks}/<n>-<slug>.md` lives **on ticket branch** `<branch.prefix><n>-<slug>`, not on base — frontmatter `issue: <n>`, `phase:`, `wiki:`, `note:`, `created:`. No `title`/`summary`/`status`/`size`/`sprint`/`grilled` there.
+  - **States = contract states** (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`). Agent writes only through `claim` / `release`. `grilled`, `review`, `done` come from hooks — never set them, never "help" a lagging hook. Hook late → wait/re-read, or tell user.
+  - **Claim before touching.** Grilling or coding a ticket = `claim` first. Exit 3 (taken) → name owner, never retry or steal; pick next or stop. Exit 4 (wrong state) → say state, stop.
+  - **Coding sub-phase** (`in-progress` → `review` → `validated`) = task file `phase:` on ticket branch, where local writes `status:`. `phase: review` ≠ board `review`: first = coded, verifier not run; second = PR open, humans on turn.
+  - **Agent round — `coding` is transient.** Board `coding` = an agent works *now*, never "waiting for user". Every round that touches ticket branch (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`): `claim <n> coding` (from `grilled` or `review`) → work → commit (task file `phase:` + notes included) → **push**. First delivery opens **draft PR**; later rounds push to it. Hook sees `opened`/`synchronize`, sets `review`, drops claim. **Then check `gh pr view <pr> --json mergeable`** (retry while `UNKNOWN`): `CONFLICTING` = GitHub runs no `pull_request` workflow, push moved nothing, ticket stuck in `coding` → rebase ticket range onto PR base (`git rebase --onto origin/<base> $start^`), mechanical conflicts yourself (logic → stop and ask), rebuild + tests, `push --force-with-lease`, check again. Round ends with nothing to push → `release <n> coding --reset-to review` (PR open) or `--reset-to grilled` (no PR). Exit 3 on claim → someone mid-round: say who, stop.
+  - **Draft PR** — `gh pr create --draft --assignee @me --base <fork point> --head <branch> --title "<ticket title>" --body` = summary + `Closes #<n>` + acceptance criteria checklist + line `Draft — verifier not run yet. Test, then /wa-feedback · /wa-validate · /wa-close.` Base = branch ticket forked from (sprint branch, else `close.target`). Then **`wa-backlog link-pr <n> <pr>`** — PR gets ticket milestone + manual closing link in **Development** (`Closes #<n>` links only on default-branch PRs; sprint and stacked PRs never are). Draft already open → push only. Draft = human tests; ready (`/wa-close` → `gh pr ready`) = human merges. Both `review`.
+  - **Stacked PRs** — base = blocker's branch; repo must have `delete_branch_on_merge` (set by `provision`) so merging the bottom PR deletes its branch and GitHub retargets the next one to the sprint. Off → merges land in ticket branches, never the sprint. Auto-retarget fires only on the merge-time delete; a branch deleted later by hand or API (`gh api -X DELETE …/git/refs/heads/…`, `push --delete`) **closes** every PR based on it. Cleaning up merged branches → first `gh pr edit <pr> --base <new base>` each open PR on it (rebase its ticket range there, check `mergeable`), only then delete.
+  - **Screenshots** — PR whose diff changes UI (screen, component, theme, image resource) → **`wa-backlog screenshots <pr> <files>`** with implementer's `SCREENSHOTS:` (final state of code pushed, one per platform proved, light/dark when theme involved). Upload = `gh image` (extension `drogers0/gh-image`, GitHub user-attachments) — **never push images to any branch**; PR body gets `## Screenshots` table. Extension missing → say so, no screenshots, never a branch fallback. Later round with UI change → same verb, same names, section replaced. No UI in diff → none. No screenshot possible (device down) → say so in body, never old ones passed as current.
+  - **Hooks version gate** — before first push, `git show origin/<base>:.github/workflows/whackagent-board.yml | head -1` → `template version: <v>`. `v ≥ 6` → rules above. `3 ≤ v < 6` → draft leaves ticket in `coding`, claim kept until `/wa-close` marks ready: same-host holder counts as yours (`claims[].agent` host = `whoami` host). `v < 3` / missing → **no draft** (opened PR = ready): push only. Either legacy case → say `hooks v<v> on <base> — /wa-setup backlog to upgrade`.
+  - **Forced config:** `branch.per_task: true`, `close.strategy: pr`. Config says otherwise → provider wins, say so once.
+  - **Sprint = milestone** — `set-field <n> sprint <name>`; progress from `list --sprint`.
+  - `list` lags new tickets 1–3 min (GitHub indexing); `get`/`claim` always current.
+  - **Squash merge assumed.** PRs land squashed: base never contains ticket's original commits, so `git merge-base` and plain rebase lie once any parent or stacked ticket landed. **Ticket range** = ticket's own commits, from its spec commit on: `start=$(git log --format=%H --grep="^task: grill #<n> " <branch> | tail -1)`, range `$start^..<branch>`. Diff = `git diff $start^ <branch>`; rebase = `git rebase --onto <base> $start^`. Works squash or not — use it always, never `<base>..HEAD` / `<base>...HEAD`.
 
 ## Paths
 

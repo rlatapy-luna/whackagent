@@ -53,12 +53,13 @@ Skip entirely for pure-logic or library bricks: nothing to drive.
 1. Turn task acceptance criteria into ordered checklist of **observable** outcomes — something visible on screen, or state an input should produce. YAGNI: check what task claim, nothing speculative.
 2. Launch per `verify.platform` (MCP tools not in your static list — load with `ToolSearch`):
    - **ios** → XcodeBuildMCP, same server you built with: `select:boot_sim,install_app_sim,launch_app_sim,snapshot_ui,screenshot,stop_app_sim`. Physical device → mobile-mcp.
-   - **android** → **mobile-mcp** (query `mobile`): `mobile_use_device`, `mobile_install_app`, `mobile_launch_app`, `mobile_list_elements_on_screen`, `mobile_click_on_screen_at_coordinates`, `mobile_type_keys`, `mobile_take_screenshot`. Install the APK you just built (`./gradlew :app:installDebug` fine too).
+   - **android** → **mobile-mcp** (query `mobile`): `mobile_use_device`, `mobile_install_app`, `mobile_launch_app`, `mobile_list_elements_on_screen`, `mobile_click_on_screen_at_coordinates`, `mobile_type_keys`, `mobile_take_screenshot`. Install the APK you just built (`./gradlew :app:installDebug` fine too). Device handed to you → pin it with env `ANDROID_SERIAL=<id>` on every Gradle/adb call: `installDebug` ignores `-Pandroid.injected.serial` and installs on every connected device, including ones other implementers hold.
    - **web** → start dev server in background (project script), then browser automation MCP (query `playwright` or `browser`): navigate, read accessibility snapshot, click, type, screenshot.
    - **desktop** → launch built binary; drive through desktop/computer-use MCP if one loaded. None → no GUI proof, say so.
    - **server** → start service in background (project run command, test config / local DB), wait for health/port, exercise endpoints with `curl` — status, body, side effects. Read its log for errors. Stop it after.
    - **cli** → run built binary with inputs acceptance criteria name; check stdout/stderr, exit code, files written.
 3. **Drive with real inputs.** GUI: read UI tree first (`snapshot_ui`, `mobile_list_elements_on_screen`, browser accessibility snapshot), target by **stable identifier** — accessibility identifier, Compose `testTag`, `data-testid`/ARIA role — conventions require them on interactive elements. Raw coordinates only when no identifier exist; missing identifier = gap worth fixing, not just fallback. Screenshot at every checkpoint, above all moment that prove or break criterion. Server/CLI: keep exact command + trimmed response as evidence instead.
+- **Secrets never reach your output.** Typing a credential into an app: verify the target field by its tag/id *before* typing, never after. Never print a UI dump, accessibility tree, logcat or screenshot while a credential sits in a field — filter dumps to non-secret nodes (`grep -v` the password/username fields) and check length only (`${#value}`), never the value. A leak already happened → say so first line of receipt, no repeat of the value.
 4. **Judge from evidence, not intent.** You wrote this code, so you know what it *supposed* to do — criterion pass only if screenshot, UI tree, response or output show it. Crash, wrong screen, missing element, dead input, wrong status/output = fail: record what you saw vs expected, fix before returning `done`.
 5. Can't run at all (no device, won't install, no MCP server, service won't start) → don't improvise ad-hoc driver. Report in `NOTES:` with build still `done`, or `BLOCKED:` if brick can't be judged without it.
 
@@ -105,6 +106,8 @@ CHECKS:                          ← only when you owed a runtime proof and ran 
   ✅ <criterion> — <what you saw>
   ❌ <criterion> — expected <x>, saw <y>
 EVIDENCE: <screenshot paths or command + trimmed output, mapped to the check they prove>
+SCREENSHOTS: <only when the diff changes UI: final-state screenshots for the PR, one per platform proved
+             (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
 NOTES: <decisions, anything the verifier should know>
 BLOCKED: <question, only if RESULT=blocked>
 ```

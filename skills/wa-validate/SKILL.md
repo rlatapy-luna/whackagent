@@ -36,17 +36,21 @@ Review every round burn one verifier per note, review code about to change anywa
    - **Clean, autofix changed code** → list what changed, in their terms. *"Retest, then `/wa-close <slug>`."*
    - **Findings still open** → show severity-ordered, with recommendation per item (fix now / accept and close / spin off `/wa-task`). Don't hand off to `/wa-close` with findings open — say which ones you'd accept.
 
+## GitHub provider
+
+`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve `#n` / index. One **agent round** (**wa-board → Backlog provider**): `claim <n> coding` from `review` first (exit 3 → someone mid-round, say who, stop; legacy hooks: same-host holder counts as yours), verify + autofix, then commit task file (`phase: validated`, `## Review`) + autofix code, push to draft PR. Hook sets `review`, drops claim — ticket waits for your retest in `review`, not `coding`. `validated` stays whackagent-internal (task file), board never shows it. **Scope = ticket range** (`git diff $start^` + working tree, **wa-board → Backlog provider**), not `branch.base..HEAD`: squash-merged parent or stack makes that diff drag in already-landed code.
+
 ## Interaction with the rest
 
 - **`/wa-feedback` on `validated` task** → code moved after its review: status go back to `review`, task need `/wa-validate` again. Never close on review predating last edit.
 - **`review.when: each_round`** → rounds already reviewed; this pass still run, over cumulative diff, and it's one that counts. Short: most findings already fixed.
-- **`/wa-autopilot`** deliver tasks at `review`, uncommitted-by-you and unreviewed by verifier — that's deal, your review async. Each one need own `/wa-validate`.
+- **`/wa-autopilot`** runs this command's steps 3–7 itself, unattended, its runtime check standing in for your green light — tasks arrive `validated` (clean) or `review` (findings open). Clean → nothing to do here unless code moved; `/wa-close` after your test.
 
 ## Never
 
 - Never mark task `done` — that's `/wa-close`, after user retests reviewed code.
-- Never review task user hasn't validated: without their yes, you review feature still moving.
-- Never commit, merge, push, open PR or delete branch — **git belong to `/wa-close`**.
+- Never review task user hasn't validated: without their yes, you review feature still moving. Only exception: `/wa-autopilot`, where its green runtime check is the yes.
+- Never commit, merge, push, open PR or delete branch — **git belong to `/wa-close`**. GitHub provider exception: round-end commit + push to existing draft PR (above) — never merge, never mark ready.
 - Never write code yourself — findings go to implementer, same as `/wa-code`.
 
 ## Asking
@@ -55,4 +59,4 @@ Every question carry recommended answer + one-line reason — finding worth acce
 
 ## Next step
 
-Retest what review changed, then **`/wa-close <slug>`** — it commit, land branch (merge into sprint, PR, or nothing per `close.strategy`) and mark task `done`. Closed → **`/wa-wiki`**.
+Retest what review changed, then **`/wa-close <slug>`** — it commit, land branch (merge into sprint, PR, or nothing per `close.strategy`) and mark task `done`, wiki synced in same commit.
