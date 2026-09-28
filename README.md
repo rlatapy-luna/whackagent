@@ -168,7 +168,7 @@ So it always shows the plan first and waits for a yes:
 ```
 Closing login-apple
 
-commit    : 2 uncommitted files → commit (Benjamin Pisano)
+commit    : 2 uncommitted files → commit (Jane Doe)
 sprint    : merge wa/login-apple → sprint/login-refacto
 branch    : wa/login-apple deleted (merged)
 worktree  : ../<repo>-worktrees/login-apple removed
@@ -316,3 +316,7 @@ The copied list lands in `review.modules` — the verifier reads exactly that, a
 
 - **grill-me**: task clarification in `/wa-task`
 - **caveman**: config and wiki compression at setup and on each `/wa-wiki` (`compress_wiki: true`, saves re-reading tokens)
+
+## Credits
+
+Originally created by Benjamin Pisano. Maintained by Rémi Latapy. MIT licensed, see [LICENSE](LICENSE).

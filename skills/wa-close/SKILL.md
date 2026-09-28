@@ -56,7 +56,7 @@ Say what you about to do to git **before** doing it, in their terms. Landing out
 Closing login-apple
 
 wiki      : [[auth]] updated, [[login-apple]] created (/wa-wiki)
-commit    : 2 uncommitted files + 2 wiki pages → commit (Benjamin Pisano)
+commit    : 2 uncommitted files + 2 wiki pages → commit (Jane Doe)
 sprint    : merge wa/login-apple → sprint/login-refacto
 branch    : wa/login-apple deleted (merged)
 worktree  : ../<repo>-worktrees/login-apple removed

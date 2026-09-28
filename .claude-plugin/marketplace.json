@@ -14,7 +14,7 @@
       "description": "Backlog + wiki + task lifecycle (setup → task → code → your test → validate → close), isolated implementer/verifier subagents, and an overnight autopilot. Works on any stack (iOS, Android, web, desktop, server, CLI), language-template driven.",
       "version": "0.14.0",
       "author": {
-        "name": "Benjamin Pisano"
+        "name": "Rémi Latapy"
       },
       "keywords": ["workflow", "backlog", "wiki", "orchestrator", "swift", "kotlin", "android", "ios", "typescript", "autopilot", "code-review", "yagni"],
       "category": "workflow"
