@@ -1,4 +1,4 @@
-# whackagent board hooks — template version: 8
+# whackagent board hooks — template version: 9
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo
@@ -171,7 +171,10 @@ jobs:
               if (ticket.column && !["todo", "grilling"].includes(ticket.state)) return;
               await setState(ticket, "grilled");
               await release(number, "grilling");
-              await comment(number, `✅ **grilled** — spec \`${spec}\` on \`${branch}\``);
+              // sha permalink: the branch is deleted on merge, the commit stays
+              const specUrl = `${context.serverUrl}/${owner}/${repo}/blob/${payload.after}/${spec}`;
+              const name = spec.split("/").pop();
+              await comment(number, `✅ **grilled** — spec [\`${name}\`](${specUrl}) on \`${branch}\``);
               return;
             }
 

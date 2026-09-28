@@ -7,7 +7,7 @@ There are two levels:
 - **Board state**: the six contract states (`providers/CONTRACT.md`), shown as the `Status` column of the GitHub Project when `backlog.provider: github`.
 - **Coding sub-phase**: `phase:` in the task file on the ticket branch (`in-progress` → `review` → `validated`). It tracks how far the whackagent loop has gone. The board never shows it.
 
-This page matches the hooks template `providers/github/whackagent-board.yml` at template version 8.
+This page matches the hooks template `providers/github/whackagent-board.yml` at template version 9.
 
 ## Board states
 
