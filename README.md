@@ -5,7 +5,7 @@ A Claude Code plugin for your entire development flow.
 ## Features
 
 - **codebase knowledge**: project knowledge base — a wiki the skills read before searching the code.
-- **task management**: create, prioritize, and track tasks.
+- **task management**: create tasks from an idea or cut a whole spec into a few, grill each until it's clear, prioritize and track them.
 - **code pipeline**: implement a task, review it, and prove it runs — the implementer exercises what it just built to confirm the task actually works. On by default where it matters most, unattended runs (`verify.mode`); attended, you test it yourself.
 - **any stack**: iOS, Android, KMP, web, desktop, server, CLI, library. Build uses your project's own command when it has one (`build.command`), else the build tool it finds (XcodeBuildMCP, `./gradlew`, package scripts, cargo, go, dotnet, …). The runtime check picks its driver from `verify.platform`:
 
@@ -84,7 +84,7 @@ Sprints deliberately aren't a status and aren't a backlog section: a sprint cuts
 
 ## Typical flow
 
-Bootstrap once, then loop: describe → code → you test → you validate → verifier → closed. Prioritization isn't a step you run — it happens on its own every time a task is added.
+Bootstrap once, then loop: describe → grill → code → you test → you validate → verifier → closed. Prioritization isn't a step you run — it happens on its own every time a task is added.
 
 **0. Setup (once per project)**
 
