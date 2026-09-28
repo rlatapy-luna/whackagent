@@ -171,7 +171,8 @@ jobs:
               if (ticket.column && !["todo", "grilling"].includes(ticket.state)) return;
               await setState(ticket, "grilled");
               await release(number, "grilling");
-              const specUrl = `${context.serverUrl}/${owner}/${repo}/blob/${branch}/${spec}`;
+              // sha permalink: the branch is deleted on merge, the commit stays
+              const specUrl = `${context.serverUrl}/${owner}/${repo}/blob/${payload.after}/${spec}`;
               const name = spec.split("/").pop();
               await comment(number, `✅ **grilled** — spec [\`${name}\`](${specUrl}) on \`${branch}\``);
               return;
