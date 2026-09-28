@@ -6,7 +6,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 
 - `.claude-plugin/plugin.json`: plugin manifest. Registers every skill in `skills[]`.
 - `.claude-plugin/marketplace.json`: marketplace entry. Carries the version twice (`metadata.version` and `plugins[0].version`).
-- `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
+- `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-spec-to-tasks`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
 - `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift and Kotlin are multi-module packs with the same file names; TypeScript and generic (fallback for every other language) are one file each.
 - `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
