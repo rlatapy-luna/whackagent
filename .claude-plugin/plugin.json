@@ -11,7 +11,7 @@
     "./skills/wa-setup",
     "./skills/wa-board",
     "./skills/wa-task",
-    "./skills/wa-spec-to-tasks",
+    "./skills/wa-spec",
     "./skills/wa-code",
     "./skills/wa-feedback",
     "./skills/wa-validate",

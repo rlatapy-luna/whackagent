@@ -1,6 +1,6 @@
 ---
 name: wa-task
-description: Turn fuzzy idea into clear grilled task, then re-prioritize backlog. Clarity before code. No argument = prioritization pass alone.
+description: Turn fuzzy idea into clear grilled task, then re-prioritize backlog. Clarity before code. Spec document → cut into tasks first (wa-spec). No argument = prioritization pass alone.
 ---
 
 # /wa-task
@@ -14,8 +14,9 @@ Owns two things: **writing task** (steps 1–5), **placing it** (step 6). Priori
 ## Do
 
 0. **Read arg.**
+   - **Spec** → file path, URL, or pasted document (several sections, several features) → follow **`${CLAUDE_PLUGIN_ROOT}/skills/wa-spec/SKILL.md`** in full: it cuts, creates, prioritizes. It hands back here only when spec is one task. Short idea, even multi-line → free text below. Doubt → spec: cut rules still give one task when that's what it is.
    - Free text → new task, steps below.
-   - Slug or display index from wa-board list (`/wa-task 3`) → resolve per **wa-board → Task indexes**, echo `3 → sync-offline`, grill that existing task instead of creating, then step 6. Task carries **spec excerpt** (`/wa-spec-to-tasks` — local: `## Context / Decisions`; GitHub: issue body) → grill starts from it: ask only its `Open for grill` points and what spec leaves open, never re-ask what it states. Grilled decisions replace excerpt in `## Context / Decisions`; keep its source ref line.
+   - Slug or display index from wa-board list (`/wa-task 3`) → resolve per **wa-board → Task indexes**, echo `3 → sync-offline`, grill that existing task instead of creating, then step 6. Task carries **spec excerpt** (`/wa-spec` — local: `## Context / Decisions`; GitHub: issue body) → grill starts from it: ask only its `Open for grill` points and what spec leaves open, never re-ask what it states. Grilled decisions replace excerpt in `## Context / Decisions`; keep its source ref line.
    - Bare arg matches **live sprint**, no task slug → ambiguous, ask which (recommend: new task inside that sprint, since `/wa-task` creates): `login-refacto is a sprint. New task inside it (recommended), or do you want the view? → /wa-board login-refacto`.
    - **No arg → prioritization only.** Skip to step 6, whole backlog in scope, full pass (see *Explicit run* there).
 1. Read `.whackagent/config.md` + `{wiki}/index.md` for project context. `{…}` paths come from its `paths:` block — see **wa-board → Paths**.

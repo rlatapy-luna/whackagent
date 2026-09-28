@@ -1,11 +1,11 @@
 ---
-name: wa-spec-to-tasks
+name: wa-spec
 description: Read a spec and cut it into one or more tasks ready to grill — coarse feature cut, never ticket shredding. Spec already focused → one task through /wa-task.
 ---
 
-# /wa-spec-to-tasks
+# /wa-spec
 
-Big spec → few tasks, each one coherent feature, ready for `/wa-task` grill. **Cut, don't shred**: goal = split spec too large for one task, never break feature into small tickets. Focused spec → one task, `/wa-task` owns it.
+Big spec → few tasks, each one coherent feature, ready for `/wa-task` grill. Entry: `/wa-spec <spec>`, or `/wa-task` routing a spec here. **Cut, don't shred**: goal = split spec too large for one task, never break feature into small tickets. Focused spec → one task, `/wa-task` owns it.
 
 Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms stay English.
 
@@ -17,7 +17,7 @@ Path to spec (md, txt, pdf, docx…), URL, or pasted text. None → ask for it (
 
 1. **Context.** Read `.whackagent/config.md`, `{wiki}/index.md`, backlog (`{backlog}`, or `wa-backlog list` under GitHub — **wa-board → Backlog provider**). Know what already exists: task covering part of spec → reuse, never duplicate. Note live sprints. `{…}` paths per **wa-board → Paths**.
 2. **Map spec.** List its blocks: user-visible capability each delivers, spec sections it spans, what it depends on. No deep code exploration — grill does that. Targeted glance only when unsure a block already exists in code.
-3. **Decide cut** per *Cut rules*. **One task → say `spec focused → one task`, run `/wa-task` with spec as its description, stop.** Its grill starts from spec, asks only what spec leaves open.
+3. **Decide cut** per *Cut rules*. **One task → say `spec focused → one task`, continue `/wa-task` from step 1 with spec as its description — no re-route to here.** Its grill starts from spec, asks only what spec leaves open.
 4. **Propose**, one block, before writing anything — see *Proposal*.
 5. **Create on yes**, per task, `/wa-task` steps 2, 4, 5 **minus grill**:
    - **local** — task file from template: `title`, `summary`, `size`, `sprint`, `status: todo`, `grilled: false`, `created`; `note:` `Depends on <slug>` when it builds on another. `## Context / Decisions` = **spec excerpt** (below). `## Acceptance criteria` left empty — grill writes them. Line under **Todo** in `{backlog}`.

@@ -23,7 +23,7 @@ created:                # YYYY-MM-DD
 ## Context / Decisions
 
 <!-- Fill by /wa-task. What, why, scope (YAGNI), decisions resolved in grill.
-     /wa-spec-to-tasks leaves spec excerpt here for grill to start from. -->
+     /wa-spec leaves spec excerpt here for grill to start from. -->
 
 ## Acceptance criteria
 

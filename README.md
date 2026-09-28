@@ -34,9 +34,9 @@ Add the marketplace, then install the plugin:
 | `/wa-setup` | Config + scaffolding (`.whackagent/`) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action |
 | `/wa-board <sprint>` | Same, filtered to one sprint, with its progress |
-| `/wa-task <desc\|task>` | Creates a task + spec, grills it (grill-me, includes architecture), then re-prioritizes the backlog |
+| `/wa-task <desc\|task\|spec>` | Creates a task + spec, grills it (grill-me, includes architecture), then re-prioritizes the backlog. Given a spec document, cuts it first (`/wa-spec`) |
 | `/wa-task` | No argument: prioritization pass only — reorders, YAGNI, can split |
-| `/wa-spec-to-tasks <spec>` | Cuts a large spec into a few feature-sized tasks ready to grill (one sprint), each carrying its spec excerpt. A focused spec becomes one task through `/wa-task` |
+| `/wa-spec <spec>` | Cuts a large spec into a few feature-sized tasks ready to grill (one sprint), each carrying its spec excerpt. A focused spec becomes one task through `/wa-task`. `/wa-task <spec>` routes here too |
 | `/wa-code <task>` | Full pipeline: understand → code + test → review → verify → report |
 | `/wa-feedback [task] <notes>` | Applies your notes on what was built — micro-fix inline, bigger changes through the isolated pipeline |
 | `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
