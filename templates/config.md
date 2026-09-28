@@ -9,7 +9,7 @@ project_kind: app              # app | web | server | cli | package  (picks arch
                                # app = mobile or desktop GUI; package = library/SDK
 
 paths:                         # WHERE whackagent keep each kind of file. Skills refer as
-                               # {backlog} {tasks} {wiki} {reports} {conventions} — never literal path.
+                               # {backlog} {tasks} {wiki} {reports} {conventions} {worktrees} — never literal path.
                                # Relative path resolve from repo root; absolute allowed
                                # (wiki in sibling repo, say).
                                # Point at committed, human-browsable folder when team share them —
@@ -20,6 +20,9 @@ paths:                         # WHERE whackagent keep each kind of file. Skills
   wiki: .whackagent/wiki
   reports: .whackagent/reports          # run reports — usually local, gitignore-able
   conventions: .whackagent/conventions  # convention modules copied here by /wa-setup
+  worktrees: ../<repo>-worktrees  # task worktrees (branch.worktree, /wa-autopilot). <repo> = repo
+                               # folder name. MUST sit OUTSIDE repo: nested checkout get indexed,
+                               # grepped, globbed by builds.
                                # `.whackagent/config.md` itself NOT configurable: it carry these
                                # paths, so must sit at known spot.
                                # Move path after setup → move files too; nothing back-fill.
@@ -102,6 +105,9 @@ commit:
 
 branch:
   per_task: false              # /wa-code work on own branch per task instead of current one
+  worktree: false              # with per_task: each task branch checked out in own git worktree
+                               #   at {worktrees}/<slug> — main checkout never switch branch, tasks
+                               #   open side by side. Cost: cold build per worktree, open IDE there.
   prefix: "wa/"                # branch name: <prefix><slug> → wa/login-apple
   base: current                # fork point: current | main | <branch name>
   sprint_prefix: "sprint/"     # task carrying `sprint:` branch off SPRINT branch, not base:
@@ -110,7 +116,8 @@ branch:
                                # So task 3 of sprint see task 1 work — same screen, no blind conflict.
                                # Created by whoever need it first: /wa-code step 0 or /wa-autopilot
                                # wave setup. Empty string → sprint get no branch, tasks use base:.
-  checkout_next: true          # after /wa-close commit, hop onto next task branch
+  checkout_next: true          # after /wa-close commit, hop onto next task branch (worktree mode:
+                               #   create its worktree)
                                # (only when per_task AND commit.auto_commit_after_validation)
 
 close:                         # WHERE work land when /wa-close finish a task. Task in a sprint

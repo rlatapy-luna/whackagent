@@ -23,7 +23,7 @@ Review every round burn one verifier per note, review code about to change anywa
    - `status: in-progress` → code not finished. Say so, don't review half-task.
    - `status: validated` → already reviewed. Code moved since → re-review delta; untouched → nothing to do, closing is **`/wa-close <slug>`**.
    - `status: done` / `canceled` → nothing to do.
-2. **Be on right branch.** `branch.per_task` or `/wa-autopilot` delivery → work live on `<branch.prefix><slug>`. Not here → say which branch, switch **only after user confirms** (their tree may be dirty).
+2. **Be on right branch.** `branch.per_task` or `/wa-autopilot` delivery → work live on `<branch.prefix><slug>`. Not here → say which branch, switch **only after user confirms** (their tree may be dirty). `branch.worktree: true` → no switch: review in task worktree, recreated from branch if gone (**wa-board → Worktrees**).
 3. **State what you take as validated** — the `## Acceptance criteria`, listed back in one block. Criterion they know unmet means they wanted `/wa-feedback`, not this: say so and stop rather than review feature still being finished.
 4. **Dispatch verifier** — point of command. One `wa-verifier`, per `/wa-code` step 3 in full.
    - **Scope = cumulative diff**: `branch.base..HEAD` plus working tree when task has own branch, else every file in `## Implementation` and each `## Feedback` round. Hunks inline, `inline`-tagged ones **flagged as written without convention pass** — those get harder look.

@@ -25,11 +25,12 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
 3. **Show landing plan, get yes.** One block, before touching git — see *Plan block*. Only confirmation command ask; everything after run without more prompting.
 4. **Commit** — when `commit.auto_commit_after_validation`. `commit.author_name` / `commit.author_email` (empty → repo's git identity), **never as Claude**. Already clean → skip, say so.
    - Nothing committed and tree dirty → **stop before any branch move.** Uncommitted work plus merge = how work disappear.
+   - `branch.worktree: true` → commit in task worktree: code + wiki. Local task file + `{backlog}` stay main-checkout bookkeeping, not in task commit (**wa-board → Worktrees**).
 5. **Land branch** — *Landing* below. Task in sprint → merge into sprint branch. Else → `close.strategy`.
 6. **Clean up** — *Cleanup* below. Worktree then branch, that order, `close.delete_branch` decide.
 7. **`status: done`**, reflect in `{backlog}` (move line under **Done**, keep `· <sprint>` suffix).
 8. **Sprint complete?** Last task of sprint just closed → *Sprint landing*.
-9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch wa/<next-slug> ready · /wa-code <next-slug>`.
+9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch wa/<next-slug> ready · /wa-code <next-slug>`. Worktree mode → its worktree created instead, echo `→ worktree ../<repo>-worktrees/<next-slug> ready`.
 10. **Report** — after-state, four lines max: what landed where, what deleted, sprint progress, next command.
 
 ## GitHub provider
@@ -41,7 +42,7 @@ Where sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`* → `/wa-val
 3. **Rebase onto PR base** — `sprint/<milestone>` when ticket has milestone, else `close.target`. Fetch first. Replay **ticket range only**: `git rebase --onto <base> $start^` (**wa-board → Backlog provider**, squash merge) — plain `git rebase <base>` replays squashed parents' commits and conflicts on every one. Stacked PR whose parent just landed: GitHub retargets it to parent's base once parent branch deleted; check `gh pr view --json baseRefName`, else `gh pr edit --base <base>`. PR base still another ticket's open branch (parent not landed) → **stop**: close parent first — rebasing ticket range onto sprint now drops parent's code. Conflicts mechanical (wiki index lines, import lists, generated files) → resolve yourself; touching logic → stop and ask with recommended resolution. Then **re-run build + tests**; red → stop, back to `/wa-feedback`.
 4. **Push + PR** — `git push --force-with-lease` (rebased), then `gh pr create --assignee @me --base <base> --head <branch> --title "<ticket title>" --body` = summary + `Closes #<n>` + acceptance criteria checklist, then `wa-backlog link-pr <n> <pr>` (milestone + Development link). **Existing draft PR** for branch (normal case: every round pushed to it) → push, refresh body (`gh pr edit`), `wa-backlog link-pr <n> <pr>` (idempotent — repairs PRs opened before it existed), then `gh pr ready <pr>` — draft = your test, ready = your merge. **Existing open non-draft PR** (fix round, or autopilot-validated PR already ready) → push only, no new PR. Plan block names PR base and says it pushes; always confirmed, every time.
 5. **Board** — push fires `synchronize`: hook keeps `review`, releases coding claim; `ready_for_review` only comments. Confirm `wa-backlog get <n>` (re-read once after ~30 s). Never set state yourself.
-6. **Branch + worktree kept** — PR needs branch. Autopilot worktree: remove only when clean.
+6. **Branch kept** — PR needs branch. Worktree (autopilot leftover or `branch.worktree`) removed only when clean — branch lives on remote, next round recreates it.
 7. **`done` is not yours** — merge on GitHub (human, or project's merge policy) → hook sets `done`, closes issue, closes milestone when empty.
 8. **Next** (`branch.checkout_next`) → next ticket only through **claim**: `/wa-code` without arg picks top unclaimed `grilled`. Never check out ticket branch you don't hold.
 
@@ -58,7 +59,7 @@ wiki      : [[auth]] updated, [[login-apple]] created (/wa-wiki)
 commit    : 2 uncommitted files + 2 wiki pages → commit (Benjamin Pisano)
 sprint    : merge wa/login-apple → sprint/login-refacto
 branch    : wa/login-apple deleted (merged)
-worktree  : ../.wa-worktrees/login-apple removed
+worktree  : ../<repo>-worktrees/login-apple removed
 after     : 🏁 login-refacto — 3/5
 
 ok? [y/n]
@@ -86,13 +87,15 @@ Rules:
 - **`pr`** — push branch, then `gh pr create --base <close.target>`. Title = task title, body = task `summary` plus its `## Acceptance criteria`. Print URL. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
 - **`merge`** — merge into `close.target` locally, **no push**. Target checked out elsewhere or dirty → say so, stop. Conflict → same rule as sprint merge: leave it, name files.
 
+**`branch.worktree: true`** — merges run in a worktree, never switch main checkout. Target (sprint branch or `close.target`) checked out nowhere → task worktree, clean after commit: `git switch <target>`, merge task branch there. Target checked out in main checkout → merge there, only when clean; dirty → say so, stop. Conflict → merge left in progress **in that checkout**, name its path; cleanup skips worktree holding it.
+
 **`branch.per_task: false`** — task coded on whatever branch you were on. Nothing to land, nothing to delete: commit, mark done, say so. Skip *Landing* and *Cleanup* whole.
 
 ## Cleanup
 
 Order matter — worktree holding branch block deleting it.
 
-1. **Worktree** — `../.wa-worktrees/<slug>` (autopilot leftover) → `git worktree remove`. Dirty → **stop and ask**; uncommitted work in worktree still work.
+1. **Worktree** — `{worktrees}/<slug>` (autopilot leftover, or `branch.worktree`) → `git worktree remove`. Dirty → **stop and ask**; uncommitted work in worktree still work.
 2. **Branch** — `close.delete_branch`:
    - `auto` (default) → delete only when code live somewhere else: merged into sprint branch, or merged into `close.target`. `pr` and `nothing` keep branch.
    - `always` → delete. **Unmerged → ask first**, say what would be lost.

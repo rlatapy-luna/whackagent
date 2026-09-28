@@ -170,7 +170,7 @@ Closing login-apple
 commit    : 2 uncommitted files → commit (Benjamin Pisano)
 sprint    : merge wa/login-apple → sprint/login-refacto
 branch    : wa/login-apple deleted (merged)
-worktree  : ../.wa-worktrees/login-apple removed
+worktree  : ../<repo>-worktrees/login-apple removed
 after     : 🏁 login-refacto — 3/5
 
 ok? [y/n]
@@ -190,7 +190,7 @@ close:
 
 `nothing` is the default and stops after the commit — the branch stays, you open the PR yourself. `pr` pushes and runs `gh pr create` onto `target`, and asks every single time, because a PR is visible to other people the moment it opens. `merge` merges locally without pushing.
 
-A branch is only deleted once its code exists somewhere else: merged into its sprint branch, or merged into `target`. `pr` and `nothing` keep it — a PR needs its branch, and so do you. A leftover autopilot worktree gets removed with it, and if it's dirty the command stops and asks.
+A branch is only deleted once its code exists somewhere else: merged into its sprint branch, or merged into `target`. `pr` and `nothing` keep it — a PR needs its branch, and so do you. The task's worktree (an autopilot leftover, or any task under `branch.worktree`) gets removed with it, and if it's dirty the command stops and asks.
 
 When the **last task of a sprint** closes, the sprint branch becomes the thing to deliver, so the same `close.strategy` is offered for it — proposed, never done silently:
 
@@ -211,6 +211,8 @@ Updates the wiki. `/wa-close` runs it on every close, so the wiki lands in the s
 > Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **reviewed code**: built, run, then `/wa-validate` run by autopilot itself — its runtime check stands in for your green light — committed on its branch, task left at `validated`. You test it, then `/wa-close`. Findings the autofix couldn't clear stay open: task left at `review`, listed in the report.
 
 > **Branch per task.** Set `branch.per_task: true` (asked at `/wa-setup`) and `/wa-code` codes on `wa/<slug>` instead of your current branch. Combine it with `commit.auto_commit_after_validation` and `/wa-close` commits the task, then checks out the next task's branch for you — chain tasks without touching git.
+>
+> **Worktree per task.** Add `branch.worktree: true` (the third answer to the branch question at `/wa-setup`) and each task branch gets its own git worktree at `../<repo>-worktrees/<slug>` instead of being checked out in your repo. Your main checkout never switches branch, so several tasks can stay open side by side, and a dirty tree never blocks the next task. The folder is `paths.worktrees` and must sit outside the repo, so the nested checkout never gets indexed, searched or picked up by a build. The backlog and reports stay in the main checkout. The cost: each worktree builds from cold once, and you test from it (open your IDE, simulator or dev server there). `/wa-autopilot` uses the same folder.
 >
 > **Branch per sprint.** A task carrying a `sprint:` doesn't fork off `branch.base` — it forks off `sprint/<sprint>`, created from the base the first time a task of that sprint is coded (by `/wa-code` or by an `/wa-autopilot` wave). `/wa-close` merges each task back into it. That's the point: the third task of a login refacto starts from the first two instead of rediscovering them as a merge conflict. Nothing lands on a sprint branch before its task is reviewed and closed, so the base of the sprint stays code you approved. `branch.sprint_prefix: ""` turns it off.
 
@@ -259,6 +261,7 @@ paths:
   wiki: docs/wiki          # committed and browsable on GitHub, for teammates who don't run whackagent
   reports: .whackagent/reports
   conventions: .whackagent/conventions
+  worktrees: ../<repo>-worktrees   # task worktrees, must be outside the repo
 ```
 
 Relative resolves from the repo root, absolute works too (a wiki in a sibling repo). Only `.whackagent/config.md` is fixed — it's the file that carries the paths. Omit a key and it takes the default above, so a config written before `paths:` existed keeps working. Moving a path after setup means moving the files yourself; nothing back-fills. A shared wiki is also a good reason to set `compress_wiki: false` — caveman compression saves the agents tokens and costs your teammates readability.
