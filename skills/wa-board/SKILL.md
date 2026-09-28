@@ -17,7 +17,7 @@ Dashboard. Lift lid on backlog, point next move.
    - something in `validated` → reviewed, wait user retest: `/wa-close <slug>` to finish (or `/wa-feedback` if retest found something). Highest precedence — one step from done.
    - something in `review` → coded, wait user test: `/wa-feedback <slug> <notes>` if notes, else `/wa-validate <slug>` to fire verifier. Beats starting new work.
    - something `in-progress` → resume it (`/wa-code <slug>`)
-   - top `todo` not grilled → `/wa-task <slug>` to clarify (note: quick wins skip straight to `/wa-code`)
+   - top `todo` not grilled → `/wa-grill <slug>` to clarify (note: quick wins skip straight to `/wa-code`)
    - top `todo` grilled → `/wa-code <slug>`. Backlog order maintained by `/wa-task` prioritization pass — never suggest reprioritizing as step (if user *asks* to reorder, that `/wa-task` with no arg).
    - nothing in todo → `/wa-task <description>` to create one
    - batch of small grilled tasks → mention `/wa-autopilot` as option
@@ -31,7 +31,7 @@ Same list format, sections by contract state, render order: **Coding → Review 
 
 **Review section splits draft vs ready** — `gh pr list --json number,headRefName,isDraft`: draft → `🧪 draft #<pr>` (your test), ready → `🔀 ready #<pr>` (merge on GitHub).
 
-Next action (GitHub): `review` + draft → `/wa-feedback <#> <notes>` or `/wa-validate <#>` (`/wa-close <#>` when task file says `phase: validated`) · unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-task <#>` · `review` + ready → merge PR on GitHub (not agent job) · several unclaimed `grilled` → `/wa-autopilot`. Never suggest ticket someone else holds.
+Next action (GitHub): `review` + draft → `/wa-feedback <#> <notes>` or `/wa-validate <#>` (`/wa-close <#>` when task file says `phase: validated`) · unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-grill <#>` · `review` + ready → merge PR on GitHub (not agent job) · several unclaimed `grilled` → `/wa-autopilot`. Never suggest ticket someone else holds.
 
 ## Display format
 
@@ -156,13 +156,13 @@ Sprint = **optional kebab-case label** on task (`sprint: login-refacto`), groupi
 - **One branch, when `branch.per_task`.** `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`), created from `branch.base` by whoever needs it first — `/wa-code` step 0 or `/wa-autopilot` wave. Tasks of sprint fork off it and `/wa-close` merges them back, so each task starts from sprint current state. `branch.sprint_prefix: ""` turns that off: tasks use `branch.base` like any other. Nothing merges into sprint branch before its task reviewed and closed.
 - **A sprint is complete, never `done`.** No sprint status exists. Complete when no task of it left in `todo`/`in-progress`/`review`/`validated` — `/wa-close` notices and offers to land sprint branch.
 
-Commands taking sprint name: `/wa-board <sprint>` (filtered view), `/wa-autopilot <sprint>` (batch its todo tasks), `/wa-task` (assigns and inherits). `/wa-code`, `/wa-validate`, `/wa-feedback`, `/wa-close` stay **per task** — one task is their unit, and whole sprint unattended is what `/wa-autopilot` already does better.
+Commands taking sprint name: `/wa-board <sprint>` (filtered view), `/wa-autopilot <sprint>` (batch its todo tasks), `/wa-task` (assigns and inherits). `/wa-grill`, `/wa-code`, `/wa-validate`, `/wa-feedback`, `/wa-close` stay **per task** — one task is their unit, and whole sprint unattended is what `/wa-autopilot` already does better.
 
 ## Task indexes
 
 Index is **display-only**, derived from current backlog order. Never written into `{backlog}` or task files — order alone carry priority, so index shifts when order shifts.
 
-Any skill taking task can take indexes instead of slugs: `/wa-code 3`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-task 3`. Resolve by re-reading `{backlog}` and re-deriving same numbering (rules above), then:
+Any skill taking task can take indexes instead of slugs: `/wa-code 3`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-grill 3`. Resolve by re-reading `{backlog}` and re-deriving same numbering (rules above), then:
 
 - Echo resolved mapping (`2 → login-apple`, `3 → sync-offline`) before work, so user catch stale index.
 - Index out of range or pointing at section that make no sense for command → say so, stop, don't guess neighbour.

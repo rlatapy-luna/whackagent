@@ -11,7 +11,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 
 Does **not** set task `done`, never touch git. You probably retest after review touch things — closing separate deliberate step: **`/wa-close`**.
 
-Where it sit: `/wa-task` → `/wa-code` → *you test, `/wa-feedback`, you test again* → **`/wa-validate`** → verifier → *you retest* → **`/wa-close`**.
+Where it sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedback`, you test again* → **`/wa-validate`** → verifier → *you retest* → **`/wa-close`**.
 
 ## Why it's a command and not a step
 

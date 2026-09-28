@@ -34,9 +34,9 @@ Add the marketplace, then install the plugin:
 | `/wa-setup` | Config + scaffolding (`.whackagent/`) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action |
 | `/wa-board <sprint>` | Same, filtered to one sprint, with its progress |
-| `/wa-task <desc\|task\|spec>` | Creates a task + spec, grills it (grill-me, includes architecture), then re-prioritizes the backlog. Given a spec document, cuts it first (`/wa-spec`) |
+| `/wa-task <idea\|spec>` | Creates the task, then re-prioritizes the backlog. An idea goes straight into `/wa-grill`; a large spec is cut into a few feature-sized tasks (one sprint), each carrying its spec excerpt |
 | `/wa-task` | No argument: prioritization pass only — reorders, YAGNI, can split |
-| `/wa-spec <spec>` | Cuts a large spec into a few feature-sized tasks ready to grill (one sprint), each carrying its spec excerpt. A focused spec becomes one task through `/wa-task`. `/wa-task <spec>` routes here too |
+| `/wa-grill [task]` | Grills one task until it's clear (grill-me, includes architecture), writes its acceptance criteria |
 | `/wa-code <task>` | Full pipeline: understand → code + test → review → verify → report |
 | `/wa-feedback [task] <notes>` | Applies your notes on what was built — micro-fix inline, bigger changes through the isolated pipeline |
 | `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
@@ -56,7 +56,7 @@ Each step suggests the next one. You never have to figure out what to run.
 /wa-code 3
 /wa-autopilot 2,4,5
 /wa-autopilot 2-5
-/wa-task 3
+/wa-grill 3
 ```
 
 The number is display-only: it comes from the current backlog order, so it changes whenever the backlog is reordered (which happens on its own each time a task is added). The command always echoes what it resolved (`3 → sync-offline`) before doing any work, so a stale number can't silently run the wrong task.
@@ -94,13 +94,13 @@ Bootstrap once, then loop: describe → code → you test → you validate → v
 
 Detects language + project kind, scaffolds `.whackagent/`.
 
-**1. Describe a task — `/wa-task`**
+**1. Describe a task — `/wa-task`, then `/wa-grill`**
 
 ```
 /wa-task Sign in with Apple on the login screen
 ```
 
-Grills the idea (grill-me) until it's clear, plans the architecture, and writes `.whackagent/tasks/login-apple.md` with a spec + a size (🟢 quickwin / 🟡 medium / 🔴 large).
+Creates `.whackagent/tasks/login-apple.md` and goes straight into `/wa-grill`: it grills the idea (grill-me) until it's clear, plans the architecture, and writes the spec + a size (🟢 quickwin / 🟡 medium / 🔴 large). Hand `/wa-task` a spec document instead and it first cuts it into a few feature-sized tasks, each carrying its excerpt of the spec — one proposal, created on your yes — then you grill them one at a time with `/wa-grill <#>`.
 
 Then it prioritizes on its own — there's no separate command for it: a product-owner pass slots the new task where it belongs, applies YAGNI, and flags anything too big to split (asking first). You end up looking at a fresh, ordered board — top of the list is what to code next:
 
@@ -226,7 +226,7 @@ Every ticket goes through six states. Agents only ever *take* a ticket; the rest
 | State | Who moves it there |
 | --- | --- |
 | `todo` | an issue is opened (by `/wa-task`, or by hand on GitHub) |
-| `grilling` | an agent claims it with `/wa-task #12`, a lock, so no other agent grills it |
+| `grilling` | an agent claims it with `/wa-grill #12`, a lock, so no other agent grills it |
 | `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
 | `coding` | an agent claims it for one round (`/wa-code 12`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`), a lock held only while the agent works |
 | `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; `/wa-close` marks it ready = your turn to merge |
@@ -278,7 +278,7 @@ sprint: login-refacto       # optional — groups the tasks of one bigger piece 
 status: todo                # todo | in-progress | review | validated | done | canceled
                             # review = coded, waiting for your test · validated = spec approved,
                             # verifier passed, waiting for your retest
-grilled: false             # true once it went through /wa-task (grill-me)
+grilled: false             # true once it went through /wa-grill (grill-me)
 wiki: [[auth]], [[onboarding]]
 note:                       # trigger / free context (optional)
 ---
@@ -314,7 +314,7 @@ The copied list lands in `review.modules` — the verifier reads exactly that, a
 
 ## Skill dependencies
 
-- **grill-me**: task clarification in `/wa-task`
+- **grill-me**: task clarification in `/wa-grill`
 - **caveman**: config and wiki compression at setup and on each `/wa-wiki` (`compress_wiki: true`, saves re-reading tokens)
 
 ## Credits

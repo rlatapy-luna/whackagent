@@ -17,7 +17,7 @@ stateDiagram-v2
 
     [*] --> todo: issue opened (hook)<br/>or wa-backlog create
 
-    todo --> grilling: claim grilling<br/>/wa-task
+    todo --> grilling: claim grilling<br/>/wa-grill
     grilling --> grilled: spec pushed on wa/n-slug<br/>with acceptance criteria (hook)
     grilling --> todo: release --reset-to todo<br/>(grill abandoned)
 
@@ -35,7 +35,7 @@ stateDiagram-v2
 
 | State | Meaning | Who is on turn | Entered by |
 | --- | --- | --- | --- |
-| `todo` | Ticket exists, not specified yet | Human, to start `/wa-task` | Issue opened (hook), or `wa-backlog create` |
+| `todo` | Ticket exists, not specified yet | Human, to start `/wa-grill` | Issue opened (hook), or `wa-backlog create` |
 | `grilling` | **Locked.** One agent is grilling the ticket with the user | Agent and human together | Agent `claim <n> grilling` |
 | `grilled` | Spec written, ready to code | Anyone, to pick it up | Hook: branch `wa/<n>-<slug>` pushed with `{tasks}/<n>-*.md` holding non-empty acceptance criteria |
 | `coding` | **Locked and transient.** One agent is working one round right now | Agent | Agent `claim <n> coding` |

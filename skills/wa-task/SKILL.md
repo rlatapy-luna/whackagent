@@ -1,60 +1,107 @@
 ---
 name: wa-task
-description: Turn fuzzy idea into clear grilled task, then re-prioritize backlog. Clarity before code. Spec document → cut into tasks first (wa-spec). No argument = prioritization pass alone.
+description: Create tasks from an idea or a spec — large spec cut into a few feature-sized tasks — then re-prioritize backlog. Focused idea goes straight to /wa-grill. No argument = prioritization pass alone.
 ---
 
 # /wa-task
 
-Fuzzy idea → clear grilled task, backlog ordered. Clarity before code.
+Idea or spec → task(s) in backlog, ordered. **Creates, cuts, places — never grills**: `/wa-grill` clarifies one task at a time.
 
 Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms stay English.
 
-Owns two things: **writing task** (steps 1–5), **placing it** (step 6). Prioritization not separate command — task not ordered isn't landed.
+Owns three things: **creating** task, **cutting** spec too large for one task (*Spec*), **placing** it (*Prioritization pass*). Prioritization not separate command — task not ordered isn't landed.
 
 ## Do
 
 0. **Read arg.**
-   - **Spec** → file path, URL, or pasted document (several sections, several features) → follow **`${CLAUDE_PLUGIN_ROOT}/skills/wa-spec/SKILL.md`** in full: it cuts, creates, prioritizes. It hands back here only when spec is one task. Short idea, even multi-line → free text below. Doubt → spec: cut rules still give one task when that's what it is.
-   - Free text → new task, steps below.
-   - Slug or display index from wa-board list (`/wa-task 3`) → resolve per **wa-board → Task indexes**, echo `3 → sync-offline`, grill that existing task instead of creating, then step 6. Task carries **spec excerpt** (`/wa-spec` — local: `## Context / Decisions`; GitHub: issue body) → grill starts from it: ask only its `Open for grill` points and what spec leaves open, never re-ask what it states. Grilled decisions replace excerpt in `## Context / Decisions`; keep its source ref line.
+   - **Free text idea** → one task, steps 1–5, then **straight into `/wa-grill <slug>`**, same run — no second command. User flags trivial quick win → `/wa-grill` quick-win path (no interview).
+   - **Spec** → file path, URL, or pasted document (several sections, several features) → *Spec* below. Short idea, even multi-line → free text. Doubt → spec: cut rules still give one task when that's what it is.
+   - **Existing task** (slug, display index, `#n`) → forward: echo `→ /wa-grill 3`, run `/wa-grill` on it. Old habit, still works.
    - Bare arg matches **live sprint**, no task slug → ambiguous, ask which (recommend: new task inside that sprint, since `/wa-task` creates): `login-refacto is a sprint. New task inside it (recommended), or do you want the view? → /wa-board login-refacto`.
-   - **No arg → prioritization only.** Skip to step 6, whole backlog in scope, full pass (see *Explicit run* there).
-1. Read `.whackagent/config.md` + `{wiki}/index.md` for project context. `{…}` paths come from its `paths:` block — see **wa-board → Paths**.
+   - `release <n>` → stale-claim cleanup (*GitHub provider*).
+   - **No arg → prioritization only.** Skip to step 5, whole backlog in scope, full pass (see *Explicit run* there).
+1. **Context.** Read `.whackagent/config.md`, `{wiki}/index.md`, backlog (`{backlog}`, or `wa-backlog list` under GitHub — **wa-board → Backlog provider**). `{…}` paths per **wa-board → Paths**. Idea or spec block already covered by task → say so, reuse, never duplicate. Note live sprints.
 2. **Title first.** Distill request into SHORT explicit title — feature clear one glance ("Login Apple", not "improve auth"). Rules: **wa-board → Titles and summaries** — label ≤ 5 words, never a narrative sentence, never a metaphor, tech terms untranslated. Slug = kebab-case title (`login-apple`).
-3. **Grill.** Invoke **grill-me** skill: interview user relentlessly down design tree, one question at time. Resolve scope with **YAGNI** — push back on speculative. Question answerable from code → **go read code** (targeted Grep/Glob, scoped to feature). Never ask user what project already tells you.
-   - **Every question carries recommendation. No exception.** See *Grill question format* below — bare question is bug, not style choice.
-   - **Cover architecture.** Grill must settle *where this lives*: which feature/folder, what new files/folders, how fits architecture module (group by feature, proper nesting — not flat), which layer boundaries touch. Read architecture module in `{conventions}/` first, so grill against real rules.
-   - Exception: user flags trivial quick win → skip grill, create task `grilled: false`.
-4. **Write task file** at `{tasks}/<slug>.md` from `${CLAUDE_PLUGIN_ROOT}/templates/task.md`:
-   - `title`, `status: todo`, `grilled: true` (or false if skipped), `created` = today.
+3. **Write task file** at `{tasks}/<slug>.md` from `${CLAUDE_PLUGIN_ROOT}/templates/task.md`:
+   - `title`, `status: todo`, `grilled: false`, `created` = today.
    - `summary` — **≤ 8 words**, the goal plainly (line 2 of wa-board list). Adds what title doesn't say — never repeats it. Result once done, not mechanism or story. Rules: **wa-board → Titles and summaries**.
-   - `size` — effort estimate: `quickwin` (🟢, hour or less), `medium` (🟡), `large` (🔴, multi-session / probably split). Base on what grill surfaced.
+   - `size` — first estimate: `quickwin` (🟢, hour or less), `medium` (🟡), `large` (🔴, multi-session / probably split). `/wa-grill` re-estimates.
    - `sprint` — kebab-case label, or **empty**. Rules in *Sprints* below. Default empty: most tasks stand alone.
-   - `wiki:` — link relevant existing wiki pages with `[[page]]`; note any page to create.
-   - Fill `## Context / Decisions` with resolved decisions from grill.
-   - Fill `## Acceptance criteria` — observable checks meaning "done" (what appears on screen, what input must produce). These drive the implementer's runtime checks and the verifier's correctness lens; keep concrete, YAGNI. Skip only for tasks with no runnable surface (pure lib/logic).
-5. **Add to backlog.** Append task under **Todo** in `{backlog}`, link file (relative to backlog's own folder, so link works when backlog and tasks sit in different trees). Sprint set → echo as `· <sprint>` after link, slot line **next to its sprint siblings**, not bottom.
-6. **Prioritize.** Run pass below — always, never ask permission, part of adding task. Several tasks one go → one pass at end, not one per task.
+   - `note:` — `Depends on <slug>` when it builds on another task.
+   - `## Context / Decisions` — user idea in their words, tightened; or **spec excerpt** (*Spec*). `## Acceptance criteria` left empty — `/wa-grill` writes them.
+4. **Add to backlog.** Append task under **Todo** in `{backlog}`, link file (relative to backlog's own folder, so link works when backlog and tasks sit in different trees). Sprint set → echo as `· <sprint>` after link, slot line **next to its sprint siblings**, not bottom.
+5. **Prioritize.** Run pass below — always, never ask permission, part of adding task. Several tasks one go → one pass at end, not one per task. Idea handed to `/wa-grill` → grill runs it after writing criteria instead.
+
+## Spec
+
+Big spec → few tasks, each one coherent feature, ready to grill. **Cut, don't shred**: goal = split spec too large for one task, never break feature into small tickets. Read **whole** spec — ranges when big, never judge from first page.
+
+1. **Map spec.** List its blocks: user-visible capability each delivers, spec sections it spans, what it depends on. No deep code exploration — grill does that. Targeted glance only when unsure a block already exists in code.
+2. **Decide cut** per *Cut rules*. **One task → say `spec focused → one task`**, create it (steps 2–4, excerpt = whole spec), straight into `/wa-grill`.
+3. **Propose**, one block, before writing anything — see *Proposal*.
+4. **Create on yes**, per task, steps 2–4. Existing task covering a block → append excerpt (local: its `## Context / Decisions`; GitHub: `gh issue comment`), never rewrite it.
+5. **Prioritize** once at end (step 5), sprint moves as block.
+6. **Show** list (wa-board format, fresh `#`). Next: `/wa-grill <#>` on top one — one task at a time.
+
+### Cut rules
+
+Task = one coherent feature: user tests it alone, one `/wa-code` pipeline, one PR, one review diff.
+
+- **Split only at feature seams** — separate screen, flow or subsystem that ships and tests on its own. Spec already treating it as separate part = strong signal.
+- **Never split by layer** (data / domain / UI), by file, or into steps of one feature — pieces untestable alone. Inner decomposition = grill + `/wa-code` bricks.
+- **Never shred** — no task per acceptance criterion, field, button or edge case.
+- **Doubt between one and two → one.** Grill can still split later (`/wa-grill` step 4); merging back costs more.
+- **Size bound** — block beyond `large` (many sessions, many screens) → split. Everything fits `medium`/`large` → one task fine, even when spec long.
+- **Count check** — big spec usually 2–6 tasks. Past ~8 → probably shredding: cut coarser, or say spec = several sprints and cut first one only.
+
+### Proposal
+
+```
+Spec: docs/specs/timesheet-v2.md — 3 tasks · sprint timesheet-v2
+
+1. 🟡 Weekly timesheet — edit week entries in one grid      §2 §3
+2. 🔴 Timesheet export — month as PDF and CSV              §5    ← after 1
+3. 🟡 Week approval — manager approves or rejects week     §6    ← after 1
+
+Already in backlog: §4 offline edit → sync-offline (excerpt appended)
+Out of task: §7 analytics — spec says "later" (YAGNI)
+Open for grill: §5 PDF branding? · §6 notify by mail or push?
+
+→ Recommended: these 3. §2–§3 same screen; export and approval ship and test alone.
+  Alt: merge 1+3 — approval sits on same grid, but doubles review diff.
+ok? [y / edit]
+```
+
+- **Every spec section lands somewhere** — a task, an existing task, or `Out of task` with reason. Nothing silently dropped.
+- Title + summary per **wa-board → Titles and summaries**. Size from spec breadth, re-estimated at grill.
+- Order = dependency order; `← after N` when one builds on another.
+- **Sprint** — several tasks from one spec → one sprint named after body of work, rules *Sprints* below (reuse live one when spec extends it). Shown in header, confirmed with proposal.
+- **Ambiguities → `Open for grill`**, not asked now: grill's job, one task at a time.
+- `edit` → user reshapes (merge, split, rename, drop); re-show block, create only on yes.
+
+### Spec excerpt
+
+What grill starts from — `/wa-grill` reads it instead of re-asking what spec already says.
+
+```
+**Spec** — docs/specs/timesheet-v2.md §5 (Export)
+<sections this task covers, verbatim or tightened — never new requirement>
+
+**Open for grill**
+- PDF branding: logo or plain?
+```
+
+- Source ref always: path + sections, or `pasted spec` + date when no file.
+- Tighten wording, never add scope. Requirement spec doesn't state = not in excerpt.
+- Cross-task context (shared model, data another task creates) → one line naming that task.
 
 ## GitHub provider
 
-`backlog.provider: github` — rules in **wa-board → Backlog provider**. Same grill, same task file content; what changes is where it goes and who may touch it.
+`backlog.provider: github` — rules in **wa-board → Backlog provider**. Creating = issue on board, nothing else.
 
-**Arg forms:** free text → new ticket. `#12` / `12` / display index → existing ticket. `release <n>` → stale-claim cleanup (below). No arg → prioritization pass.
-
-1. **New ticket** → `wa-backlog create --title … --summary … [--size] [--sprint]` right after step 2 (title), before grilling — ticket visible on board at once. Then continue with it as existing ticket. User flags quick win to skip grill → no interview, but still claim, write minimal spec (context one line, 1–3 acceptance criteria from title + summary) and push (steps 2–5): coding claim needs `grilled`, and only a pushed spec gets there.
-2. **Claim** → `wa-backlog claim <n> grilling`. Exit 3 → `#12 grilled by <agent> since <time>` — stop, suggest next `todo`. Exit 4 → state not `todo`, say which, stop.
-3. **Branch** → fork point per `/wa-code` step 0 (`branch.base`, or `sprint/<sprint>` when ticket has milestone). Dirty tree → stop and ask (worktree mode: doesn't apply). Create it **linked to issue**, right away: `gh issue develop <n> --name <branch.prefix><n>-<slug> --base <fork point> --checkout` — `branch.worktree: true` → `--worktree {worktrees}/<n>-<slug>` instead of `--checkout` (**wa-board → Worktrees**), spec written and pushed from there. GitHub creates remote branch at fork point and lists it under issue **Development** — visible from first minute. Only way to link: branch created any other way (plain `git checkout -b`, then push) can never be linked afterwards. Empty branch push moves nothing (hook needs spec).
-4. **Grill** (step 3), **write** `{tasks}/<n>-<slug>.md` (step 4) with GitHub frontmatter: `issue: <n>`, `phase:` empty, `wiki:`, `note:`, `created:`. Title/summary/size/sprint → `wa-backlog set-field` / GitHub issue, never file. Dependencies grill settled (`Depends on #x` in `note:`) → **also** `wa-backlog depend <n> --on <x>[,<y>]` at once, so issue Relationships show blocking graph. Split children blocked by sibling they build on → same verb. `## Acceptance criteria` **must** be non-empty — hook reads it as proof grill finished.
-5. **Commit + push, once, at end.** Commit only task file (`task: grill #<n> <slug>`), author per `commit.author_*`, push `-u origin`. Never push mid-grill. Hook moves ticket to `grilled` and drops grilling claim — confirm with `wa-backlog get <n>` (wait ~30 s, re-read once; still `grilling` → say hook late, check Actions run, never set state yourself).
-6. **Abort** (user drops mid-grill) → `wa-backlog release <n> grilling --reset-to todo --reason "<why>"`, delete branch if spec never pushed — local, plus remote one `gh issue develop` created (`git push origin --delete <branch>`: holds only fork point).
-7. **Split** (large ticket) → children = new tickets via `create`, same sprint milestone. Parent: `release`, then close issue with comment linking children — never leave parent claimed.
-
-**Prioritization (step 6) under GitHub:** **not automatic.** Board order shared with humans and other agents — new ticket lands bottom of `todo`, full stop. Only explicit `/wa-task` (no arg): re-read `wa-backlog list` just before writing, show proposed order, apply with `wa-backlog move` **only on user yes**. Cancel = close issue `not planned` with reason comment, on yes.
-
-**Unattended grill** — `/wa-autopilot` AFK mode runs steps 2–5 itself, answering with its own recommendations, each tagged `(autopilot assumption)` in `## Context / Decisions`. Product-intent question → releases ticket back to `todo` with `BLOCKED:` reason, never guesses.
-
-**`/wa-task release <n>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <n> <phase> --reset-to <todo|grilled> --reason "stale: <age>, no push"` (`grilling` → `todo`, `coding` → `grilled`). Never on own initiative, never to take ticket another live agent holds.
+- **Create** → `wa-backlog create --title … --summary … [--size] [--sprint] --note "<idea or spec excerpt>"` (note = issue body) instead of steps 3–4, then `wa-backlog depend <n> --on <x>` per dependency. Ticket lands `todo`, bottom of board. **No claim, no branch, no task file** — `/wa-grill` makes them.
+- **Prioritization (step 5) under GitHub:** **not automatic.** Board order shared with humans and other agents — new ticket lands bottom of `todo`, full stop. Only explicit `/wa-task` (no arg): re-read `wa-backlog list` just before writing, show proposed order, apply with `wa-backlog move` **only on user yes**. Cancel = close issue `not planned` with reason comment, on yes.
+- **`/wa-task release <n>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <n> <phase> --reset-to <todo|grilled> --reason "stale: <age>, no push"` (`grilling` → `todo`, `coding` → `grilled`). Never on own initiative, never to take ticket another live agent holds.
 
 ## Sprints
 
@@ -72,27 +119,7 @@ Optional grouping label for work too big for one task — `sprint: login-refacto
 
 **Never** create sprint file, sprint section in `{backlog}`, or sprint status. Label on tasks *is* sprint.
 
-## Grill question format
-
-**Never ask bare question.** Every grill question ships with answer you'd pick and why. User job: confirm or correct — not design feature from blank prompt. Not "when you have opinion": always.
-
-```
-**Where does the token live?**
-→ **Recommended: Keychain.** Refresh token survives reinstall-less relaunch, and
-  UserDefaults would put it in plaintext backups.
-  Alt: in-memory only — safer, but user re-logs at every cold start.
-```
-
-Rules:
-
-- **Recommendation, then one-line why.** Why makes it reviewable — naked "I'd do X" gives user nothing to push against.
-- **Name alternative you rejected** when real one exists, one line. Shows fork actually considered.
-- **Cite ground.** Recommendation follows from something concrete: convention module, existing code you read, acceptance criteria, YAGNI. Never coin flip dressed as advice.
-- **No basis to recommend?** Still recommend: give least-risk / most-reversible default, say plainly what you'd need to know to be sure. "It depends on your product intent" alone is non-answer — pick cheapest-to-undo option, flag as guess.
-- **One question at a time.** Recommendation attached to each. Batch of five bare questions = exact failure this rule stops.
-- Same rule for any question outside grill — architecture forks, `BLOCKED:` questions from subagents, `/wa-feedback` triage doubts.
-
-## 6. Prioritization pass
+## Prioritization pass
 
 Product-owner hat: what matters now, what order. New task(s) from this run = **focus**; rest of todo = context.
 
@@ -122,10 +149,18 @@ Product-owner hat: what matters now, what order. New task(s) from this run = **f
 
 ## Stop and ask
 
-Whole skill about no guessing. User answers leave contradiction → surface it, no paper over.
-
 Priority call needs product intent you lack? Ask — no assume. But on automatic pass, ask only if new task slot genuinely undecidable; else put where best fits, let user move it.
+
+Every question — cut proposal, sprint name, slot — carries recommended answer plus one-line reason, format **wa-grill → Question format**. Never bare question.
+
+## Never
+
+- Never grill here — `/wa-grill` does, one task at a time.
+- Never write acceptance criteria, never code, never create branches.
+- Never create from spec before yes on proposal.
+- Never invent requirement idea or spec doesn't state.
+- Never write to literal `.whackagent/` path when config `paths:` points elsewhere.
 
 ## Next step
 
-Board list from step 7 already on screen with fresh `#` indexes. Suggest **`/wa-code <#>`** for top grilled todo (or `/wa-autopilot <#,#>` if new tasks are quick wins).
+Idea → already in `/wa-grill`. Spec cut → list on screen with fresh `#`: **`/wa-grill <#>`** on top new task. No-arg pass → **`/wa-code <#>`** for top grilled todo (or `/wa-grill <#>` when top one not grilled).

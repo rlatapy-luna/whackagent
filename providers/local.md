@@ -9,7 +9,7 @@ Local keeps its own finer statuses in task frontmatter `status:`. Mapping onto c
 | Contract | Local |
 |---|---|
 | `todo` | `status: todo`, `grilled: false` |
-| `grilling` | — (transient, lives in `/wa-task` session only) |
+| `grilling` | — (transient, lives in `/wa-grill` session only) |
 | `grilled` | `status: todo`, `grilled: true` |
 | `coding` | `status: in-progress` / `review` / `validated` |
 | `review` | — (`/wa-close` with `close.strategy: pr` go straight to `done`) |

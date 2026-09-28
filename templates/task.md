@@ -14,7 +14,7 @@ status: todo            # todo | in-progress | review | validated | done | cance
                         #   review    = coded, wait YOU test it
                         #   validated = you say match spec, verifier ran, wait your retest
                         #   done       = retested + closed by /wa-close
-grilled: false          # true once clarified via /wa-task (grill-me)
+grilled: false          # true once clarified via /wa-grill (grill-me)
 wiki:                   # [[page]] refs, comma-separated
 note:                   # free-form trigger / context (optional, not auto-evaluated)
 created:                # YYYY-MM-DD
@@ -22,12 +22,12 @@ created:                # YYYY-MM-DD
 
 ## Context / Decisions
 
-<!-- Fill by /wa-task. What, why, scope (YAGNI), decisions resolved in grill.
-     /wa-spec leaves spec excerpt here for grill to start from. -->
+<!-- /wa-task: user idea or spec excerpt. /wa-grill: what, why, scope (YAGNI), decisions
+     resolved in grill, starting from that. -->
 
 ## Acceptance criteria
 
-<!-- Fill by /wa-task. Observable checks mean "done" — each one thing you see
+<!-- Fill by /wa-grill. Observable checks mean "done" — each one thing you see
      on screen or state input must produce. wa-implementer drives these on device
      when verify.mode puts runtime proof on agent; wa-verifier checks diff meets them. -->
 

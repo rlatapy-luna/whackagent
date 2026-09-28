@@ -15,7 +15,7 @@ Read `.whackagent/config.md` and `{tasks}/<slug>.md` first. `{…}` paths from c
 
 Arg = slug **or** wa-board display index (`/wa-code 3`) — resolve per **wa-board → Task indexes**, echo `3 → sync-offline`.
 
-**Grill gate (soft):** `grilled: false` → warn *"not grilled — quick win, or `/wa-task <slug>` first?"* Proceed if user confirms.
+**Grill gate (soft):** `grilled: false` → warn *"not grilled — quick win, or `/wa-grill <slug>` first?"* Proceed if user confirms.
 
 Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → step **0b** instead of this line, grill gate and step 0.
 
@@ -34,7 +34,7 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 `backlog.provider: github` (rules **wa-board → Backlog provider**) replaces grill gate, status write and step 0:
 
 1. **Resolve** arg: `#12` / `12` / display index. No arg → top unclaimed `grilled` from `wa-backlog list --state grilled`.
-2. **Claim** `wa-backlog claim <n> coding`. Exit 3 → `#12 coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`review`: `todo` means not grilled → suggest `/wa-task <n>`; stop.
+2. **Claim** `wa-backlog claim <n> coding`. Exit 3 → `#12 coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`review`: `todo` means not grilled → suggest `/wa-grill <n>`; stop.
 3. **Branch** — ticket branch already exists (grilling pushed it): `wa-backlog branch <n>`, fetch, check out **in current worktree**. Dirty tree → stop and ask first. Never create fresh branch: spec lives on this one. Git refusing because another local worktree holds branch → say which, stop. `branch.worktree: true` → reuse or add `{worktrees}/<n>-<slug>` on that branch instead (**wa-board → Worktrees**); worktree already there = yours to reuse, not a refusal.
 4. **Spec** = `{tasks}/<n>-<slug>.md` on that branch. Set `phase: in-progress` there (local writes `status:`). **No push mid-round** — any push to branch with open PR fires `synchronize`: hook ends round and drops your claim while you still code.
 5. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `#<n>` + PR URL.
