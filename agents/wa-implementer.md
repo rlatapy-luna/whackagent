@@ -8,6 +8,7 @@ description: >
   Return compact receipt. Does NOT decide scope, commit, touch backlog/wiki.
   If blocked, return BLOCKED with open question instead of guessing.
 tools: [Read, Edit, Write, Grep, Glob, Bash]
+model: sonnet
 ---
 
 # wa-implementer
