@@ -1,11 +1,11 @@
 ---
 name: wa-task
-description: Create tasks from an idea or a spec — large spec cut into a few feature-sized tasks — then re-prioritize backlog. Focused idea goes straight to /wa-grill. No argument = prioritization pass alone.
+description: Create tasks from an idea or a spec — large spec cut into a few feature-sized tasks — then re-prioritize backlog. Never grills: suggests /wa-grill next. No argument = prioritization pass alone.
 ---
 
 # /wa-task
 
-Idea or spec → task(s) in backlog, ordered. **Creates, cuts, places — never grills**: `/wa-grill` clarifies one task at a time.
+Idea or spec → task(s) in backlog, ordered. **Creates, cuts, places — never grills, never starts `/wa-grill`**: run ends on suggestion, user launches `/wa-grill` — it clarifies one task at a time.
 
 Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms stay English.
 
@@ -14,9 +14,9 @@ Owns three things: **creating** task, **cutting** spec too large for one task (*
 ## Do
 
 0. **Read arg.**
-   - **Free text idea** → one task, steps 1–5, then **straight into `/wa-grill <slug>`**, same run — no second command. User flags trivial quick win → `/wa-grill` quick-win path (no interview).
+   - **Free text idea** → one task, steps 1–5, then **stop** and suggest `/wa-grill <#>`. User flags trivial quick win → suggest `/wa-grill <#> quick win` (no interview path).
    - **Spec** → file path, URL, or pasted document (several sections, several features) → *Spec* below. Short idea, even multi-line → free text. Doubt → spec: cut rules still give one task when that's what it is.
-   - **Existing task** (slug, display index, `#n`) → forward: echo `→ /wa-grill 3`, run `/wa-grill` on it. Old habit, still works.
+   - **Existing task** (slug, display index, `#n`) → nothing to create: say so, suggest `→ /wa-grill 3`, stop.
    - Bare arg matches **live sprint**, no task slug → ambiguous, ask which (recommend: new task inside that sprint, since `/wa-task` creates): `login-refacto is a sprint. New task inside it (recommended), or do you want the view? → /wa-board login-refacto`.
    - `release <n>` → stale-claim cleanup (*GitHub provider*).
    - **No arg → prioritization only.** Skip to step 5, whole backlog in scope, full pass (see *Explicit run* there).
@@ -30,14 +30,14 @@ Owns three things: **creating** task, **cutting** spec too large for one task (*
    - `note:` — `Depends on <slug>` when it builds on another task.
    - `## Context / Decisions` — user idea in their words, tightened; or **spec excerpt** (*Spec*). `## Acceptance criteria` left empty — `/wa-grill` writes them.
 4. **Add to backlog.** Append task under **Todo** in `{backlog}`, link file (relative to backlog's own folder, so link works when backlog and tasks sit in different trees). Sprint set → echo as `· <sprint>` after link, slot line **next to its sprint siblings**, not bottom.
-5. **Prioritize.** Run pass below — always, never ask permission, part of adding task. Several tasks one go → one pass at end, not one per task. Idea handed to `/wa-grill` → grill runs it after writing criteria instead.
+5. **Prioritize.** Run pass below — always, never ask permission, part of adding task. Several tasks one go → one pass at end, not one per task.
 
 ## Spec
 
 Big spec → few tasks, each one coherent feature, ready to grill. **Cut, don't shred**: goal = split spec too large for one task, never break feature into small tickets. Read **whole** spec — ranges when big, never judge from first page.
 
 1. **Map spec.** List its blocks: user-visible capability each delivers, spec sections it spans, what it depends on. No deep code exploration — grill does that. Targeted glance only when unsure a block already exists in code.
-2. **Decide cut** per *Cut rules*. **One task → say `spec focused → one task`**, create it (steps 2–4, excerpt = whole spec), straight into `/wa-grill`.
+2. **Decide cut** per *Cut rules*. **One task → say `spec focused → one task`**, create it (steps 2–4, excerpt = whole spec), stop, suggest `/wa-grill <#>`.
 3. **Propose**, one block, before writing anything — see *Proposal*.
 4. **Create on yes**, per task, steps 2–4. Existing task covering a block → append excerpt (local: its `## Context / Decisions`; GitHub: `gh issue comment`), never rewrite it.
 5. **Prioritize** once at end (step 5), sprint moves as block.
@@ -155,7 +155,7 @@ Every question — cut proposal, sprint name, slot — carries recommended answe
 
 ## Never
 
-- Never grill here — `/wa-grill` does, one task at a time.
+- Never grill here, never invoke `/wa-grill` — suggest it, user runs it, one task at a time.
 - Never write acceptance criteria, never code, never create branches.
 - Never create from spec before yes on proposal.
 - Never invent requirement idea or spec doesn't state.
@@ -163,4 +163,4 @@ Every question — cut proposal, sprint name, slot — carries recommended answe
 
 ## Next step
 
-Idea → already in `/wa-grill`. Spec cut → list on screen with fresh `#`: **`/wa-grill <#>`** on top new task. No-arg pass → **`/wa-code <#>`** for top grilled todo (or `/wa-grill <#>` when top one not grilled).
+Idea → list on screen, **`/wa-grill <#>`** on new task. Spec cut → list on screen with fresh `#`: **`/wa-grill <#>`** on top new task. No-arg pass → **`/wa-code <#>`** for top grilled todo (or `/wa-grill <#>` when top one not grilled).

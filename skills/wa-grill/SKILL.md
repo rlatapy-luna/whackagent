@@ -5,13 +5,13 @@ description: Grill one task until clear — interview down design tree, architec
 
 # /wa-grill
 
-One task, fuzzy → grilled: decisions settled, acceptance criteria written, ready for `/wa-code`. Clarity before code. Tasks come from **`/wa-task`**, which hands focused idea straight here.
+One task, fuzzy → grilled: decisions settled, acceptance criteria written, ready for `/wa-code`. Clarity before code. Tasks come from **`/wa-task`**, which creates them and suggests this command — never starts it.
 
 Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms stay English.
 
 ## Do
 
-0. **Resolve task.** Slug, display index or `#n` per **wa-board → Task indexes**, echo `3 → sync-offline`. No arg → top `todo` not grilled (GitHub: top unclaimed `todo`). Free text instead of task → that's a new task: run **`/wa-task`** with it, which comes back here.
+0. **Resolve task.** Slug, display index or `#n` per **wa-board → Task indexes**, echo `3 → sync-offline`. No arg → top `todo` not grilled (GitHub: top unclaimed `todo`). Free text instead of task → that's a new task: run **`/wa-task`** with it, then grill the task it created (user asked for grill).
    - Already `grilled: true` → say so; re-grill only on yes (recommend: no — unless scope changed since).
    - Past `todo` (coding started) → stop: changes now go through `/wa-feedback`.
 1. **Read** `.whackagent/config.md`, `{wiki}/index.md`, task file (GitHub: issue body via `wa-backlog get <n>`). `{…}` paths per **wa-board → Paths**. `## Context / Decisions` holds what `/wa-task` left: user idea, or **spec excerpt** with `Open for grill` points.

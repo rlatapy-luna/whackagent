@@ -34,7 +34,7 @@ Add the marketplace, then install the plugin:
 | `/wa-setup` | Config + scaffolding (`.whackagent/`) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action |
 | `/wa-board <sprint>` | Same, filtered to one sprint, with its progress |
-| `/wa-task <idea\|spec>` | Creates the task, then re-prioritizes the backlog. An idea goes straight into `/wa-grill`; a large spec is cut into a few feature-sized tasks (one sprint), each carrying its spec excerpt |
+| `/wa-task <idea\|spec>` | Creates the task, then re-prioritizes the backlog and suggests `/wa-grill` (never starts it); a large spec is cut into a few feature-sized tasks (one sprint), each carrying its spec excerpt |
 | `/wa-task` | No argument: prioritization pass only — reorders, YAGNI, can split |
 | `/wa-grill [task]` | Grills one task until it's clear (grill-me, includes architecture), writes its acceptance criteria |
 | `/wa-code <task>` | Full pipeline: understand → code + test → review → verify → report |
@@ -100,9 +100,9 @@ Detects language + project kind, scaffolds `.whackagent/`.
 /wa-task Sign in with Apple on the login screen
 ```
 
-Creates `.whackagent/tasks/login-apple.md` and goes straight into `/wa-grill`: it grills the idea (grill-me) until it's clear, plans the architecture, and writes the spec + a size (🟢 quickwin / 🟡 medium / 🔴 large). Hand `/wa-task` a spec document instead and it first cuts it into a few feature-sized tasks, each carrying its excerpt of the spec — one proposal, created on your yes — then you grill them one at a time with `/wa-grill <#>`.
+Creates `.whackagent/tasks/login-apple.md` and stops there, suggesting `/wa-grill <#>`. You run `/wa-grill`: it grills the idea (grill-me) until it's clear, plans the architecture, and writes the spec + a size (🟢 quickwin / 🟡 medium / 🔴 large). Hand `/wa-task` a spec document instead and it first cuts it into a few feature-sized tasks, each carrying its excerpt of the spec — one proposal, created on your yes — then you grill them one at a time with `/wa-grill <#>`.
 
-Then it prioritizes on its own — there's no separate command for it: a product-owner pass slots the new task where it belongs, applies YAGNI, and flags anything too big to split (asking first). You end up looking at a fresh, ordered board — top of the list is what to code next:
+Before stopping, `/wa-task` prioritizes on its own — there's no separate command for it: a product-owner pass slots the new task where it belongs, applies YAGNI, and flags anything too big to split (asking first). You end up looking at a fresh, ordered board — top of the list is what to code next:
 
 ```
 ### Todo
