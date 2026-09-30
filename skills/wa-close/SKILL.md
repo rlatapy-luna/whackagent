@@ -46,7 +46,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 7. **`done` is not yours** — merge on GitHub (human, or project's merge policy) → hook sets `done`, closes issue. Milestone untouched — humans close it.
 8. **Next** (`branch.checkout_next`) → next ticket only through **claim**: `/wa-code` without arg picks top unclaimed `grilled`. Never check out ticket branch you don't hold.
 
-Sprint landing (below) unchanged: last ticket of sprint merged into `sprint/<name>` → propose sprint PR onto `close.target`.
+Sprint landing (below) unchanged: last ticket of sprint merged into `sprint/<name>` → propose sprint PR onto `close.target`, body names sprint parent issue (`Sprint #<parent>`). Merge → hook closes parent: sprint landed.
 
 ## Plan block
 

@@ -1,12 +1,14 @@
-# whackagent board hooks — template version: 10
+# whackagent board hooks — template version: 11
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
-#   issue opened                          → todo
+#   issue opened                          → todo (sprint parents, label wa-sprint, stay off the board)
 #   push to wa/<n>-<slug> holding its spec → grilled   (releases the grilling claim)
 #   PR opened / reopened, draft or not      → review (releases the coding claim)
 #   draft marked ready / back to draft      → nothing moves (already review)
 #   push to an open PR while coding claimed → review (end of an agent round)
-#   PR merged (any base)                   → done, issue closed
+#   PR merged (any base)                   → done, issue closed; sprint parent closed when the
+#                                            sprint has no branch and its last sub-issue is done
+#   sprint branch PR merged                → sprint parent issue closed (sprint landed)
 #   PR closed unmerged                     → grilled
 # `coding` is transient: an agent holds it only while it works. Every round ends with a push,
 # so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
@@ -49,6 +51,7 @@ jobs:
           WA_STATES: ${{ vars.WA_STATES }}
           WA_TASKS_PATH: ${{ vars.WA_TASKS_PATH }}
           WA_BRANCH_PREFIX: ${{ vars.WA_BRANCH_PREFIX }}
+          WA_SPRINT_PREFIX: ${{ vars.WA_SPRINT_PREFIX }}
         with:
           script: |
             const env = process.env;
@@ -60,6 +63,9 @@ jobs:
             const projects = new github.constructor({ auth: env.WA_PROJECT_TOKEN });
             const { owner, repo } = context.repo;
             const prefix = env.WA_BRANCH_PREFIX || "wa/";
+            // "none" = sprints have no branch (branch.sprint_prefix: ""): an empty variable reads as unset
+            const sprintPrefix = env.WA_SPRINT_PREFIX === "none" ? "" : (env.WA_SPRINT_PREFIX || "sprint/");
+            const SPRINT_LABEL = "wa-sprint";
             const tasksPath = (env.WA_TASKS_PATH || ".whackagent/tasks").replace(/\/$/, "");
             const statusField = env.WA_STATUS_FIELD || "Status";
             const states = {
@@ -127,6 +133,21 @@ jobs:
             const comment = (number, body) =>
               github.rest.issues.createComment({ owner, repo, issue_number: number, body });
 
+            // Sprint = parent issue labeled wa-sprint, titled with the sprint name; tickets are its sub-issues.
+            async function closeSprint(number, why) {
+              await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
+              await comment(number, `🏁 **sprint landed** — ${why}`);
+            }
+
+            async function sprintParent(number) {
+              const data = await github.graphql(
+                `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){
+                  parent{number title state labels(first:20){nodes{name}}}}}}`,
+                { o: owner, r: repo, n: number });
+              const parent = data.repository.issue.parent;
+              return parent && parent.labels.nodes.some((l) => l.name === SPRINT_LABEL) ? parent : null;
+            }
+
             async function specReady(number, sha) {
               let listing;
               try {
@@ -154,7 +175,7 @@ jobs:
 
             if (event === "issues") {
               if (payload.issue.pull_request) return;
-              if (payload.issue.labels.some((l) => l.name === "wa-ignore")) return;
+              if (payload.issue.labels.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name))) return;
               const ticket = await item(payload.issue.number);
               if (!ticket.column) await setState(ticket, "todo");
               return;
@@ -182,7 +203,15 @@ jobs:
               const pr = payload.pull_request;
               if (pr.head.repo?.full_name !== pr.base.repo.full_name) return;
               const number = issueFromBranch(pr.head.ref);
-              if (!number) return;
+              if (!number) {
+                // sprint branch landed → its parent issue closes
+                if (!sprintPrefix || !pr.head.ref.startsWith(sprintPrefix) || payload.action !== "closed" || !pr.merged) return;
+                const name = pr.head.ref.slice(sprintPrefix.length);
+                const { data: open } = await github.rest.issues.listForRepo({ owner, repo, labels: SPRINT_LABEL, state: "open", per_page: 100 });
+                const parent = open.find((i) => i.title === name && !i.pull_request);
+                if (parent) await closeSprint(parent.number, `#${pr.number} merged \`${pr.head.ref}\` into \`${pr.base.ref}\``);
+                return;
+              }
               const ticket = await item(number);
               if (ticket.column && !ticket.state) {
                 core.info(`#${number} sits in column ${ticket.column}, not a whackagent state: untouched`);
@@ -224,6 +253,14 @@ jobs:
                   await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
                 }
                 await comment(number, `🎉 **done** — #${pr.number} merged into \`${pr.base.ref}\``);
+                // Sprint without branch: tickets land straight on the target, so the last one lands the sprint.
+                // With a branch, they land in it and the sprint lands with the sprint branch PR (above).
+                const parent = await sprintParent(number);
+                if (parent && parent.state === "OPEN" && pr.base.ref !== sprintPrefix + parent.title) {
+                  const { data: subs } = await github.request("GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
+                    { owner, repo, issue_number: parent.number, per_page: 100 });
+                  if (subs.every((s) => s.state === "closed")) await closeSprint(parent.number, `last ticket #${number} landed`);
+                }
                 return;
               }
 

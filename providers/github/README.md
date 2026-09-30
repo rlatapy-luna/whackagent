@@ -8,7 +8,7 @@
 |---|---|---|
 | `wa-backlog` | `${CLAUDE_PLUGIN_ROOT}/providers/github/wa-backlog` | every contract verb. Python 3 stdlib + `gh`. Run from repo root. |
 | board workflow | `whackagent-board.yml` → target repo `.github/workflows/` | hooks: issue opened, spec pushed, PR opened/pushed/merged/closed |
-| repo variables | `WA_PROJECT_OWNER`, `WA_PROJECT_NUMBER`, `WA_STATUS_FIELD`, `WA_SIZE_FIELD`, `WA_STATES`, `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_STALE_AFTER_HOURS` | single source for script + workflow. Written by `wa-backlog provision`. |
+| repo variables | `WA_PROJECT_OWNER`, `WA_PROJECT_NUMBER`, `WA_STATUS_FIELD`, `WA_SIZE_FIELD`, `WA_STATES`, `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_SPRINT_PREFIX` (`none` = sprints have no branch), `WA_STALE_AFTER_HOURS` | single source for script + workflow. Written by `wa-backlog provision`. |
 | secret | `WA_PROJECT_TOKEN` | classic PAT, scopes `project` + `repo`. Workflow Projects writes only — `GITHUB_TOKEN` can't reach Projects v2. |
 | claims | refs `refs/wa-claims/<issue#>/<phase>` | lock. Ref points at empty commit whose message names agent. |
 
@@ -24,7 +24,7 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | state | Project `Status` single-select, options named per `WA_STATES` |
 | priority | Project item position (top = next) |
 | size | Project `Size` single-select: `quickwin`, `medium`, `large` |
-| sprint | label `sprint:<name>` — created on first use |
+| sprint | parent issue, label `wa-sprint`, title = sprint name; tickets = its **sub-issues**. Created on first use, reopened when name reused. Not a ticket: off board, `get`/`claim` exit 4. Ticket already under a non-sprint parent → `set-field sprint` exit 4 (one parent per issue) |
 | milestone | release scope — `create` joins newest open milestone (highest number), `--milestone ""` = none. Created by humans only. Closed by humans, or `close-milestone` from `/wa-release` on yes — never by hooks |
 | excluded | label `wa-ignore` |
 | dependencies | issue **Relationships** (blocked by) — `depend`, read back in `get` → `blocked_by` |
@@ -37,12 +37,13 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 
 | Event | Condition | Result |
 |---|---|---|
-| `issues: opened` | no `wa-ignore` | add to Project, `todo` |
+| `issues: opened` | no `wa-ignore` / `wa-sprint` | add to Project, `todo` |
 | `push` to `wa/**` | branch `wa/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
 | `pull_request: opened/reopened` | head `wa/<n>-…`, same repo, not `done` — **draft or not** | `review`, coding claim deleted |
 | `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges |
 | `pull_request: synchronize` | coding claim exists | `review`, claim deleted (agent round over) |
-| `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted |
+| `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted. Sprint without branch + last sub-issue closed → sprint parent closed |
+| `pull_request: closed`, merged, head `<WA_SPRINT_PREFIX><name>` | — | sprint parent `<name>` closed (sprint landed) |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |
 
 **`coding` is transient.** Held only while an agent works: every agent round (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`) claims from `grilled`/`review` and ends with a push — first delivery opens the draft PR (`opened`), later rounds push to it (`synchronize`). Either way hook releases claim, ticket waits for humans in `review`. Draft vs ready tells who looks next: draft = test it, ready = merge it.

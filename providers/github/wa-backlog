@@ -18,7 +18,6 @@ import os
 import socket
 import subprocess
 import sys
-import urllib.parse
 from pathlib import Path
 
 STATES = ["todo", "grilling", "grilled", "coding", "review", "done"]
@@ -52,7 +51,9 @@ SIZE_COLORS = {"quickwin": "GREEN", "medium": "YELLOW", "large": "RED"}
 CLAIM_FROM = {"grilling": {"todo"}, "coding": {"grilled", "review"}}
 CLAIM_NAMESPACE = "wa-claims"
 IGNORE_LABEL = "wa-ignore"
-SPRINT_LABEL = "sprint:"  # sprint = label `sprint:<name>`; the milestone is the release scope
+# Sprint = parent issue labeled wa-sprint, titled with the sprint name; its tickets are its sub-issues.
+# Not a ticket itself: kept off the board, never claimed. The milestone is the release scope.
+SPRINT_LABEL = "wa-sprint"
 
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
 
@@ -213,7 +214,8 @@ ITEM_FIELDS = """
   id
   content { __typename
     ... on Issue { number title body url state
-      milestone { title } labels(first:20) { nodes { name } } }
+      milestone { title } labels(first:20) { nodes { name } }
+      parent { number title labels(first:20) { nodes { name } } } }
     ... on DraftIssue { title } }
   fieldValues(first:50) { nodes {
     ... on ProjectV2ItemFieldSingleSelectValue { optionId field { ... on ProjectV2SingleSelectField { id } } } } }
@@ -259,9 +261,12 @@ def claim_owner(config, sha):
     return {"agent": fields.get("agent", "?"), "since": commit["committer"]["date"]}
 
 
-def sprint_of(labels):
-    names = [l["name"].removeprefix(SPRINT_LABEL) for l in labels if l["name"].startswith(SPRINT_LABEL)]
-    return names[0] if names else None
+def is_sprint(issue):
+    return SPRINT_LABEL in [l["name"] for l in issue["labels"]["nodes"]]
+
+
+def sprint_of(parent):
+    return parent["title"] if parent and is_sprint(parent) else None
 
 
 def to_ticket(config, node, claim_map, with_owners=False, keep_sha=False):
@@ -289,10 +294,10 @@ def to_ticket(config, node, claim_map, with_owners=False, keep_sha=False):
         "state": by_option.get(status_option),
         "column": config["status_option_names"].get(status_option),
         "size": by_size.get(values.get(config["size_field"])),
-        "sprint": sprint_of(content["labels"]["nodes"]),
+        "sprint": sprint_of(content["parent"]),
         "milestone": (content["milestone"] or {}).get("title"),
         "closed": content["state"] == "CLOSED",
-        "ignored": IGNORE_LABEL in [l["name"] for l in content["labels"]["nodes"]],
+        "ignored": bool({IGNORE_LABEL, SPRINT_LABEL} & {l["name"] for l in content["labels"]["nodes"]}),
         "claims": [dict(c) if keep_sha else {k: v for k, v in c.items() if k != "sha"} for c in held],
         "url": content["url"],
         "item_id": node["id"],
@@ -304,11 +309,13 @@ def find(config, number, with_owners=True):
     writes by minutes, the issue's own projectItems don't."""
     owner, name = config["repo"].split("/")
     query = f"""query($o:String!,$r:String!,$n:Int!){{repository(owner:$o,name:$r){{issue(number:$n){{
-        projectItems(first:20){{nodes{{project{{id}} {ITEM_FIELDS}}}}}}}}}}}"""
+        title labels(first:20){{nodes{{name}}}} projectItems(first:20){{nodes{{project{{id}} {ITEM_FIELDS}}}}}}}}}}}"""
     for attempt in range(2):
         issue = graphql(query, o=owner, r=name, n=number)["repository"]["issue"]
         if not issue:
             raise Failure(f"#{number} does not exist")
+        if is_sprint(issue):
+            raise Failure(f"#{number} is sprint {issue['title']!r}, not a ticket", EXIT_WRONG_STATE)
         for node in issue["projectItems"]["nodes"]:
             if node["project"]["id"] == config["project_id"]:
                 ticket = to_ticket(config, node, {number: claims(config, number)}, with_owners)
@@ -593,14 +600,40 @@ def set_milestone(config, number, title):
     rest("PATCH", f"repos/{config['repo']}/issues/{number}", {"milestone": milestone_number(config, title)})
 
 
-def set_sprint(config, number, sprint):
-    """Replace the ticket's `sprint:*` label. The label is created on first use."""
+def sprint_issue(config, name):
+    """Number of sprint <name>'s parent issue, created on first use. A closed one (sprint landed
+    before) is reopened: same name, same sprint."""
     repo = config["repo"]
-    for label in rest("GET", f"repos/{repo}/issues/{number}/labels"):
-        if label["name"].startswith(SPRINT_LABEL) and label["name"] != SPRINT_LABEL + sprint:
-            rest("DELETE", f"repos/{repo}/issues/{number}/labels/{urllib.parse.quote(label['name'], safe='')}")
-    if sprint:
-        rest("POST", f"repos/{repo}/issues/{number}/labels", {"labels": [SPRINT_LABEL + sprint]})
+    found = [
+        i for i in rest("GET", f"repos/{repo}/issues?labels={SPRINT_LABEL}&state=all&per_page=100")
+        if i["title"] == name and "pull_request" not in i
+    ]
+    if found:
+        if found[0]["state"] == "closed":
+            rest("PATCH", f"repos/{repo}/issues/{found[0]['number']}", {"state": "open"})
+        return found[0]["number"]
+    body = "Sprint: whackagent groups its tickets here as sub-issues. Closed when the sprint lands."
+    return rest("POST", f"repos/{repo}/issues", {"title": name, "body": body, "labels": [SPRINT_LABEL]})["number"]
+
+
+def set_sprint(config, number, sprint):
+    """Make the ticket a sub-issue of sprint <sprint>'s parent issue; "" detaches it."""
+    repo = config["repo"]
+    owner, name = repo.split("/")
+    parent = graphql(
+        "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){parent{number title labels(first:20){nodes{name}}}}}}",
+        o=owner, r=name, n=number,
+    )["repository"]["issue"]["parent"]
+    if parent and not is_sprint(parent):  # one parent per issue: never replace a human's own hierarchy
+        raise Failure(f"#{number} is already a sub-issue of #{parent['number']} (not a sprint) — detach it first", EXIT_WRONG_STATE)
+    if sprint_of(parent) == (sprint or None):
+        return
+    issue_id = rest("GET", f"repos/{repo}/issues/{number}")["id"]
+    if not sprint:
+        rest("DELETE", f"repos/{repo}/issues/{parent['number']}/sub_issue", {"sub_issue_id": issue_id})
+        return
+    target = sprint_issue(config, sprint)
+    rest("POST", f"repos/{repo}/issues/{target}/sub_issues", {"sub_issue_id": issue_id, "replace_parent": True})
 
 
 def op_set_field(args):
@@ -809,6 +842,7 @@ def op_provision(args):
         "WA_STATES": json.dumps(state_names),
         "WA_TASKS_PATH": args.tasks_path,
         "WA_BRANCH_PREFIX": args.branch_prefix,
+        "WA_SPRINT_PREFIX": args.sprint_prefix or "none",  # "none": an empty variable reads as unset
         "WA_STALE_AFTER_HOURS": str(args.stale_after_hours),
     }
     for name, value in variables.items():
@@ -943,6 +977,7 @@ def parser():
     s.add_argument("--state", action="append", metavar="STATE=OPTION", help="map a state onto an existing option")
     s.add_argument("--tasks-path", default=".whackagent/tasks")
     s.add_argument("--branch-prefix", default="wa/")
+    s.add_argument("--sprint-prefix", default="sprint/", help='branch.sprint_prefix ("" = sprints have no branch)')
     s.add_argument("--stale-after-hours", type=int, default=24)
     s.set_defaults(func=op_provision)
     return p
