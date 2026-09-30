@@ -1,7 +1,7 @@
 ---
 # GitHub provider (backlog.provider: github): file named {tasks}/<issue#>-<slug>.md, lives on ticket
 # branch, frontmatter keeps ONLY issue / phase / wiki / note / created. title, summary, size, sprint,
-# status live on GitHub (issue + Project) — never here. phase: in-progress | review | validated.
+# milestone, status live on GitHub (issue + Project) — never here. phase: in-progress | review | validated.
 # issue: 12
 # phase:
 title:                  # label ≤ 5 words, not a sentence ("Fix flaky CLI tests", not "Tests turn red at random")
@@ -10,6 +10,8 @@ size: medium            # quickwin | medium | large  → 🟢 | 🟡 | 🔴 in b
 sprint:                 # OPTIONAL kebab-case label group big work ("login-refacto").
                         # Empty = standalone task. Sprint exist because task name it —
                         # no sprint file, no create command. See /wa-task → Sprints.
+milestone:              # release scope. Set at creation = newest open (last of backlog.milestones).
+                        # Not sprint. See /wa-board → Milestones.
 status: todo            # todo | in-progress | review | validated | done | canceled
                         #   review    = coded, wait YOU test it
                         #   validated = you say match spec, verifier ran, wait your retest

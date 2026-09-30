@@ -7,7 +7,7 @@ There are two levels:
 - **Board state**: the six contract states (`providers/CONTRACT.md`), shown as the `Status` column of the GitHub Project when `backlog.provider: github`.
 - **Coding sub-phase**: `phase:` in the task file on the ticket branch (`in-progress` → `review` → `validated`). It tracks how far the whackagent loop has gone. The board never shows it.
 
-This page matches the hooks template `providers/github/whackagent-board.yml` at template version 9.
+This page matches the hooks template `providers/github/whackagent-board.yml` at template version 10.
 
 ## Board states
 
@@ -40,7 +40,7 @@ stateDiagram-v2
 | `grilled` | Spec written, ready to code | Anyone, to pick it up | Hook: branch `wa/<n>-<slug>` pushed with `{tasks}/<n>-*.md` holding non-empty acceptance criteria |
 | `coding` | **Locked and transient.** One agent is working one round right now | Agent | Agent `claim <n> coding` |
 | `review` | PR open. Draft means the human tests it; ready means the human merges it | Human | Hook: PR opened, or a round pushed to the PR while a coding claim is held |
-| `done` | Change landed | Nobody | Hook: PR merged. The issue is closed, and the milestone too once it has no open issue |
+| `done` | Change landed | Nobody | Hook: PR merged. The issue is closed |
 
 ### Two rules the diagram encodes
 
@@ -125,7 +125,7 @@ The same word appears at two levels. Board `review` means a PR is open and a hum
 | `pull_request: opened` / `reopened` | head `wa/<n>-…`, same repo, not `done`, draft or not | `review`, coding claim deleted |
 | `pull_request: synchronize` | coding claim exists | `review`, coding claim deleted (round over) |
 | `pull_request: ready_for_review` / `converted_to_draft` | none | nothing moves, claim untouched |
-| `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted, milestone closed when empty |
+| `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |
 
 The workflow runs from the default branch for `issues` events and from the PR's merge ref for `pull_request` events. Both the default branch and the PR base (a sprint branch, for example) must therefore carry the current hooks. Older hooks are detected from the `template version:` header: versions 3 to 5 keep a draft PR in `coding`, and versions below 3 treat any opened PR as ready.

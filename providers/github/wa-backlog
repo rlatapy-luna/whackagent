@@ -18,6 +18,7 @@ import os
 import socket
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 
 STATES = ["todo", "grilling", "grilled", "coding", "review", "done"]
@@ -51,6 +52,7 @@ SIZE_COLORS = {"quickwin": "GREEN", "medium": "YELLOW", "large": "RED"}
 CLAIM_FROM = {"grilling": {"todo"}, "coding": {"grilled", "review"}}
 CLAIM_NAMESPACE = "wa-claims"
 IGNORE_LABEL = "wa-ignore"
+SPRINT_LABEL = "sprint:"  # sprint = label `sprint:<name>`; the milestone is the release scope
 
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
 
@@ -257,6 +259,11 @@ def claim_owner(config, sha):
     return {"agent": fields.get("agent", "?"), "since": commit["committer"]["date"]}
 
 
+def sprint_of(labels):
+    names = [l["name"].removeprefix(SPRINT_LABEL) for l in labels if l["name"].startswith(SPRINT_LABEL)]
+    return names[0] if names else None
+
+
 def to_ticket(config, node, claim_map, with_owners=False, keep_sha=False):
     content = node["content"] or {}
     if content.get("__typename") != "Issue":
@@ -282,7 +289,8 @@ def to_ticket(config, node, claim_map, with_owners=False, keep_sha=False):
         "state": by_option.get(status_option),
         "column": config["status_option_names"].get(status_option),
         "size": by_size.get(values.get(config["size_field"])),
-        "sprint": (content["milestone"] or {}).get("title"),
+        "sprint": sprint_of(content["labels"]["nodes"]),
+        "milestone": (content["milestone"] or {}).get("title"),
         "closed": content["state"] == "CLOSED",
         "ignored": IGNORE_LABEL in [l["name"] for l in content["labels"]["nodes"]],
         "claims": [dict(c) if keep_sha else {k: v for k, v in c.items() if k != "sha"} for c in held],
@@ -394,7 +402,7 @@ def op_list(args):
     for node in items(config):
         ticket = to_ticket(config, node, claim_map, keep_sha=args.owners)
         if ticket.get("draft"):
-            if not wanted and not args.sprint:  # drafts have no state or sprint: only in unfiltered lists
+            if not wanted and not args.sprint and not args.milestone:  # drafts: only in unfiltered lists
                 rows.append(ticket)
             continue
         if ticket["ignored"]:
@@ -406,6 +414,8 @@ def op_list(args):
         if not wanted and not args.all and ticket["state"] == "done":
             continue
         if args.sprint and ticket["sprint"] != args.sprint:
+            continue
+        if args.milestone and ticket["milestone"] != args.milestone:
             continue
         rows.append(ticket)
     if args.owners:
@@ -430,7 +440,10 @@ def op_get(args):
 def op_create(args):
     config = load()
     body = args.summary + ("\n\n" + args.note if args.note else "")
-    issue = rest("POST", f"repos/{config['repo']}/issues", {"title": args.title, "body": body})
+    # No --milestone: the newest open milestone, so new work lands in the scope being planned,
+    # never in the current or a past one. "" = none. Resolved first: a bad title creates nothing.
+    milestone = latest_milestone(config) if args.milestone is None else milestone_number(config, args.milestone)
+    issue = rest("POST", f"repos/{config['repo']}/issues", {"title": args.title, "body": body, "milestone": milestone})
     number = issue["number"]
     item_id = add_to_board(config, number)  # idempotent with the issues.opened hook
     ticket = {"number": number, "item_id": item_id}
@@ -439,7 +452,7 @@ def op_create(args):
         set_size(config, ticket, args.size)
     if args.sprint:
         set_sprint(config, number, args.sprint)
-    emit({"number": number, "url": issue["html_url"], "state": "todo"})
+    emit({"number": number, "url": issue["html_url"], "state": "todo", "milestone": (issue["milestone"] or {}).get("title")})
 
 
 def op_claim(args):
@@ -535,21 +548,59 @@ def set_size(config, ticket, size):
     set_option(config, ticket["item_id"], config["size_field"], config["size_options"][size])
 
 
-def milestone_number(config, title, create):
-    for state in ("open", "closed"):
-        for m in rest("GET", f"repos/{config['repo']}/milestones?state={state}&per_page=100"):
-            if m["title"] == title:
-                if m["state"] == "closed":
-                    rest("PATCH", f"repos/{config['repo']}/milestones/{m['number']}", {"state": "open"})
-                return m["number"]
-    if not create:
+def milestones(config, state):
+    return rest("GET", f"repos/{config['repo']}/milestones?state={state}&per_page=100")
+
+
+def latest_milestone(config):
+    """Number of the most recently created open milestone (highest number), or None."""
+    opened = milestones(config, "open")
+    return max(m["number"] for m in opened) if opened else None
+
+
+def op_milestones(args):
+    config = load()
+    newest_first = lambda ms: sorted(ms, key=lambda m: m["number"], reverse=True)
+    rows = newest_first(milestones(config, "open"))
+    rows += [m for m in newest_first(milestones(config, "closed")) if m["open_issues"]]
+    emit([
+        {"title": m["title"], "open": m["state"] == "open", "tickets": m["open_issues"] + m["closed_issues"], "done": m["closed_issues"]}
+        for m in rows
+    ])
+
+
+def milestone_number(config, title):
+    """Milestones are made and closed by humans: an unknown title is an error, never created. "" = none."""
+    if not title:
         return None
-    return rest("POST", f"repos/{config['repo']}/milestones", {"title": title})["number"]
+    found = [m for m in milestones(config, "all") if m["title"] == title]
+    if not found:
+        raise Failure(f"no milestone {title!r} — create it on GitHub first", EXIT_USAGE)
+    return found[0]["number"]
+
+
+def op_close_milestone(args):
+    """Close a shipped milestone. Only /wa-release calls it, on the user's yes."""
+    config = load()
+    number = milestone_number(config, args.title)
+    if number is None:
+        raise Failure("milestone title required", EXIT_USAGE)
+    rest("PATCH", f"repos/{config['repo']}/milestones/{number}", {"state": "closed"})
+    emit({"title": args.title, "open": False})
+
+
+def set_milestone(config, number, title):
+    rest("PATCH", f"repos/{config['repo']}/issues/{number}", {"milestone": milestone_number(config, title)})
 
 
 def set_sprint(config, number, sprint):
-    milestone = milestone_number(config, sprint, create=True) if sprint else None
-    rest("PATCH", f"repos/{config['repo']}/issues/{number}", {"milestone": milestone})
+    """Replace the ticket's `sprint:*` label. The label is created on first use."""
+    repo = config["repo"]
+    for label in rest("GET", f"repos/{repo}/issues/{number}/labels"):
+        if label["name"].startswith(SPRINT_LABEL) and label["name"] != SPRINT_LABEL + sprint:
+            rest("DELETE", f"repos/{repo}/issues/{number}/labels/{urllib.parse.quote(label['name'], safe='')}")
+    if sprint:
+        rest("POST", f"repos/{repo}/issues/{number}/labels", {"labels": [SPRINT_LABEL + sprint]})
 
 
 def op_set_field(args):
@@ -558,8 +609,10 @@ def op_set_field(args):
         if args.value not in SIZES:
             raise Failure(f"size must be one of {SIZES}", EXIT_USAGE)
         set_size(config, find(config, args.number, with_owners=False), args.value)
-    else:
+    elif args.field == "sprint":
         set_sprint(config, args.number, args.value)
+    else:
+        set_milestone(config, args.number, args.value)
     emit({"number": args.number, args.field: args.value or None})
 
 
@@ -790,6 +843,7 @@ def parser():
     s = sub.add_parser("list", help="board rows in priority order")
     s.add_argument("--state", help="comma-separated states")
     s.add_argument("--sprint")
+    s.add_argument("--milestone")
     s.add_argument("--all", action="store_true", help="include done")
     s.add_argument("--owners", action="store_true", help="resolve claim owners (one call per claim)")
     s.set_defaults(func=op_list)
@@ -803,6 +857,7 @@ def parser():
     s.add_argument("--summary", required=True)
     s.add_argument("--size", choices=SIZES)
     s.add_argument("--sprint")
+    s.add_argument("--milestone", help='milestone title (default: newest open one, "" = none)')
     s.add_argument("--note")
     s.set_defaults(func=op_create)
 
@@ -835,9 +890,16 @@ def parser():
 
     s = sub.add_parser("set-field")
     s.add_argument("number", type=int)
-    s.add_argument("field", choices=["size", "sprint"])
-    s.add_argument("value", help='size value, or sprint name ("" clears)')
+    s.add_argument("field", choices=["size", "sprint", "milestone"])
+    s.add_argument("value", help='size value, sprint name or milestone title ("" clears)')
     s.set_defaults(func=op_set_field)
+
+    s = sub.add_parser("milestones", help="release scopes, newest first")
+    s.set_defaults(func=op_milestones)
+
+    s = sub.add_parser("close-milestone", help="close a shipped milestone (/wa-release only)")
+    s.add_argument("title")
+    s.set_defaults(func=op_close_milestone)
 
     s = sub.add_parser("comment")
     s.add_argument("number", type=int)

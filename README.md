@@ -33,7 +33,7 @@ Add the marketplace, then install the plugin:
 | --- | --- |
 | `/wa-setup` | Config + scaffolding (`.whackagent/`) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action |
-| `/wa-board <sprint>` | Same, filtered to one sprint, with its progress |
+| `/wa-board <sprint\|milestone>` | Same, filtered to one sprint or milestone, with its progress |
 | `/wa-task <idea\|spec>` | Creates the task, then re-prioritizes the backlog and suggests `/wa-grill` (never starts it); a large spec is cut into a few feature-sized tasks (one sprint), each carrying its spec excerpt |
 | `/wa-task` | No argument: prioritization pass only — reorders, YAGNI, can split |
 | `/wa-grill [task]` | Grills one task until it's clear (grill-me, includes architecture), writes its acceptance criteria |
@@ -41,7 +41,8 @@ Add the marketplace, then install the plugin:
 | `/wa-feedback [task] <notes>` | Applies your notes on what was built — micro-fix inline, bigger changes through the isolated pipeline |
 | `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
 | `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR, or nothing — `close.strategy`), delete branch + worktree, `done` |
-| `/wa-autopilot [tasks\|sprint]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel |
+| `/wa-release [milestone]` | Ships a milestone: checks its tasks landed, then walks you through the project's own documented release flow, confirming every outward step (finds the doc, or interviews you and writes it first) |
+| `/wa-autopilot [tasks\|sprint\|milestone]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel |
 | `/wa-review [scope]` | Standalone review, 4 lenses (diff / path / project) — audit, optional `--fix` |
 | `/wa-wiki` | Updates the wiki |
 | `/wa-wiki <feature>` | Looks up info in the wiki, then the code |
@@ -81,6 +82,29 @@ Where it shows up:
 - **`/wa-close`** merges the task branch into the sprint branch, and notices when the sprint's last task closes — then it offers to land the sprint branch itself.
 
 Sprints deliberately aren't a status and aren't a backlog section: a sprint cuts across statuses (some tasks done, some in review, some untouched), and status sections are what tells you what to do next. There's no sprint status to set either — a sprint is complete when its tasks are. `/wa-code`, `/wa-feedback`, `/wa-validate` and `/wa-close` stay per task — one task at a time is how you review and merge.
+
+### Milestones
+
+A milestone is a **release scope**: what ships together (`0.3.0`, `sprint 14`). It is not a sprint. A sprint groups the tasks of one feature and gets its own branch; a milestone groups whatever ships in one release and owns nothing. A task can carry both, either, or neither.
+
+```yaml
+milestone: 0.3.0
+```
+
+You own the list. With the local backlog it's `backlog.milestones` in the config, oldest first; with the GitHub backlog it's the repo's milestones. Agents never create or rename one; `/wa-release` closes it once the release is done, and only on your yes.
+
+**Every new task joins the newest open milestone.** The current and past milestones are committed scope, so a new idea never grows them without you saying so. Name another one when you create the task (or later) to override it, or say "no milestone". A task split by the grill keeps its parent's milestone, since it replaces the parent inside the same scope. With no milestone open, tasks get none and nothing changes.
+
+`/wa-board` prints one progress line per milestone, newest first, and marks where new tasks go: `🎯 0.3.0 — 0/3 (3 todo) ← new tasks`. `/wa-board 0.3.0` and `/wa-autopilot 0.3.0` take a milestone like they take a sprint.
+
+### Releasing
+
+`/wa-release 0.3.0` ships a milestone. With no argument it lists the open milestones and suggests the oldest one, since that's the scope that ships next.
+
+1. **Readiness.** Every task of the milestone must have landed. Unfinished tasks are listed, and you choose: move them to the next milestone, finish them first, or ship anyway. A task merged into a sprint branch that never reached the target branch blocks the release.
+2. **Your release flow, not a generic one.** whackagent doesn't know how your app ships (store, registry, deploy, tag, or nothing), so it never guesses. It reads the flow from `release.doc` in the config. If that's empty, it searches your markdown (`RELEASING.md`, the wiki, a *Release* section in `CLAUDE.md`, `CONTRIBUTING.md` or `README.md`) and asks you to confirm what it found. If there's nothing, it offers to interview you and write `{wiki}/release.md` first, suggesting answers from what the repo shows (CI files, fastlane, version files) without assuming them.
+3. **Step by step.** It shows the whole plan, then runs the steps in the doc's order. Local steps (version bump, release notes drafted from the milestone's tasks, builds, tests) run after one yes. Every outward step (commit, tag, push, merge, publish, upload) shows its exact command and waits for its own yes. Steps the doc gives to a person (store console, signing) come with instructions, and it waits for you to say done.
+4. **Close.** Progress goes to `{reports}/release-<milestone>.md`, so an interrupted release resumes where it stopped. At the end it offers to close the milestone and to fix the doc wherever the real run differed from it.
 
 ## Typical flow
 
@@ -230,12 +254,13 @@ Every ticket goes through six states. Agents only ever *take* a ticket; the rest
 | `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
 | `coding` | an agent claims it for one round (`/wa-code 12`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`), a lock held only while the agent works |
 | `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; `/wa-close` marks it ready = your turn to merge |
-| `done` | the hooks workflow, when the PR is merged. The issue is closed, and the sprint milestone too once empty. |
+| `done` | the hooks workflow, when the PR is merged. The issue is closed. |
 
 A closed-unmerged PR sends the ticket back to `grilled`.
 
 - **Locks** are git refs (`refs/wa-claims/<issue>/<phase>`) created through the GitHub API. Creating a ref that already exists fails server-side, so when N agents claim the same ticket exactly one wins. The losers move on to the next ticket. The ref points at a commit naming the agent (`host:worktree`), so the board shows who holds what. Stale locks are flagged by `/wa-board` and cleared only by you (`/wa-task release 12`).
-- **Where data lives:** the issue holds title and summary; the Project holds Status, priority (card order) and Size; the milestone is the sprint. The spec is the task file on the ticket branch, merged with the code. There is no local mirror.
+- **Where data lives:** the issue holds title and summary; the Project holds Status, priority (card order) and Size; a `sprint:<name>` label holds the sprint. The spec is the task file on the ticket branch, merged with the code. There is no local mirror.
+- **Milestones are the repo's GitHub milestones** (see [Milestones](#milestones)). You create them on GitHub; "newest" is the most recently created open one. The hooks never touch a milestone, and the script never creates one; it closes one only when `/wa-release` asks, on your yes.
 - **Order is yours.** New tickets land at the bottom. Agents reorder only when you run `/wa-task` with no argument, and apply the new order on your yes.
 - **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR, and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). It can migrate an existing local backlog.
 - **Another tracker** (Jira, Linear, Trello, Notion) means a new folder under `providers/` implementing the same contract (`providers/CONTRACT.md`); the skills don't change.
@@ -275,6 +300,7 @@ title: Login Apple          # short, explicit — the feature at a glance
 summary: Sign in with Apple on the login screen   # one line, for the board
 size: quickwin             # quickwin 🟢 | medium 🟡 | large 🔴
 sprint: login-refacto       # optional — groups the tasks of one bigger piece of work
+milestone: 0.3.0            # release scope — set on creation to the newest open milestone
 status: todo                # todo | in-progress | review | validated | done | canceled
                             # review = coded, waiting for your test · validated = spec approved,
                             # verifier passed, waiting for your retest

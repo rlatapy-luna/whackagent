@@ -6,7 +6,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 
 - `.claude-plugin/plugin.json`: plugin manifest. Registers every skill in `skills[]`.
 - `.claude-plugin/marketplace.json`: marketplace entry. Carries the version twice (`metadata.version` and `plugins[0].version`).
-- `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
+- `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-release`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
 - `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift and Kotlin are multi-module packs with the same file names; TypeScript and generic (fallback for every other language) are one file each.
 - `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
@@ -21,7 +21,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `/wa-validate` sets `validated`: the user approved the spec and the verifier ran.
 - `/wa-close` sets `done`: commits and lands the branch.
 
-Keep each step's ownership intact when editing. For example, only `/wa-close` commits in attended runs (`/wa-autopilot` commits on its own task branch only), and the orchestrator skills never write code themselves.
+Keep each step's ownership intact when editing. For example, only `/wa-close` commits task work in attended runs (`/wa-autopilot` commits on its own task branch only; `/wa-release` commits, tags and pushes only what the project's release doc says, each outward step confirmed), and the orchestrator skills never write code themselves.
 
 ## Rules when editing
 
@@ -41,7 +41,7 @@ Keep each step's ownership intact when editing. For example, only `/wa-close` co
 - Skills must speak only the contract verbs and states, never tracker terms. The canonical rules for providers live in `wa-board` under "Backlog provider"; each skill that behaves differently under GitHub has its own "GitHub provider" section.
 - Under the GitHub provider, agents only write `grilling` and `coding`, always through an atomic `claim`. `grilled`, `review` and `done` are set by the hooks workflow from repository events. Don't add a skill step that sets them directly.
 - A new tracker means a new `providers/<name>/` folder implementing the same verbs, states and exit codes, plus whatever automation moves the data-driven states.
-- Test provider changes in the playground repo `rlatapy-luna/whackagent-playground` (worktree `~/dev/whackagent-playground-worktrees/cocorico`, Project #1). The workflow must be merged on its default branch to react to `issues` events.
+- Test provider changes in the private playground repo `rlatapy-luna/whackagent-playground-2` (user Project #5). The old `rlatapy-luna/whackagent-playground` now redirects to a real team repo: never test there, and check `gh api repos/<repo> --jq .full_name` before any live write. The workflow must be merged on its default branch to react to `issues` events.
 
 ## Adding things
 

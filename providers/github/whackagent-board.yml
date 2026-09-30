@@ -1,4 +1,4 @@
-# whackagent board hooks — template version: 9
+# whackagent board hooks — template version: 10
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo
@@ -6,7 +6,7 @@
 #   PR opened / reopened, draft or not      → review (releases the coding claim)
 #   draft marked ready / back to draft      → nothing moves (already review)
 #   push to an open PR while coding claimed → review (end of an agent round)
-#   PR merged (any base)                   → done, issue closed, milestone closed when empty
+#   PR merged (any base)                   → done, issue closed
 #   PR closed unmerged                     → grilled
 # `coding` is transient: an agent holds it only while it works. Every round ends with a push,
 # so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
@@ -224,14 +224,6 @@ jobs:
                   await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
                 }
                 await comment(number, `🎉 **done** — #${pr.number} merged into \`${pr.base.ref}\``);
-                const milestone = ticket.issue.milestone;
-                if (milestone) {
-                  const { data: m } = await github.rest.issues.getMilestone({ owner, repo, milestone_number: milestone.number });
-                  if (m.state === "open" && m.open_issues === 0) {
-                    await github.rest.issues.updateMilestone({ owner, repo, milestone_number: m.number, state: "closed" });
-                    core.info(`milestone ${m.title} closed`);
-                  }
-                }
                 return;
               }
 

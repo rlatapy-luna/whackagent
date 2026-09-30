@@ -33,6 +33,17 @@ backlog:
                                #   github — GitHub Project + issues, many agents/worktrees.
                                #     Settings in repo variables (wa-backlog provision), not here.
                                #     Forces branch.per_task: true, close.strategy: pr.
+  milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
+                               # only — github read them from repo milestones. New task join LAST
+                               # entry, so new work never grow current or past scope. You own list:
+                               # add entry to open next scope, remove one when shipped (tasks keep
+                               # their milestone:). Empty → tasks get no milestone.
+
+release:
+  doc:                         # WHERE project's release flow is written — `path` or `path#Heading`
+                               # (docs/RELEASING.md, {wiki}/release.md, CLAUDE.md#Releasing).
+                               # /wa-release follow it step by step, never invent flow.
+                               # Empty → /wa-release search markdown, else interview you and write it.
 
 review:
   when: on_validation          # WHEN wa-verifier run.

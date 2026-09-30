@@ -35,6 +35,7 @@ Then confirm with user:
 1. **Discussion language** — which language to talk in? (default: detect from user, else en)
 2. **Primary language + project kind** — confirm detected language and kind (app / package / cli / server). Kind picks architecture module.
 3. **Where the backlog lives** — ask **early**: answer reshapes questions 8–9. _"Keep the backlog as files in the repo, or on a GitHub Project so several agents in different worktrees share it without stepping on each other? (recommended: files — nothing to wire up; switch to GitHub once you run agents in parallel)"_ → sets `backlog.provider` (`local` | `github`). Detect first: repo has GitHub remote and `gh` logged in → offer it; else don't ask, `local`. `github` → say it forces `branch.per_task: true` + `close.strategy: pr` and drops `{backlog}` file; run *GitHub backlog* below **after** the questions.
+   **Local** → one follow-up: _"Track release milestones (0.2.0, sprint 14…)? New tasks then join the newest one, so they never grow current scope. (recommended: none for now — add a line under `backlog.milestones` the day you plan a release)"_ → sets `backlog.milestones` (oldest first). GitHub → skip: repo milestones used (**wa-board → Milestones**).
 4. **When to review** — _"Review the code at every step (after coding, and after each feedback round), or once when you run `/wa-validate` — your green light saying the feature matches the spec? (recommended: at `/wa-validate` — you iterate fast, and the review reads the final diff instead of code that's still moving)"_ → sets `review.when` (`each_round` | `on_validation`). Say trade plainly: `each_round` catch drift earlier but add verifier round to every note; `on_validation` review whole diff one pass. Either way nothing close unreviewed: `/wa-close` refuse task verifier never saw.
 5. **Review toggles** — surface public-doc one explicitly, vary by company: _"Require doc comments (`///`, KDoc, TSDoc, …) on every public API? (some teams skip this)"_ → sets `review.public_doc`. Offer flip other toggles too.
 6. **Build command** — ask only when detection found wrapper: _"I see `<X>` — should the implementer build with it, or use the detected build tool (XcodeBuildMCP, `./gradlew`, package scripts, …)?"_ → sets `build.command` (+ `build.test_command` if test target exists). Nothing detected → leave both empty, don't ask. **Project win over plugin default**: repo that documents own build path documents it for agents too, and implementer torn between two mandates pick one silently.
@@ -47,6 +48,8 @@ Then confirm with user:
    - `paths.reports` = run output, not knowledge — leave local (and gitignore-able) unless asked.
    Absolute paths work too (wiki in sibling repo). `.whackagent/config.md` itself never move — it carry the paths.
    **GitHub backlog** → no backlog file: ask only about **wiki** (and tasks folder). Wording: _"Keep the wiki inside `.whackagent/`, or put it where the team reads — `docs/wiki/`? (recommended: `.whackagent/wiki` — agents read it fine; move it to `docs/wiki` only if teammates who don't run whackagent should browse it on GitHub)"_ Never mention backlog location — it's the Project. Say task specs live in `{tasks}` **on each ticket branch**, merged with the code.
+
+10. **Release flow** — search markdown per **wa-release → Release doc** step 2, silently. Candidate found → _"Your release flow is in `<path#Heading>` — use it for `/wa-release`? (recommended: yes — it's what the team already follows)"_ → sets `release.doc`. Nothing found → no question, leave empty, say `release flow: none documented — /wa-release will set it up`.
 
 Keep short — 7 to 10 questions (build one fire only on detected wrapper; close policy only when `per_task` and backlog local). Rest take template default.
 
@@ -74,7 +77,7 @@ Follow `${CLAUDE_PLUGIN_ROOT}/providers/github/README.md` → **Setup**, one ste
 6. Scaffold without `{backlog}` file — board replaces it. `{tasks}` still created (holds specs on ticket branches).
 
 **Migrating an existing local backlog** (reconfigure `local` → `github`) — offer once, apply on yes, per task:
-- not `done`/`canceled` → `wa-backlog create` (title, summary, size, sprint), board order = `{backlog}` order.
+- not `done`/`canceled` → `wa-backlog create` (title, summary, size, sprint, `--milestone` = task `milestone:` or `""`), board order = `{backlog}` order. First list task milestones missing on GitHub → user creates them there (recommended: keeps scope) or drops them — never create them yourself. `backlog.milestones` dropped from config after.
 - `todo` + `grilled: false` → stays `todo`.
 - `todo` + `grilled: true` → rename file `{tasks}/<n>-<slug>.md`, rewrite frontmatter to GitHub shape (`issue: <n>`), create `wa/<n>-<slug>` with `gh issue develop <n> --name … --base <fork point> --checkout` (linked to issue), commit there, push — hook moves it to `grilled` (tests hook for real).
 - `in-progress` / `review` / `validated` → same, local branch renamed `wa/<n>-<slug>`, pushed; ticket lands `grilled`. User re-claims to continue — never auto-claim for a session that may be gone.

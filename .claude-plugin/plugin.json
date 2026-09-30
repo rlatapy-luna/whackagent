@@ -16,6 +16,7 @@
     "./skills/wa-feedback",
     "./skills/wa-validate",
     "./skills/wa-close",
+    "./skills/wa-release",
     "./skills/wa-review",
     "./skills/wa-wiki",
     "./skills/wa-autopilot"

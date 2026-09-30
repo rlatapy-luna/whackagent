@@ -13,7 +13,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 
 Given tasks, or every `todo` task if none (confirm list first if user present). Best on small well-scoped tasks — say so if one look large or `grilled: false`.
 
-**Args take slugs, display indexes or sprint name**, mixed, any order: `/wa-autopilot login-apple`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-autopilot 3 sync-offline`, `/wa-autopilot login-refacto`. Indexes = `#` from wa-board list — resolve per **wa-board → Task indexes**. Always **echo resolved list** (`2 → login-apple`). Bad index → stop, say which, no guess.
+**Args take slugs, display indexes, sprint name or milestone title** (resolution **wa-board → Milestones**), mixed, any order: `/wa-autopilot login-apple`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-autopilot 3 sync-offline`, `/wa-autopilot login-refacto`. Indexes = `#` from wa-board list — resolve per **wa-board → Task indexes**. Always **echo resolved list** (`2 → login-apple`). Bad index → stop, say which, no guess.
 
 **Sprint name expands to its `todo` tasks**, backlog order — `in-progress`, `review`, `validated` already moving or waiting on user, don't touch. Resolve per **wa-board → Sprints**; echo expansion (`login-refacto → login-apple · login-layout · login-errors (3 todo, 2 already in review)`) so user see what left out. Sprint with no todo task → say so, stop. Sprint tasks usually touch same screen, so expect most land in **separate waves** — wave planner doing job, not failure.
 
@@ -21,7 +21,7 @@ Given tasks, or every `todo` task if none (confirm list first if user present). 
 
 `backlog.provider: github` (rules **wa-board → Backlog provider**). Several autopilots, on several machines, may run on one board at once — claims keep them apart.
 
-- **Scope** = unclaimed `grilled` tickets, board order (`wa-backlog list --state grilled`); args = `#n`, indexes, or milestone name. Never `todo`: grilling needs user — except **AFK mode** (below).
+- **Scope** = unclaimed `grilled` tickets, board order (`wa-backlog list --state grilled`); args = `#n`, indexes, sprint name or milestone title (`list --sprint` / `--milestone`). Never `todo`: grilling needs user — except **AFK mode** (below).
 - **Claim each ticket before its worktree** — `wa-backlog claim <n> coding`. Exit 3 → drop from batch, echo `#12 skipped: coded by <agent>`. Claim just before wave starts, not whole batch up front: later waves' tickets stay free for others until needed.
 - **Also check open PRs** before planning waves: `gh pr list --json number,headRefName,files` — ticket whose BRIEF files overlap files of open PR → warn in plan (`#14 touches LoginView like open PR #9 — merge conflict likely`). Warning, not block.
 - **Worktree from existing ticket branch** (grilling pushed it) — fetch, then `git worktree add {worktrees}/<n>-<slug> <branch>`. Never `-b`: spec lives on that branch.

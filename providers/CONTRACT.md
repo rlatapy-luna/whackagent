@@ -34,14 +34,16 @@ All print JSON on stdout, messages on stderr.
 
 | Verb | Does | Output / exit |
 |---|---|---|
-| `list [--state s,…] [--sprint x] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,claims,url}]`; draft rows `{draft:true,title}` only when unfiltered |
+| `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,claims,url}]`; draft rows `{draft:true,title}` only when unfiltered |
 | `get <id>` | one ticket + its branch + its blockers | object, `branch` null before grilling pushed, `blocked_by: [{number,state}]` |
-| `create --title --summary [--size] [--sprint] [--note]` | new ticket in `todo`, bottom of board | `{number,url,state}` |
+| `create --title --summary [--size] [--sprint] [--milestone m] [--note]` | new ticket in `todo`, bottom of board; milestone per *Milestones* below | `{number,url,state,milestone}` |
 | `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |
 | `release <id> <phase> [--reset-to s] [--reason r]` | drop lock, optional state reset, trail comment | object |
 | `set-state <id> <state>` | raw state write — setup/migration/manual repair only | object |
 | `move <id> --top\|--bottom\|--before n\|--after n` | reprioritize | object |
-| `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` | fields; sprint created on first use | object |
+| `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` / `set-field <id> milestone <title\|"">` | fields; sprint created on first use, milestone must be known to `milestones` (never created) | object |
+| `milestones` | release scopes, **newest first** — open ones, then closed ones still holding open tickets | `[{title,open,tickets,done}]` — `tickets` total, `done` closed (landed or canceled) |
+| `close-milestone <title>` | close shipped milestone — **`/wa-release` only, on user's yes** | `{title,open:false}`; unknown → exit 2 |
 | `comment <id> <text>` | human-facing trail | object |
 | `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |
@@ -57,8 +59,17 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 
 - Lock released by data (hook) on next transition, or by `release` on explicit abort / stale cleanup — **human-triggered only**. No expiry: grilling interactive, human may answer in two days.
 - `claims` flags `stale` past `stale_after` with no push on ticket branch. `/wa-board` shows them; `/wa-task release <id>` clears.
 
+## Milestones
+
+Release scope (iteration, version) — **not** a sprint. Sprint = feature grouping with its own branch (**wa-board → Sprints**); milestone = what ships together. Ticket carries both, either, or none. Skill-side rules: **wa-board → Milestones**.
+
+- **Humans own the list.** They open milestones on the tracker (local: config). No verb creates one; `set-field` / `create --milestone` with unknown title → exit 2. Closing = human on tracker, or `close-milestone` from `/wa-release` on user's yes.
+- **`create` defaults to newest open milestone** (most recently created), so new work lands in the scope being planned, never in current or past one. `--milestone m` = that one; `--milestone ""` = none. No open milestone → none.
+- **Newest** = provider's creation order: GitHub highest milestone number, local last entry of `backlog.milestones`.
+- Tracker without milestones → `milestones` returns `[]`, `milestone` null, flag accepted and ignored.
+
 ## Ticket ↔ repo contract
 
 - Branch `<branch.prefix><id>-<slug>` (`wa/12-login-apple`). Grilling creates it, coding continues on it, PR opens from it.
 - Spec file `{tasks}/<id>-<slug>.md` on that branch, frontmatter `issue: <id>`, non-empty `## Acceptance criteria`. That file = everything needed to start coding.
-- Ticket title/summary/state/size/sprint live in tracker only — never duplicated in task file.
+- Ticket title/summary/state/size/sprint/milestone live in tracker only — never duplicated in task file.

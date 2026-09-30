@@ -24,7 +24,8 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | state | Project `Status` single-select, options named per `WA_STATES` |
 | priority | Project item position (top = next) |
 | size | Project `Size` single-select: `quickwin`, `medium`, `large` |
-| sprint | milestone — created on first use, closed by hook when last issue done |
+| sprint | label `sprint:<name>` — created on first use |
+| milestone | release scope — `create` joins newest open milestone (highest number), `--milestone ""` = none. Created by humans only. Closed by humans, or `close-milestone` from `/wa-release` on yes — never by hooks |
 | excluded | label `wa-ignore` |
 | dependencies | issue **Relationships** (blocked by) — `depend`, read back in `get` → `blocked_by` |
 | ticket PR | milestone = ticket milestone, issue linked in PR **Development** — `link-pr <n> <pr>` right after `gh pr create` (`Closes #<n>` alone links only when base = default branch) |
@@ -41,7 +42,7 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 | `pull_request: opened/reopened` | head `wa/<n>-…`, same repo, not `done` — **draft or not** | `review`, coding claim deleted |
 | `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges |
 | `pull_request: synchronize` | coding claim exists | `review`, claim deleted (agent round over) |
-| `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted, milestone closed when empty |
+| `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |
 
 **`coding` is transient.** Held only while an agent works: every agent round (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`) claims from `grilled`/`review` and ends with a push — first delivery opens the draft PR (`opened`), later rounds push to it (`synchronize`). Either way hook releases claim, ticket waits for humans in `review`. Draft vs ready tells who looks next: draft = test it, ready = merge it.

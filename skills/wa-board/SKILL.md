@@ -9,11 +9,11 @@ Dashboard. Lift lid on backlog, point next move.
 
 ## Do
 
-0. **Read arg.** None → whole backlog. Sprint name (`/wa-board login-refacto`) → **filtered view**: only that sprint tasks, plus progress line. Resolve per **Sprints** below; unknown name → say so, list known sprints, stop.
+0. **Read arg.** None → whole backlog. Sprint name (`/wa-board login-refacto`) or milestone title (`/wa-board 0.3.0`) → **filtered view**: only its tasks, plus its progress line. Resolve per **Sprints** / **Milestones** below; unknown name → say so, list known sprints and milestones, stop.
 1. Read `.whackagent/config.md` (respect discussion language). Missing → tell user run `/wa-setup`, stop.
-2. Read `{backlog}` + referenced task files (need each task `summary`, `size`, `grilled`, `sprint`). **GitHub provider** → `wa-backlog list` (+ `--sprint` when filtered) and `wa-backlog claims` instead; see *GitHub board* below.
+2. Read `{backlog}` + referenced task files (need each task `summary`, `size`, `grilled`, `sprint`, `milestone`) + provider `milestones` verb. **GitHub provider** → `wa-backlog list` (+ `--sprint` / `--milestone` when filtered), `wa-backlog milestones` and `wa-backlog claims` instead; see *GitHub board* below.
 3. Render backlog as **list**, one section per status (see Display format below), priority order within each.
-4. Suggest exactly **one** next action, by state (filtered run → scope suggestion to sprint):
+4. Suggest exactly **one** next action, by state (filtered run → scope suggestion to sprint or milestone):
    - something in `validated` → reviewed, wait user retest: `/wa-close <slug>` to finish (or `/wa-feedback` if retest found something). Highest precedence — one step from done.
    - something in `review` → coded, wait user test: `/wa-feedback <slug> <notes>` if notes, else `/wa-validate <slug>` to fire verifier. Beats starting new work.
    - something `in-progress` → resume it (`/wa-code <slug>`)
@@ -54,6 +54,8 @@ Canonical way tasks shown anywhere in flow (here, `/wa-task` prioritization pass
 
 🟢 quick win · 🟡 medium · 🔴 large · ⚠ not grilled
 🏁 login-refacto — 0/2 (2 todo)
+🎯 0.3.0 — 0/3 (3 todo) ← new tasks
+🎯 0.2.0 — 0/1 (1 in progress)
 ```
 
 Rules:
@@ -68,6 +70,8 @@ Rules:
 - Legend once below list; `⚠ not grilled` only when a ⚠ is on screen.
 - At least one sprint in play → one **progress line per sprint** under legend, done+canceled excluded from numerator only:
   `🏁 login-refacto — 2/5 (1 in review, 2 todo)`. Filtered run → that single line, above list.
+- One **milestone line** per milestone from `milestones` holding live tasks, newest first, same counting, below sprint lines. Newest open one marked `← new tasks`:
+  `🎯 0.3.0 — 0/3 (3 todo) ← new tasks`. No tag on task lines — milestone is scope, not identity. Filtered run → that single line, above list.
 
 ## Voice
 
@@ -119,7 +123,8 @@ Canonical, every skill. `backlog.provider` in config (missing → `local`) decid
   - **Screenshots** — PR whose diff changes UI (screen, component, theme, image resource) → **`wa-backlog screenshots <pr> <files>`** with implementer's `SCREENSHOTS:` (final state of code pushed, one per platform proved, light/dark when theme involved). Upload = `gh image` (extension `drogers0/gh-image`, GitHub user-attachments) — **never push images to any branch**; PR body gets `## Screenshots` table. Extension missing → say so, no screenshots, never a branch fallback. Later round with UI change → same verb, same names, section replaced. No UI in diff → none. No screenshot possible (device down) → say so in body, never old ones passed as current.
   - **Hooks version gate** — before first push, `git show origin/<base>:.github/workflows/whackagent-board.yml | head -1` → `template version: <v>`. `v ≥ 6` → rules above. `3 ≤ v < 6` → draft leaves ticket in `coding`, claim kept until `/wa-close` marks ready: same-host holder counts as yours (`claims[].agent` host = `whoami` host). `v < 3` / missing → **no draft** (opened PR = ready): push only. Either legacy case → say `hooks v<v> on <base> — /wa-setup backlog to upgrade`.
   - **Forced config:** `branch.per_task: true`, `close.strategy: pr`. Config says otherwise → provider wins, say so once.
-  - **Sprint = milestone** — `set-field <n> sprint <name>`; progress from `list --sprint`.
+  - **Sprint = label `sprint:<name>`** — `set-field <n> sprint <name>`; progress from `list --sprint`.
+  - **Milestone = GitHub milestone** — newest = highest number. Humans create them on GitHub. Rules: **Milestones**.
   - `list` lags new tickets 1–3 min (GitHub indexing); `get`/`claim` always current.
   - **Squash merge assumed.** PRs land squashed: base never contains ticket's original commits, so `git merge-base` and plain rebase lie once any parent or stacked ticket landed. **Ticket range** = ticket's own commits, from its spec commit on: `start=$(git log --format=%H --grep="^task: grill #<n> " <branch> | tail -1)`, range `$start^..<branch>`. Diff = `git diff $start^ <branch>`; rebase = `git rebase --onto <base> $start^`. Works squash or not — use it always, never `<base>..HEAD` / `<base>...HEAD`.
 
@@ -158,6 +163,19 @@ Sprint = **optional kebab-case label** on task (`sprint: login-refacto`), groupi
 - **A sprint is complete, never `done`.** No sprint status exists. Complete when no task of it left in `todo`/`in-progress`/`review`/`validated` — `/wa-close` notices and offers to land sprint branch.
 
 Commands taking sprint name: `/wa-board <sprint>` (filtered view), `/wa-autopilot <sprint>` (batch its todo tasks), `/wa-task` (assigns and inherits). `/wa-grill`, `/wa-code`, `/wa-validate`, `/wa-feedback`, `/wa-close` stay **per task** — one task is their unit, and whole sprint unattended is what `/wa-autopilot` already does better.
+
+## Milestones
+
+Milestone = **release scope** (iteration, version): what ships together. Not sprint — sprint groups one feature's tasks and owns a branch; milestone groups whatever ships in one release, owns nothing. Task carries both, either, or none. Canonical rules, every skill refers here; provider side in `providers/CONTRACT.md` → *Milestones*.
+
+- **Humans own the list.** Local: `backlog.milestones` in config, oldest first. GitHub: repo milestones. Agent never adds or renames one — user asks → tell them where (config line / GitHub). Closes one only through `/wa-release`, flow finished, on yes.
+- **New task joins newest open milestone** — provider does it on `create`, skill passes nothing. Why: current and past milestones are committed scope; new idea never grows them silently. Echo where it landed: `→ milestone 0.3.0`.
+- **Override only on user's word** — they name one (`create --milestone 0.2.0`, or `set-field <id> milestone 0.2.0` later), or they say none (`--milestone ""`). Unknown title → provider exit 2: list `milestones`, ask.
+- **Split child inherits parent's milestone** (`--milestone <parent's>`): split replaces parent inside its scope, adds no new scope.
+- **Truth**: local = task file `milestone:`; GitHub = issue milestone. Never echoed in `{backlog}`.
+- **No milestone open** → tasks get none, nothing shown. Feature costs nothing until user opens one.
+- **Resolving a name** (`/wa-board <name>`, `/wa-autopilot <name>`): task slug first, then sprint, then milestone title (exact, then unique case-insensitive). Clash → say which one you took.
+- **Not a status, never `done`, no branch.** Shipping a milestone = `/wa-release <milestone>`, following project's documented release flow.
 
 ## Task indexes
 
