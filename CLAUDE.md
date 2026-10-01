@@ -32,7 +32,7 @@ Keep each step's ownership intact when editing. For example, only `/wa-close` co
 - **Skills, agents, conventions and templates are caveman-compressed** (terse, no articles, fragments). Match that style when editing them. `README.md` and this file stay in normal prose.
 - **Task file section headings are an API.** Skills look them up by exact name: `## Context / Decisions`, `## Acceptance criteria`, `## Implementation`, `## Review`, `## Verification`, `## Feedback`. Renaming one means updating `templates/task.md`, every skill and agent that cites it, and the README task example.
 - **Cross-references use `**<skill> → <Section>**`** (e.g. `**wa-board → Voice**`, `**wa-board → Paths**`, `**wa-code → Report card**`). Renaming a section heading means grepping for its references.
-- **Canonical definitions live in one place.** Voice, display format, task indexes, paths and sprints are defined in `wa-board`. The report card is defined in `wa-code`. Other skills point there rather than restating.
+- **Canonical definitions live in one place.** Voice, display format, task indexes, paths, sprints and pull requests are defined in `wa-board`. The report card is defined in `wa-code`. Other skills point there rather than restating.
 - **Never hardcode `.whackagent/` paths** for backlog, tasks, wiki, reports or conventions. Use the `{backlog}` `{tasks}` `{wiki}` `{reports}` `{conventions}` placeholders, resolved from `paths:` in the config. Only `.whackagent/config.md` is fixed.
 - **Subagents never read the config.** The orchestrating skill passes them what they need (build commands, `verify.mode`, module paths).
 - **Every question to the user carries a recommended answer** plus a one-line reason. Keep that rule in any new prompt that asks something.

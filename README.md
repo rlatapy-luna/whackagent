@@ -123,6 +123,25 @@ tools:
 
 Each `run` covers the whole project. A failure in a file the task never touched is pre-existing: it's reported, never fixed, since it's not the task's scope. No `tools:` entry means no tool runs.
 
+### Pull requests
+
+Every PR whackagent opens (the ticket's draft, the `/wa-close` PR, a sprint PR) follows your repo's conventions, set in the `pr:` block of `.whackagent/config.md`. `/wa-setup` proposes it from what it finds: your PR template, CODEOWNERS, a PR section in `CONTRIBUTING.md`, the title style of recent merged PRs, your labels.
+
+```yaml
+pr:
+  template: auto            # your repo's PR template, sections filled from the task file
+  title: "[#{n}] {title}"   # {title} {n} {slug}
+  labels: [whackagent]      # added when the PR opens
+  assignees: ["@me"]
+  reviewers: [my-org/android]   # requested when the PR goes ready, never on a draft
+  doc: CONTRIBUTING.md#Pull requests   # rules the keys can't express (changelog line, size limit)
+```
+
+- **The template is filled, not replaced.** Its headings stay, each section is written from the task file, and its checkboxes are ticked only when a round proved them (build, tests, tools, runtime check) or the diff shows them.
+- **whackagent's part sits in its own marked block**: `Closes #n`, the acceptance criteria checklist, the status line. Each round rewrites that block only, so whatever a human added to the body stays.
+- **Reviewers aren't pinged on drafts.** A draft is your turn to test; reviewers are requested when the PR goes ready.
+- No `pr:` block keeps the previous behavior: no template, title = task title, assigned to you.
+
 ## Typical flow
 
 Bootstrap once, then loop: describe → grill → code → you test → you validate → verifier → closed. Prioritization isn't a step you run — it happens on its own every time a task is added.

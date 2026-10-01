@@ -164,6 +164,23 @@ close:                         # WHERE work land when /wa-close finish a task. T
                                # never  — /wa-close never delete a branch.
                                # Worktree for the slug (autopilot leftover) removed with it.
 
+pr:                            # HOW every PR whackagent open look — ticket draft, /wa-close PR, sprint PR.
+                               # Rules: wa-board → Pull requests. Release PR not: release doc own it.
+  template: auto               # (key missing → none, old behavior)
+                               # auto — repo PR template when present (.github/pull_request_template.md,
+                               #   .github/PULL_REQUEST_TEMPLATE/…): sections filled from task file,
+                               #   checkboxes ticked only when proved. <path> — that file. none — no template.
+                               # whackagent part (Closes #n, criteria, status) always in own marked block;
+                               # refresh rewrite only that block, human edits stay.
+  title: "{title}"             # placeholders {title} {n} (issue number, GitHub) {slug}
+                               # e.g. "[#{n}] {title}", "feat: {title}"
+  labels: []                   # added at creation, e.g. [whackagent]. Label missing in repo → skipped.
+  assignees: ["@me"]           # PR assignees at creation
+  reviewers: []                # requested when PR goes ready, never on draft. Users or org/team.
+                               # Empty → none requested (CODEOWNERS still apply).
+  doc: ""                      # PR rules keys can't say (changelog line, size limit) — `path` or
+                               # `path#Heading` (CONTRIBUTING.md#Pull requests). Empty → none.
+
 autopilot:
   on_blocker: skip-and-log     # never invent; freeze task, move on
                                # autopilot ALWAYS branch per task, whatever branch.per_task say

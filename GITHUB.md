@@ -101,9 +101,10 @@ Rules that come with it:
 
 ### The PR
 
-- **Opened as a draft**, assigned to you, base = the branch the ticket forked from (sprint branch, else `close.target`). The body holds the summary, `Closes #<n>`, the acceptance criteria as a checklist and a status line (`Draft — verifier not run yet. Test, then /wa-feedback · /wa-validate · /wa-close.`).
+- **Opened as a draft**, base = the branch the ticket forked from (sprint branch, else `close.target`). Title, labels, assignees and the PR template come from the `pr:` config block (see the README's *Pull requests*). whackagent's part of the body (summary, `Closes #<n>`, the acceptance criteria as a checklist and a status line such as `Draft — verifier not run yet. Test, then /wa-feedback · /wa-validate · /wa-close.`) sits in a marked block after the filled template.
 - **Linked** with `wa-backlog link-pr`: the PR gets the ticket's milestone and a Development link to the issue. (`Closes #<n>` alone only links PRs onto the default branch, and sprint or stacked PRs never are.)
-- **Body refreshed every round** from the task file: current summary, current criteria, `- [x]` only for criteria a round actually proved, and a status line saying what's still owed. A PR body describing superseded behavior is a lying PR.
+- **Body refreshed every round** from the task file: the marked block is rewritten (current summary, current criteria, `- [x]` only for criteria a round actually proved, a status line saying what's still owed), and template sections are touched only where the round changed what they say. Text a human added stays. A PR body describing superseded behavior is a lying PR.
+- **Reviewers** (`pr.reviewers`) are requested when the PR goes ready, at `/wa-close` or on an autopilot ready PR, never on a draft.
 - **Screenshots**, when the diff changes UI: uploaded with `gh image` (extension `drogers0/gh-image`) into a `## Screenshots` section. Images are never pushed to a branch.
 
 ## Command by command
