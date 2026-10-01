@@ -280,6 +280,7 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 - **Milestones are the repo's GitHub milestones** (see [Milestones](#milestones)). You create them on GitHub; "newest" is the most recently created open one. The hooks never touch a milestone, and the script never creates one; it closes one only when `/wa-release` asks, on your yes.
 - **Order is yours.** New tickets land at the bottom. Agents reorder only when you run `/wa-task` with no argument, and apply the new order on your yes.
 - **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR, and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). It can migrate an existing local backlog.
+- **Full walkthrough:** [GITHUB.md](GITHUB.md) explains what every command does on GitHub, the agent round, PRs, sprints, stacking and the gotchas.
 - **Another tracker** (Jira, Linear, Trello, Notion) means a new folder under `providers/` implementing the same contract (`providers/CONTRACT.md`); the skills don't change.
 
 ## File tree created in your project
