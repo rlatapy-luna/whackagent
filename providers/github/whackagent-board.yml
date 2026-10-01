@@ -1,4 +1,4 @@
-# whackagent board hooks — template version: 11
+# whackagent board hooks — template version: 12
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo (sprint parents, label wa-sprint, stay off the board)
@@ -42,7 +42,7 @@ jobs:
     if: vars.WA_PROJECT_NUMBER != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         env:
           WA_PROJECT_TOKEN: ${{ secrets.WA_PROJECT_TOKEN }}
           WA_PROJECT_OWNER: ${{ vars.WA_PROJECT_OWNER }}
