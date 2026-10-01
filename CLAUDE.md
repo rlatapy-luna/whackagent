@@ -13,6 +13,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `providers/`: backlog providers. `CONTRACT.md` defines the verbs and the six states (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`) every skill uses. `local.md` maps the default file-based backlog onto it; `github/` holds the `wa-backlog` script, the `whackagent-board.yml` hooks workflow and its README.
 - `README.md`: public doc on GitHub. No agent reads it.
 - `GITHUB.md`: public walkthrough of the GitHub provider across the whole workflow. No agent reads it; keep it in sync when a skill's GitHub provider section changes.
+- `CHANGELOG.md`: public release notes, Keep a Changelog format, newest first. No agent reads it.
 
 ## Task lifecycle
 
@@ -50,9 +51,13 @@ Keep each step's ownership intact when editing. For example, only `/wa-close` co
 - **New config key**: add it with its default and a comment to `templates/config.md`, add the question to `/wa-setup`, document it in the README. The `/wa-setup` reconfigure mode diffs the project config against the template, so existing projects get offered the new key automatically. Omitting a key must keep the old behavior.
 - **New convention module**: add the file under `conventions/<language>/`, teach `/wa-setup` when to copy it, list it in the README.
 
+## Changelog
+
+Always update `CHANGELOG.md` in the same commit as any change a plugin user would notice (new or changed skill, config key, provider verb, hooks template version, convention module, removed behavior). Add one line under `## [Unreleased]`, in the matching `### Added`, `### Changed`, `### Fixed` or `### Removed` group, written for the plugin user rather than as a commit summary. Mark breaking changes with **Breaking:**. Internal-only edits (typos, this file, rewording with no behavior change) need no entry.
+
 ## Releasing
 
-Bump the version in all three places, `plugin.json` and both fields of `marketplace.json`, in one `chore: release X.Y.Z` commit.
+Bump the version in all three places, `plugin.json` and both fields of `marketplace.json`, in one `chore: release X.Y.Z` commit. The same commit renames `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD` and adds a fresh empty `## [Unreleased]` above it.
 
 ## Commits
 
