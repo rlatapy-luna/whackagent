@@ -33,7 +33,8 @@ Review every round burn one verifier per note, review code about to change anywa
 6. **Check sweep → autofix.** `LENSES:` short of four ✓ → send back for missing lens first; this pass close task, lens skipped here skipped for good. Then merge tool findings, order by severity, keep lens and `tool:` tags. `review.autofix: true` → dispatch implementer (tool findings carry their `run` + `fix` commands: it try `fix` first, never you — fixer edits code), re-run failing tools + re-verify, loop until clean or no progress, **cap 3 rounds**. Not converging → stop, show what left. Record everything in `## Review` under `validation` round.
 7. **Runtime.** `verify.mode: always` and autofix touched code → implementer re-drive app. Any other mode → **say plainly code moved since user tested it** and name files, so nobody treat stale test as proof.
 8. **Set `status: validated`** (reflect in `{backlog}`). Never `done` here — that's user's second look, not yours.
-9. **Report + hand back**, one of three:
+9. **Refresh `{reports}/<slug>.md`** (main checkout, never worktree) — append `validation` round: tool + verifier findings, what autofix changed, status line `review ✅ clean` or open findings. Report predating this pass otherwise still show unreviewed code.
+10. **Report + hand back**, one of three:
    - **Clean, autofix changed nothing** → code they tested *is* code reviewed. Nothing to retest: *"`/wa-close <slug>` whenever you want."*
    - **Clean, autofix changed code** → list what changed, in their terms. *"Retest, then `/wa-close <slug>`."*
    - **Findings still open** → show severity-ordered, with recommendation per item (fix now / accept and close / spin off `/wa-task`). Don't hand off to `/wa-close` with findings open — say which ones you'd accept.
