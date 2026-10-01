@@ -65,11 +65,11 @@ Then **decompose** into bricks, fix **file/folder layout up front** per architec
 
 **One implementer for whole task**, bricks fed one at a time (sequential — builds collide otherwise).
 
-- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, conventions dir, test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**wa-board → Worktrees**).
+- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, conventions dir, test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**wa-board → Worktrees**).
 - **Bricks 2..n** — `SendMessage` that id next brick **alone**. No conventions dir, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
 
 Receipts:
-- `RESULT: done` → record files + build/test/run proof in `## Implementation`, continue.
+- `RESULT: done` → record files + build/test/tools/run proof in `## Implementation`, continue.
 - `RESULT: blocked` → **stop and ask** the `BLOCKED:` question. Dispatch nothing further until resolved.
 
 **Runtime proof — `verify.mode` decides, and here you attended:**
@@ -140,7 +140,7 @@ build ✅ · tests ✅ · run ✅ · review → /wa-validate
 - **Done** — what changes for the user, key file as short ref. **5 bullets max.** Full file list only in saved report.
 - **To test** — checklist: acceptance criteria agent did **not** prove, plus regression zones the diff touches. Agent proved everything → `nothing required` + one optional smoke test. Never empty silently.
 - **✅ verified by agent** — one line, criteria the runtime check proved (+ screenshot path or command). Omit when nothing proven.
-- **Status line** — build · tests · run (`✅` / `yours`) · review (`clean` / `→ /wa-validate`). Never claim check nobody ran.
+- **Status line** — build · tests · tools (only when `code`-stage tools configured) · run (`✅` / `yours`) · review (`clean` / `→ /wa-validate`). Never claim check nobody ran.
 - Headings follow `discussion_language` (translated when not `en`).
 
 ## 5. Closing — not yours

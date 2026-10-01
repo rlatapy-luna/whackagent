@@ -7,7 +7,7 @@ A Claude Code plugin for your entire development flow.
 - **codebase knowledge**: project knowledge base — a wiki the skills read before searching the code.
 - **task management**: create tasks from an idea or cut a whole spec into a few, grill each until it's clear, prioritize and track them.
 - **code pipeline**: implement a task, review it, and prove it runs — the implementer exercises what it just built to confirm the task actually works. On by default where it matters most, unattended runs (`verify.mode`); attended, you test it yourself.
-- **any stack**: iOS, Android, KMP, web, desktop, server, CLI, library. Build uses your project's own command when it has one (`build.command`), else the build tool it finds (XcodeBuildMCP, `./gradlew`, package scripts, cargo, go, dotnet, …). The runtime check picks its driver from `verify.platform`:
+- **any stack**: iOS, Android, KMP, web, desktop, server, CLI, library. Build uses your project's own command when it has one (`build.command`), else the build tool it finds (XcodeBuildMCP, `./gradlew`, package scripts, cargo, go, dotnet, …). Your own lint and static-analysis tools (detekt, SwiftLint, ESLint, ruff, …) run where you declare them in `tools:`, see [Project tools](#project-tools). The runtime check picks its driver from `verify.platform`:
 
 | Platform | Driver |
 | --- | --- |
@@ -106,6 +106,23 @@ You own the list. With the local backlog it's `backlog.milestones` in the config
 3. **Step by step.** It shows the whole plan, then runs the steps in the doc's order. Local steps (version bump, release notes drafted from the milestone's tasks, builds, tests) run after one yes. Every outward step (commit, tag, push, merge, publish, upload) shows its exact command and waits for its own yes. Steps the doc gives to a person (store console, signing) come with instructions, and it waits for you to say done.
 4. **Close.** Progress goes to `{reports}/release-<milestone>.md`, so an interrupted release resumes where it stopped. At the end it offers to close the milestone and to fix the doc wherever the real run differed from it.
 
+### Project tools
+
+Lint, static analysis and format checks are your project's, not the plugin's. Declare them in the `tools:` block of `.whackagent/config.md`, and `/wa-setup` proposes entries when it finds a tool config (`detekt.yml`, `.swiftlint.yml`, eslint, ruff, golangci-lint, clippy…):
+
+```yaml
+tools:
+  - name: detekt
+    run: ./gradlew detekt
+    fix: ./gradlew detekt --auto-correct   # optional
+    when: [code, validation]
+```
+
+- **`code`**: the implementer runs the tool after build and tests, on every brick and every `/wa-feedback` round. A failure in a file the task touched counts as a red build, so it gets fixed with the code.
+- **`validation`**: `/wa-validate` (and `/wa-autopilot`) runs the tool before the verifier. Failures join the autofix loop as `tool:<name>` findings, and the implementer tries the tool's own `fix` command before fixing by hand. The verifier is handed the tool output, so it doesn't spend its review re-reporting what the tool already enforces.
+
+Each `run` covers the whole project. A failure in a file the task never touched is pre-existing: it's reported, never fixed, since it's not the task's scope. No `tools:` entry means no tool runs.
+
 ## Typical flow
 
 Bootstrap once, then loop: describe → grill → code → you test → you validate → verifier → closed. Prioritization isn't a step you run — it happens on its own every time a task is added.
@@ -153,7 +170,7 @@ A single command runs the whole coding cycle, orchestrating isolated subagents:
 2. **Code**: one `wa-implementer` (runs on Sonnet) for the whole task, fed brick by brick (sequential) — it writes the feature *and* the tests and proves the build. Keeping the same agent across bricks means the conventions and the BRIEF are read once, and brick 2 already knows what brick 1 built.
 
    **Who tests it is a setting** (`verify.mode`). Default `autopilot`: unattended runs get driven by the agent — taps and screenshots, a browser, `curl` against the service, or a CLI run, acceptance criteria checked against what it sees, because nobody else is there — while an attended `/wa-code` stops at build + tests and **you** validate by using it. `always` drives it every time; `off` never. Whatever the mode, the implementer may still launch the app when it can't write the feature without seeing it run (reproduce a bug, judge a layout) — that's implementation, and it says so rather than passing it off as proof.
-3. **Report**: same card every time — **Problem**, **Goal**, **Done**, **To test** (checklist of what the agent didn't prove + regression zones), then a build · tests · run · review status line. Saved in `.whackagent/reports/login-apple.md`, task moved to `review` — meaning *waiting for you to test it*. `/wa-autopilot` and `/wa-feedback` use the same card.
+3. **Report**: same card every time — **Problem**, **Goal**, **Done**, **To test** (checklist of what the agent didn't prove + regression zones), then a build · tests · tools · run · review status line (`tools` only when you declared some). Saved in `.whackagent/reports/login-apple.md`, task moved to `review` — meaning *waiting for you to test it*. `/wa-autopilot` and `/wa-feedback` use the same card.
 
 **3. Test it, iterate — `/wa-feedback`**, then **4. give the green light — `/wa-validate`**
 

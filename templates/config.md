@@ -84,6 +84,21 @@ build:                         # how THIS project build — project win over plu
                                # cargo, go, dotnet, mvn, make… — see wa-implementer.
   test_command: ""             # e.g. "make test". Empty → same tool's test task.
 
+tools: []                      # project tools whackagent run — lint, static analysis, format check.
+                               # Commands, never hardcoded per language. Each entry:
+                               #   - name: detekt
+                               #     run: ./gradlew detekt                 # whole project; exit ≠ 0 = fail
+                               #     fix: ./gradlew detekt --auto-correct  # optional: tool own fixer,
+                               #                                           # implementer try it before hand fix
+                               #     when: [code, validation]
+                               # when — code: implementer run it after build + tests, every brick and
+                               #   feedback round; failure in changed file = red build.
+                               #   validation: /wa-validate run it before verifier; failures join
+                               #   autofix loop as `tool:<name>` findings.
+                               # Failure only in file task never touched = pre-existing: reported,
+                               # never fixed — not this task scope.
+                               # Empty → no tool run.
+
 verify:                        # runtime check — implementer drive app it just built
   mode: autopilot              # WHO exercise app after green build:
                                #   autopilot — agent drive it in /wa-autopilot only (nobody there

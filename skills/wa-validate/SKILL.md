@@ -25,13 +25,15 @@ Review every round burn one verifier per note, review code about to change anywa
    - `status: done` / `canceled` → nothing to do.
 2. **Be on right branch.** `branch.per_task` or `/wa-autopilot` delivery → work live on `<branch.prefix><slug>`. Not here → say which branch, switch **only after user confirms** (their tree may be dirty). `branch.worktree: true` → no switch: review in task worktree, recreated from branch if gone (**wa-board → Worktrees**).
 3. **State what you take as validated** — the `## Acceptance criteria`, listed back in one block. Criterion they know unmet means they wanted `/wa-feedback`, not this: say so and stop rather than review feature still being finished.
-4. **Dispatch verifier** — point of command. One `wa-verifier`, per `/wa-code` step 3 in full.
+4. **Run project tools** — `tools` entries whose `when` holds `validation`, each `run` as given, whole project, here in main thread (verifier read-only). Failures in diff files → `tool:<name>` findings, severity `major`. Failures in files diff never touched → pre-existing: one line in report, never findings, never fixed. No such entry → skip, echo nothing.
+5. **Dispatch verifier** — point of command. One `wa-verifier`, per `/wa-code` step 3 in full.
    - **Scope = cumulative diff**: `branch.base..HEAD` plus working tree when task has own branch, else every file in `## Implementation` and each `## Feedback` round. Hunks inline, `inline`-tagged ones **flagged as written without convention pass** — those get harder look.
+   - Hand it step 4 tool findings, so it don't re-report them.
    - Resume run's verifier by `agentId` when id still live (hunks + anti-stale warning); fresh spawn otherwise.
-5. **Check sweep → autofix.** `LENSES:` short of four ✓ → send back for missing lens first; this pass close task, lens skipped here skipped for good. Then order by severity, keep lens tags. `review.autofix: true` → dispatch implementer, re-verify, loop until clean or no progress, **cap 3 rounds**. Not converging → stop, show what left. Record everything in `## Review` under `validation` round.
-6. **Runtime.** `verify.mode: always` and autofix touched code → implementer re-drive app. Any other mode → **say plainly code moved since user tested it** and name files, so nobody treat stale test as proof.
-7. **Set `status: validated`** (reflect in `{backlog}`). Never `done` here — that's user's second look, not yours.
-8. **Report + hand back**, one of three:
+6. **Check sweep → autofix.** `LENSES:` short of four ✓ → send back for missing lens first; this pass close task, lens skipped here skipped for good. Then merge tool findings, order by severity, keep lens and `tool:` tags. `review.autofix: true` → dispatch implementer (tool findings carry their `run` + `fix` commands: it try `fix` first, never you — fixer edits code), re-run failing tools + re-verify, loop until clean or no progress, **cap 3 rounds**. Not converging → stop, show what left. Record everything in `## Review` under `validation` round.
+7. **Runtime.** `verify.mode: always` and autofix touched code → implementer re-drive app. Any other mode → **say plainly code moved since user tested it** and name files, so nobody treat stale test as proof.
+8. **Set `status: validated`** (reflect in `{backlog}`). Never `done` here — that's user's second look, not yours.
+9. **Report + hand back**, one of three:
    - **Clean, autofix changed nothing** → code they tested *is* code reviewed. Nothing to retest: *"`/wa-close <slug>` whenever you want."*
    - **Clean, autofix changed code** → list what changed, in their terms. *"Retest, then `/wa-close <slug>`."*
    - **Findings still open** → show severity-ordered, with recommendation per item (fix now / accept and close / spin off `/wa-task`). Don't hand off to `/wa-close` with findings open — say which ones you'd accept.
@@ -44,7 +46,7 @@ Review every round burn one verifier per note, review code about to change anywa
 
 - **`/wa-feedback` on `validated` task** → code moved after its review: status go back to `review`, task need `/wa-validate` again. Never close on review predating last edit.
 - **`review.when: each_round`** → rounds already reviewed; this pass still run, over cumulative diff, and it's one that counts. Short: most findings already fixed.
-- **`/wa-autopilot`** runs this command's steps 3–7 itself, unattended, its runtime check standing in for your green light — tasks arrive `validated` (clean) or `review` (findings open). Clean → nothing to do here unless code moved; `/wa-close` after your test.
+- **`/wa-autopilot`** runs this command's steps 3–8 itself, unattended, its runtime check standing in for your green light — tasks arrive `validated` (clean) or `review` (findings open). Clean → nothing to do here unless code moved; `/wa-close` after your test.
 
 ## Never
 
