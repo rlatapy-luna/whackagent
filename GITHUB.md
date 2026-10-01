@@ -28,6 +28,7 @@ An agent never writes "this is grilled", "this is in review" or "this is done" o
 | Ticket branch | `wa/<n>-<slug>`, created with `gh issue develop` so it shows under the issue's **Development** panel |
 | Change | one PR per ticket, from the ticket branch |
 | Lock | a git ref `refs/wa-claims/<n>/<phase>` |
+| Reservation | issue **assignees**: assigned to another account = no agent of yours may claim it |
 
 There is no local mirror and no `BACKLOG.md`. The task file carries only whackagent's own data (`issue:`, `phase:`, `wiki:`, `note:`, `created:`) plus the spec sections; title, state, size, sprint and milestone live on GitHub only.
 
@@ -77,6 +78,7 @@ Before an agent grills or codes a ticket, it runs `wa-backlog claim <n> grilling
 - The lock is a git ref, `refs/wa-claims/<n>/<phase>`, pointing at a parentless commit (on a one-file `CLAIM` tree) whose message names the agent (`agent: <host>:<worktree>`, overridable with `WA_AGENT`) and the time.
 - GitHub refuses to create a ref that already exists, server-side. When N agents claim the same ticket at the same moment, exactly one wins (tested with six).
 - Exit codes are part of the flow: **0** = won, **3** = taken (the script prints who holds it), **4** = wrong state (`grilling` needs `todo`; `coding` needs `grilled` or `review`; closed issues and columns outside the six states are never claimable). A loser never retries and never steals; it moves on to the next ticket or tells you who holds it.
+- **Assign yourself to reserve a ticket.** A ticket assigned to another GitHub account than the one `gh` runs as is `reserved`: `claim` refuses it with exit 3, naming the assignee. Unassigned tickets and tickets assigned to you stay claimable. So a dev who wants a ticket for themselves (or for their own agents) assigns it on GitHub, and nobody else's agent will take it. Claiming does the same thing for you: the winning `claim` assigns the account it runs as, so a ticket your agent grilled stays yours through coding and review, and the hooks never unassign it. An aborted claim (`release`) removes the assignment only if that claim made it; one you made by hand stays. Agents never unassign anyone else. `/wa-board` shows reserved tickets with `👤 @login` and never suggests them; `/wa-autopilot` skips them.
 - Each claim and release leaves a trail comment on the issue (`🔒 coding — host:path · time`, `🔓 coding released, back to grilled — reason`).
 
 Locks don't expire, because grilling is interactive and you might answer a question two days later. They're dropped by the hooks on the next real transition, or by an explicit `release` when an agent aborts. `wa-backlog claims` flags a lock as **stale** when nothing was pushed for `WA_STALE_AFTER_HOURS` (24 by default); `/wa-board` shows stale locks, and only you clear them, with `/wa-task release <n>`.

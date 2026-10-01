@@ -26,6 +26,7 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | size | Project `Size` single-select: `quickwin`, `medium`, `large` |
 | sprint | parent issue, label `wa-sprint`, title = sprint name; tickets = its **sub-issues**. Created on first use, reopened when name reused. Not a ticket: off board, `get`/`claim` exit 4. Ticket already under a non-sprint parent → `set-field sprint` exit 4 (one parent per issue) |
 | milestone | release scope — `create` joins newest open milestone (highest number), `--milestone ""` = none. Created by humans only. Closed by humans, or `close-milestone` from `/wa-release` on yes — never by hooks |
+| reservation | issue **assignees**. Assigned to another account than the `gh` one → `reserved: true`, `claim` exit 3 with `assigned: true`. Unassigned or assigned to you → claimable. Winning `claim` assigns the `gh` account (trailer `assigned: <login>` in claim commit); `release` removes it only when that trailer says claim made it. Hooks never touch assignees |
 | excluded | label `wa-ignore` |
 | dependencies | issue **Relationships** (blocked by) — `depend`, read back in `get` → `blocked_by` |
 | ticket PR | milestone = ticket milestone, issue linked in PR **Development** — `link-pr <n> <pr>` right after `gh pr create` (`Closes #<n>` alone links only when base = default branch) |

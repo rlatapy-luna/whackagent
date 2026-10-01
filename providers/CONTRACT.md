@@ -34,11 +34,11 @@ All print JSON on stdout, messages on stderr.
 
 | Verb | Does | Output / exit |
 |---|---|---|
-| `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,claims,url}]`; draft rows `{draft:true,title}` only when unfiltered |
+| `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,assignees,reserved,claims,url}]`; draft rows `{draft:true,title}` only when unfiltered |
 | `get <id>` | one ticket + its branch + its blockers | object, `branch` null before grilling pushed, `blocked_by: [{number,state}]` |
 | `create --title --summary [--size] [--sprint] [--milestone m] [--note]` | new ticket in `todo`, bottom of board; milestone per *Milestones* below | `{number,url,state,milestone}` |
-| `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |
-| `release <id> <phase> [--reset-to s] [--reason r]` | drop lock, optional state reset, trail comment | object |
+| `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, assign current account (trackers with assignees), trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |
+| `release <id> <phase> [--reset-to s] [--reason r]` | drop lock, undo assignment that claim made, optional state reset, trail comment | object |
 | `set-state <id> <state>` | raw state write — setup/migration/manual repair only | object |
 | `move <id> --top\|--bottom\|--before n\|--after n` | reprioritize | object |
 | `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` / `set-field <id> milestone <title\|"">` | fields; sprint created on first use, milestone must be known to `milestones` (never created) | object |
@@ -48,13 +48,15 @@ All print JSON on stdout, messages on stderr.
 | `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |
 | `branch <id>` | remote branch carrying ticket | `{branch}` |
-| `whoami [--agent a]` | agent id used for claims (`WA_AGENT` env, else `<host>:<worktree>`) | `{agent}` |
+| `whoami [--agent a]` | agent id used for claims (`WA_AGENT` env, else `<host>:<worktree>`), plus tracker account | `{agent,login}` — `login` null when tracker has no accounts |
 
 Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 3 and 4 as normal outcomes, not failures: pick next ticket or tell user.
 
 ## Claim rules
 
 - `grilling` claimable from `todo`. `coding` claimable from `grilled` or `review` (fix round on open PR). Closed ticket, or ticket in column outside the six states (`state: null`, `column: "Blocked"`) → exit 4, never touched.
+- **Assigned to another account → reserved.** Tracker with assignees: ticket assigned to someone other than current account → exit 3, owner = assignee(s), `assigned: true`. Unassigned or assigned to current account → normal rules. `list` / `get` rows carry `assignees` + `reserved`. Tracker without assignees (local) → never reserved.
+- **Winning claim assigns current account** when not already assignee — ticket then reserved against other accounts for rest of its life (hooks never unassign). `release` removes that assignment only when its claim made it; assignment a human made stays.
 - Lost claim (exit 3) → never retry same ticket, never steal. Next ticket, or report owner to user.
 - Lock released by data (hook) on next transition, or by `release` on explicit abort / stale cleanup — **human-triggered only**. No expiry: grilling interactive, human may answer in two days.
 - `claims` flags `stale` past `stale_after` with no push on ticket branch. `/wa-board` shows them; `/wa-task release <id>` clears.
