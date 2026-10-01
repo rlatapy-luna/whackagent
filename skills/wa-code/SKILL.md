@@ -1,6 +1,7 @@
 ---
 name: wa-code
 description: Run the full coding pipeline for a task — plan, code, verify, report — orchestrating isolated subagents.
+model: opus
 ---
 
 # /wa-code
@@ -60,6 +61,17 @@ GAPS: <what you couldn't resolve — the only thing subagents explore themselves
 Line counts not decoration: subagents run hard read budget (no whole-file `Read` above ~400 lines), sizes let them respect it without opening file to find size. Over threshold, name ranges that matter — 11k-token read become 500.
 
 Then **decompose** into bricks, fix **file/folder layout up front** per architecture module (group by feature, proper nesting, never flat), **sketch tests** (units, edge cases — YAGNI, only what task needs).
+
+**Post bricks** — provider `comment` on ticket, after decomposition, before first dispatch. One line per brick, what it builds + key file:
+
+```
+🧱 3 bricks
+1. Apple auth provider — `AuthService`
+2. Sign in with Apple button — `LoginView`
+3. Button → provider wiring, error toast
+```
+
+Local provider → `comment` is no-op, nothing to do. Later round re-plans bricks → new comment, never edit old one, never touch issue body (human's).
 
 ## 2. Code
 

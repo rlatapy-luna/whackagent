@@ -134,7 +134,7 @@ Abort → `release --reset-to todo`, and the empty remote branch is deleted. A s
 
 ### `/wa-code #12`
 
-Without an argument, it picks the top unclaimed `grilled` ticket. It claims `coding`, checks out the existing ticket branch (never creates a new one: the spec lives there), and runs the normal pipeline. The round ends with commit, push and a draft PR; the hook moves the ticket to `review`. The first push of a ticket asks for a one-line confirmation; later rounds push without asking.
+Without an argument, it picks the top unclaimed `grilled` ticket. It claims `coding`, checks out the existing ticket branch (never creates a new one: the spec lives there), and runs the normal pipeline. Once the task is broken into bricks, they're posted as one issue comment, one line per brick (a later round that re-plans posts a new comment; the issue body is never edited). The round ends with commit, push and a draft PR; the hook moves the ticket to `review`. The first push of a ticket asks for a one-line confirmation; later rounds push without asking.
 
 ### `/wa-feedback #12 <notes>`
 
@@ -162,7 +162,7 @@ Several autopilots, on several machines, can run on one board at once; claims ke
 - Scope = unclaimed `grilled` tickets in board order, or a sprint, a milestone or a list of tickets.
 - Each ticket is claimed just before its wave starts, not the whole batch up front, so later tickets stay free for other agents. A ticket someone else holds is skipped.
 - Open PRs are checked before planning: a ticket touching the same files as an open PR gets a merge-conflict warning in the plan.
-- Each ticket gets a worktree on its existing branch.
+- Each ticket gets a worktree on its existing branch, and its bricks comment right after its claim.
 - Delivery: verifier clean → **ready PR** with checked criteria (*test, then merge*); findings left open → **draft PR**. A blocked ticket is released back to `grilled` with the blocking question as the reason, so the question lands on the issue.
 - **AFK mode** (`/wa-autopilot afk`) also grills `todo` tickets unattended, answering with its own recommendations tagged `(autopilot assumption)`, and stacks dependent tickets without a depth limit.
 
