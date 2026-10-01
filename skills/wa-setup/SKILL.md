@@ -47,7 +47,7 @@ Then confirm with user:
    **Then, only when `per_task`: what happen to branch when its task close** — _"When a task is done, should I open a PR onto `main`, merge it locally, or leave the branch alone and let you do the PR? (recommended: leave it alone — you keep control of what gets proposed to the team; switch to `pr` once you trust the flow)"_ → sets `close.strategy` (`nothing` | `pr` | `merge`) + `close.target`. Two things to say: task in **sprint** always merge into its sprint branch first, this setting only decide what happen to sprint branch at end; and `pr` need `gh` authenticated, and **ask every time before opening one**. `close.delete_branch` stay `auto` unless they ask — delete only what already landed elsewhere.
 9. **Where things live** — _"Keep the backlog, tasks and wiki inside `.whackagent/`, or put some of them somewhere the team already reads — `docs/wiki/`, say? (recommended: `.whackagent/` — one folder, nothing to wire up; move them if teammates who don't run whackagent need to read them)"_ → sets `paths.*`. Ask **once, as one question**; split into per-path answers only if they say "some of them". Two things to say when they move something:
    - shared wiki or backlog want **committed, browsable** folder (`docs/`) — `.whackagent/` read fine for agents, bad for human on GitHub;
-   - `paths.reports` = run output, not knowledge — leave local (and gitignore-able) unless asked.
+   - `paths.reports` = run output, not knowledge — stays local, gitignored at scaffold, unless asked.
    Absolute paths work too (wiki in sibling repo). `.whackagent/config.md` itself never move — it carry the paths.
    **GitHub backlog** → no backlog file: ask only about **wiki** (and tasks folder). Wording: _"Keep the wiki inside `.whackagent/`, or put it where the team reads — `docs/wiki/`? (recommended: `.whackagent/wiki` — agents read it fine; move it to `docs/wiki` only if teammates who don't run whackagent should browse it on GitHub)"_ Never mention backlog location — it's the Project. Say task specs live in `{tasks}` **on each ticket branch**, merged with the code.
 
@@ -107,6 +107,7 @@ Create directory and files (do not overwrite existing without asking).
 - `{backlog}` — copy `${CLAUDE_PLUGIN_ROOT}/templates/BACKLOG.md`. **Skip under `backlog.provider: github`.**
 - `{wiki}/index.md` — copy `${CLAUDE_PLUGIN_ROOT}/templates/wiki-index.md`.
 - Create empty `{tasks}/` and `{reports}/` directories (`.gitkeep` fine).
+- **Gitignore reports** — append to repo root `.gitignore` (create if absent) `<reports>/*` + `!<reports>/.gitkeep`, `<reports>` = `paths.reports` relative to repo root. Rule already covering it (`git check-ignore -q <reports>/x.md`) → skip. Path outside repo → skip. Why: reports = run output, every section already in task file + wiki; tracked, they're PR noise, churn every feedback round, diverge across machines.
 
 ## 3. Seed the wiki (optional, offer it)
 
@@ -128,6 +129,7 @@ The project already works. You're here to **change settings and pick up what the
 2. **Re-run the detection pass** from step 1 and compare it to the config. Drift is worth a line each — the project adopted SwiftUI or Compose, a build wrapper or lint config appeared, the kind changed from `package` to `app`. **Surface it, never auto-apply**: a value the user set by hand outranks anything you detect.
 3. **Diff the config's keys against `${CLAUDE_PLUGIN_ROOT}/templates/config.md`.** Keys in the template and missing from the config are features shipped after this project was set up (`paths:` is exactly that for anything set up before it existed). They're the main reason to re-run this command — list them with their default and what they buy, and ask.
 4. **Check the paths resolve.** A `paths.*` key pointing at nothing means files moved by hand: say which key and what it points at, offer to re-point the key or move the files back. Don't scaffold over it.
+5. **Check reports stay local.** `git check-ignore -q {reports}/x.md` fails → offer the gitignore lines from scaffold step (recommended: yes — nothing reads reports beyond the run that wrote them). Reports already tracked (`git ls-files {reports}` beyond `.gitkeep`) → also offer `git rm --cached` on them: files stay on disk, leave the index. Never without yes. `paths.reports` moved → move its gitignore lines with it.
 
 ### 2. Show the state, then ask what changes
 

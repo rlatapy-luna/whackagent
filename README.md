@@ -294,7 +294,7 @@ A closed-unmerged PR sends the ticket back to `grilled`.
   tasks/<slug>.md      # one task = one file (frontmatter + body)
   wiki/index.md        # wiki summary
   wiki/<page>.md       # domain pages, [[wikilink]] links (Obsidian-compatible)
-  reports/<slug>.md    # reports of delivered features
+  reports/<slug>.md    # run reports, local only: /wa-setup gitignores them
 ```
 
 That's the default layout. Every one of those paths is configurable — `paths:` in `config.md`, asked at `/wa-setup`:
@@ -309,7 +309,7 @@ paths:
   worktrees: ../<repo>-worktrees   # task worktrees, must be outside the repo
 ```
 
-Relative resolves from the repo root, absolute works too (a wiki in a sibling repo). Only `.whackagent/config.md` is fixed — it's the file that carries the paths. Omit a key and it takes the default above, so a config written before `paths:` existed keeps working. Moving a path after setup means moving the files yourself; nothing back-fills. A shared wiki is also a good reason to set `compress_wiki: false` — caveman compression saves the agents tokens and costs your teammates readability.
+Relative resolves from the repo root, absolute works too (a wiki in a sibling repo). Only `.whackagent/config.md` is fixed — it's the file that carries the paths. Omit a key and it takes the default above, so a config written before `paths:` existed keeps working. Moving a path after setup means moving the files yourself; nothing back-fills. Reports aren't versioned: everything in them already lives in the task file and the wiki, so `/wa-setup` adds them to `.gitignore` (and offers to untrack ones already committed). A shared wiki is also a good reason to set `compress_wiki: false` — caveman compression saves the agents tokens and costs your teammates readability.
 
 ## Task
 

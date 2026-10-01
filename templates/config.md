@@ -18,7 +18,7 @@ paths:                         # WHERE whackagent keep each kind of file. Skills
   backlog: .whackagent/BACKLOG.md
   tasks: .whackagent/tasks
   wiki: .whackagent/wiki
-  reports: .whackagent/reports          # run reports — usually local, gitignore-able
+  reports: .whackagent/reports          # run reports — local, gitignored by /wa-setup
   conventions: .whackagent/conventions  # convention modules copied here by /wa-setup
   worktrees: ../<repo>-worktrees  # task worktrees (branch.worktree, /wa-autopilot). <repo> = repo
                                # folder name. MUST sit OUTSIDE repo: nested checkout get indexed,
