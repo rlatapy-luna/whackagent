@@ -93,13 +93,13 @@ milestone: 0.3.0
 
 You own the list. With the local backlog it's `backlog.milestones` in the config, oldest first; with the GitHub backlog it's the repo's milestones. Agents never create or rename one; `/wa-release` closes it once the release is done, and only on your yes.
 
-**Every new task joins the newest open milestone.** The current and past milestones are committed scope, so a new idea never grows them without you saying so. Name another one when you create the task (or later) to override it, or say "no milestone". A task split by the grill keeps its parent's milestone, since it replaces the parent inside the same scope. With no milestone open, tasks get none and nothing changes.
+**Every new task joins the highest open milestone**, by version order of the titles (`0.3.0` beats `0.2.1`, even when `0.2.1` was opened later; digit runs compare as numbers, so `0.10.0` beats `0.9.0`). The current and past milestones are committed scope, so a new idea never grows them without you saying so. Name another one when you create the task (or later) to override it, or say "no milestone". A task split by the grill keeps its parent's milestone, since it replaces the parent inside the same scope. With no milestone open, tasks get none and nothing changes.
 
-`/wa-board` prints one progress line per milestone, newest first, and marks where new tasks go: `🎯 0.3.0 — 0/3 (3 todo) ← new tasks`. `/wa-board 0.3.0` and `/wa-autopilot 0.3.0` take a milestone like they take a sprint.
+`/wa-board` prints one progress line per milestone, highest first, and marks where new tasks go: `🎯 0.3.0 — 0/3 (3 todo) ← new tasks`. `/wa-board 0.3.0` and `/wa-autopilot 0.3.0` take a milestone like they take a sprint.
 
 ### Releasing
 
-`/wa-release 0.3.0` ships a milestone. With no argument it lists the open milestones and suggests the oldest one, since that's the scope that ships next.
+`/wa-release 0.3.0` ships a milestone. With no argument it lists the open milestones and suggests the lowest one, since that's the scope that ships next.
 
 1. **Readiness.** Every task of the milestone must have landed. Unfinished tasks are listed, and you choose: move them to the next milestone, finish them first, or ship anyway. A task merged into a sprint branch that never reached the target branch blocks the release.
 2. **Your release flow, not a generic one.** whackagent doesn't know how your app ships (store, registry, deploy, tag, or nothing), so it never guesses. It reads the flow from `release.doc` in the config. If that's empty, it searches your markdown (`RELEASING.md`, the wiki, a *Release* section in `CLAUDE.md`, `CONTRIBUTING.md` or `README.md`) and asks you to confirm what it found. If there's nothing, it offers to interview you and write `{wiki}/release.md` first, suggesting answers from what the repo shows (CI files, fastlane, version files) without assuming them.
@@ -297,7 +297,7 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 - **Locks** are git refs (`refs/wa-claims/<issue>/<phase>`) created through the GitHub API. Creating a ref that already exists fails server-side, so when N agents claim the same ticket exactly one wins. The losers move on to the next ticket. The ref points at a commit naming the agent (`host:worktree`), so the board shows who holds what. Stale locks are flagged by `/wa-board` and cleared only by you (`/wa-task release 12`).
 - **Reserve a ticket by assigning it.** An issue assigned to another GitHub account than the one your agent runs as can't be claimed by it. Assign yourself on GitHub, and other devs' agents leave the ticket alone; unassigned tickets stay open to everyone. Claiming assigns your account too, so a ticket your agent started stays yours until it's done; an aborted claim gives back only the assignment it made.
 - **Where data lives:** the issue holds title and summary; the Project holds Status, priority (card order) and Size; a sprint is a parent issue (label `wa-sprint`, titled with the sprint name) whose sub-issues are its tickets, so GitHub shows its progress bar. The parent stays off the board and closes when the sprint lands. The spec is the task file on the ticket branch, merged with the code. There is no local mirror.
-- **Milestones are the repo's GitHub milestones** (see [Milestones](#milestones)). You create them on GitHub; "newest" is the most recently created open one. The hooks never touch a milestone, and the script never creates one; it closes one only when `/wa-release` asks, on your yes.
+- **Milestones are the repo's GitHub milestones** (see [Milestones](#milestones)). You create them on GitHub; "highest" is the open one with the highest title in version order. The hooks never touch a milestone, and the script never creates one; it closes one only when `/wa-release` asks, on your yes.
 - **Order is yours.** New tickets land at the bottom. Agents reorder only when you run `/wa-task` with no argument, and apply the new order on your yes.
 - **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR, and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). It can migrate an existing local backlog.
 - **Full walkthrough:** [GITHUB.md](GITHUB.md) explains what every command does on GitHub, the agent round, PRs, sprints, stacking and the gotchas.
@@ -338,7 +338,7 @@ title: Login Apple          # short, explicit — the feature at a glance
 summary: Sign in with Apple on the login screen   # one line, for the board
 size: quickwin             # quickwin 🟢 | medium 🟡 | large 🔴
 sprint: login-refacto       # optional — groups the tasks of one bigger piece of work
-milestone: 0.3.0            # release scope — set on creation to the newest open milestone
+milestone: 0.3.0            # release scope — set on creation to the highest open milestone
 status: todo                # todo | in-progress | review | validated | done | canceled
                             # review = coded, waiting for your test · validated = spec approved,
                             # verifier passed, waiting for your retest

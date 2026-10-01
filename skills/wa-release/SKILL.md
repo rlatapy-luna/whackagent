@@ -15,7 +15,7 @@ Where sit: tasks → `/wa-close` each → *milestone complete* → **`/wa-releas
 
 1. **Resolve milestone.** Read `.whackagent/config.md` (`{…}` paths per **wa-board → Paths**). Provider `milestones` verb (**wa-board → Backlog provider**).
    - Arg → match title (exact, then unique case-insensitive). Unknown → list milestones, stop. Closed → say `already closed — released?`; resume only if `{reports}/release-<milestone>.md` has unfinished steps (step 5), else stop.
-   - No arg → list open milestones, newest last, with progress (`🎯 0.2.0 — 5/5 done`), recommend **oldest open** — newest is where new work lands, oldest is what ships next. Fully done one beats it only when user says so.
+   - No arg → list open milestones, highest last, with progress (`🎯 0.2.0 — 5/5 done`), recommend **lowest open** — highest is where new work lands, lowest is what ships next. Fully done one beats it only when user says so.
    - No milestone at all → say release needs one (**wa-board → Milestones**: local `backlog.milestones`, GitHub repo milestones), stop.
 2. **Readiness.** `list --milestone <m> --all`. Canceled / closed-not-done tickets don't count.
    - **Not done** → list them (wa-board list format, line 1). Ask, recommendation by state:

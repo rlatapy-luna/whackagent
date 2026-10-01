@@ -23,14 +23,14 @@ Local `status: review` sits inside contract `coding` (coded, verifier not run) �
 |---|---|
 | `list` | read `{backlog}` sections in order, frontmatter of each linked task. `--milestone` filters on `milestone:` |
 | `get` | read `{tasks}/<slug>.md` |
-| `create` | write `{tasks}/<slug>.md` from `templates/task.md`, append line under **Todo** in `{backlog}`. `milestone:` = `--milestone`, else last entry of `backlog.milestones`, else empty |
+| `create` | write `{tasks}/<slug>.md` from `templates/task.md`, append line under **Todo** in `{backlog}`. `milestone:` = `--milestone`, else highest entry of `backlog.milestones` (CONTRACT → *Milestones*), else empty |
 | `claim` | no-op — single agent. Set `status: in-progress` when coding starts |
 | `release` | no-op |
 | `set-state` | edit frontmatter `status:` (+ move line to matching `{backlog}` section) |
 | `move` | reorder lines inside `{backlog}` section |
 | `set-field` | edit frontmatter `size:` / `sprint:` / `milestone:` |
 | `close-milestone` | remove entry from `backlog.milestones` (tasks keep `milestone:`) |
-| `milestones` | config `backlog.milestones` (open, oldest first) reversed, then `milestone:` values not in that list whose tasks aren't all `done`/`canceled` (closed); counts from task files, `done` = `status: done`/`canceled` |
+| `milestones` | config `backlog.milestones` (open) highest first, then `milestone:` values not in that list whose tasks aren't all `done`/`canceled` (closed); counts from task files, `done` = `status: done`/`canceled` |
 | `comment` | no-op |
 | `depend` | task `note:` `Depends on …` line (graph lives in text) |
 | `claims` | always empty |

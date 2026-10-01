@@ -27,7 +27,7 @@ Owns three things: **creating** task, **cutting** spec too large for one task (*
    - `summary` — **≤ 8 words**, the goal plainly (line 2 of wa-board list). Adds what title doesn't say — never repeats it. Result once done, not mechanism or story. Rules: **wa-board → Titles and summaries**.
    - `size` — first estimate: `quickwin` (🟢, hour or less), `medium` (🟡), `large` (🔴, multi-session / probably split). `/wa-grill` re-estimates.
    - `sprint` — kebab-case label, or **empty**. Rules in *Sprints* below. Default empty: most tasks stand alone.
-   - `milestone` — last entry of `backlog.milestones` (newest open), empty when none; user named one → that. Rules **wa-board → Milestones**. Echo `→ milestone <m>`.
+   - `milestone` — highest entry of `backlog.milestones` (version order, **wa-board → Milestones**), empty when none; user named one → that. Rules **wa-board → Milestones**. Echo `→ milestone <m>`.
    - `note:` — `Depends on <slug>` when it builds on another task.
    - `## Context / Decisions` — user idea in their words, tightened; or **spec excerpt** (*Spec*). `## Acceptance criteria` left empty — `/wa-grill` writes them.
 4. **Add to backlog.** Append task under **Todo** in `{backlog}`, link file (relative to backlog's own folder, so link works when backlog and tasks sit in different trees). Sprint set → echo as `· <sprint>` after link, slot line **next to its sprint siblings**, not bottom.
@@ -130,7 +130,7 @@ Product-owner hat: what matters now, what order. New task(s) from this run = **f
    - **defer** — keep but push down order.
    - **cancel** — set `status: canceled`, move under Canceled, note why.
 3. **Split** when task too big for one coherent feature: create child task files (`<slug>-<part>.md`), link to parent via `note:`/`wiki:`, mark parent `canceled` or keep as umbrella — your call, tell user.
-   - **Children inherit milestone** — parent's, never newest: split adds no scope (**wa-board → Milestones**).
+   - **Children inherit milestone** — parent's, never highest: split adds no scope (**wa-board → Milestones**).
    - **Children inherit sprint.** Parent had one → every child gets same `sprint`. Parent had none → split *is* reason sprints exist: name one after body of work parent described (`login redesign` → `login-refacto`), set on all children, say so in one-line split proposal. Parent kept as umbrella → carries sprint too.
 4. **Re-estimate size** when picture changed (`large` 🔴 task split may now be `medium`/`quickwin`). Update each task `size`.
 5. **Reorder.** Order in **Todo** section = priority (top = next). No numeric labels in `{backlog}` — order alone carries priority. Reflect new order in `{backlog}`.

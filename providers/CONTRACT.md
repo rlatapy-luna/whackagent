@@ -42,7 +42,7 @@ All print JSON on stdout, messages on stderr.
 | `set-state <id> <state>` | raw state write — setup/migration/manual repair only | object |
 | `move <id> --top\|--bottom\|--before n\|--after n` | reprioritize | object |
 | `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` / `set-field <id> milestone <title\|"">` | fields; sprint created on first use, milestone must be known to `milestones` (never created) | object |
-| `milestones` | release scopes, **newest first** — open ones, then closed ones still holding open tickets | `[{title,open,tickets,done}]` — `tickets` total, `done` closed (landed or canceled) |
+| `milestones` | release scopes, **highest first** (*Milestones*) — open ones, then closed ones still holding open tickets | `[{title,open,tickets,done}]` — `tickets` total, `done` closed (landed or canceled) |
 | `close-milestone <title>` | close shipped milestone — **`/wa-release` only, on user's yes** | `{title,open:false}`; unknown → exit 2 |
 | `comment <id> <text>` | human-facing trail | object |
 | `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
@@ -66,8 +66,8 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 
 Release scope (iteration, version) — **not** a sprint. Sprint = feature grouping with its own branch (**wa-board → Sprints**); milestone = what ships together. Ticket carries both, either, or none. Skill-side rules: **wa-board → Milestones**.
 
 - **Humans own the list.** They open milestones on the tracker (local: config). No verb creates one; `set-field` / `create --milestone` with unknown title → exit 2. Closing = human on tracker, or `close-milestone` from `/wa-release` on user's yes.
-- **`create` defaults to newest open milestone** (most recently created), so new work lands in the scope being planned, never in current or past one. `--milestone m` = that one; `--milestone ""` = none. No open milestone → none.
-- **Newest** = provider's creation order: GitHub highest milestone number, local last entry of `backlog.milestones`.
+- **`create` defaults to highest open milestone**, so new work lands in the scope being planned, never in current or past one. `--milestone m` = that one; `--milestone ""` = none. No open milestone → none.
+- **Highest** = title in version order, digit runs compared as numbers (`0.10.0` > `0.9.0` > `0.3.0` > `0.2.1`); same rank → creation order (GitHub milestone number, local position in `backlog.milestones`). Why title, not creation: patch milestone opened late (`0.2.1` after `0.3.0`) is current scope, not where new work lands.
 - Tracker without milestones → `milestones` returns `[]`, `milestone` null, flag accepted and ignored.
 
 ## Ticket ↔ repo contract
