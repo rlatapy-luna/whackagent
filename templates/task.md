@@ -10,7 +10,7 @@ size: medium            # quickwin | medium | large  → 🟢 | 🟡 | 🔴 in b
 sprint:                 # OPTIONAL kebab-case label group big work ("login-refacto").
                         # Empty = standalone task. Sprint exist because task name it —
                         # no sprint file, no create command. See /wa-task → Sprints.
-milestone:              # release scope. Set at creation = newest open (last of backlog.milestones).
+milestone:              # release scope. Set at creation = highest open (version order of backlog.milestones).
                         # Not sprint. See /wa-board → Milestones.
 status: todo            # todo | in-progress | review | validated | done | canceled
                         #   review    = coded, wait YOU test it

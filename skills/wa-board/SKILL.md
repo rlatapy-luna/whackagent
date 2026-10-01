@@ -71,7 +71,7 @@ Rules:
 - Legend once below list; `⚠ not grilled` only when a ⚠ is on screen.
 - At least one sprint in play → one **progress line per sprint** under legend, done+canceled excluded from numerator only:
   `🏁 login-refacto — 2/5 (1 in review, 2 todo)`. Filtered run → that single line, above list.
-- One **milestone line** per milestone from `milestones` holding live tasks, newest first, same counting, below sprint lines. Newest open one marked `← new tasks`:
+- One **milestone line** per milestone from `milestones` holding live tasks, highest first, same counting, below sprint lines. Highest open one marked `← new tasks`:
   `🎯 0.3.0 — 0/3 (3 todo) ← new tasks`. No tag on task lines — milestone is scope, not identity. Filtered run → that single line, above list.
 
 ## Voice
@@ -126,7 +126,7 @@ Canonical, every skill. `backlog.provider` in config (missing → `local`) decid
   - **Hooks version gate** — before first push, `git show origin/<base>:.github/workflows/whackagent-board.yml | head -1` → `template version: <v>`. `v ≥ 6` → rules above. `3 ≤ v < 6` → draft leaves ticket in `coding`, claim kept until `/wa-close` marks ready: same-host holder counts as yours (`claims[].agent` host = `whoami` host). `v < 3` / missing → **no draft** (opened PR = ready): push only. Either legacy case → say `hooks v<v> on <base> — /wa-setup backlog to upgrade`.
   - **Forced config:** `branch.per_task: true`, `close.strategy: pr`. Config says otherwise → provider wins, say so once.
   - **Sprint = parent issue** labeled `wa-sprint`, titled with sprint name; its tickets = its **sub-issues** (GitHub shows progress bar on parent). `set-field <n> sprint <name>` creates parent on first use, reopens a closed one of same name; `""` detaches. Parent not a ticket: off board, never claimed (`get`/`claim` → exit 4). Ticket already sub-issue of a non-sprint issue → exit 4: say so, never detach human's hierarchy yourself. Hooks close parent when sprint lands (sprint branch PR merged; no sprint branch → last sub-issue landed). Progress from `list --sprint`.
-  - **Milestone = GitHub milestone** — newest = highest number. Humans create them on GitHub. Rules: **Milestones**.
+  - **Milestone = GitHub milestone** — highest = version order of titles (`providers/CONTRACT.md` → *Milestones*). Humans create them on GitHub. Rules: **Milestones**.
   - `list` lags new tickets 1–3 min (GitHub indexing); `get`/`claim` always current.
   - **Squash merge assumed.** PRs land squashed: base never contains ticket's original commits, so `git merge-base` and plain rebase lie once any parent or stacked ticket landed. **Ticket range** = ticket's own commits, from its spec commit on: `start=$(git log --format=%H --grep="^task: grill #<n> " <branch> | tail -1)`, range `$start^..<branch>`. Diff = `git diff $start^ <branch>`; rebase = `git rebase --onto <base> $start^`. Works squash or not — use it always, never `<base>..HEAD` / `<base>...HEAD`.
 
@@ -186,7 +186,7 @@ Commands taking sprint name: `/wa-board <sprint>` (filtered view), `/wa-autopilo
 Milestone = **release scope** (iteration, version): what ships together. Not sprint — sprint groups one feature's tasks and owns a branch; milestone groups whatever ships in one release, owns nothing. Task carries both, either, or none. Canonical rules, every skill refers here; provider side in `providers/CONTRACT.md` → *Milestones*.
 
 - **Humans own the list.** Local: `backlog.milestones` in config, oldest first. GitHub: repo milestones. Agent never adds or renames one — user asks → tell them where (config line / GitHub). Closes one only through `/wa-release`, flow finished, on yes.
-- **New task joins newest open milestone** — provider does it on `create`, skill passes nothing. Why: current and past milestones are committed scope; new idea never grows them silently. Echo where it landed: `→ milestone 0.3.0`.
+- **New task joins highest open milestone** (version order of titles: `0.3.0` over `0.2.1`, whatever opened last) — provider does it on `create`, skill passes nothing. Why: current and past milestones are committed scope; new idea never grows them silently. Echo where it landed: `→ milestone 0.3.0`.
 - **Override only on user's word** — they name one (`create --milestone 0.2.0`, or `set-field <id> milestone 0.2.0` later), or they say none (`--milestone ""`). Unknown title → provider exit 2: list `milestones`, ask.
 - **Split child inherits parent's milestone** (`--milestone <parent's>`): split replaces parent inside its scope, adds no new scope.
 - **Truth**: local = task file `milestone:`; GitHub = issue milestone. Never echoed in `{backlog}`.
