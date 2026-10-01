@@ -1,6 +1,7 @@
 ---
 name: wa-board
 description: Renders a dashboard and suggests the next action based on the project's whackagent backlog.
+model: haiku
 ---
 
 # /wa-board

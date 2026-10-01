@@ -32,7 +32,7 @@ Add the marketplace, then install the plugin:
 | Command | Description |
 | --- | --- |
 | `/wa-setup` | Config + scaffolding (`.whackagent/`) |
-| `/wa-board` | Dashboard: backlog list, suggests the next action |
+| `/wa-board` | Dashboard: backlog list, suggests the next action (runs on Haiku) |
 | `/wa-board <sprint\|milestone>` | Same, filtered to one sprint or milestone, with its progress |
 | `/wa-task <idea\|spec>` | Creates the task, then re-prioritizes the backlog and suggests `/wa-grill` (never starts it); a large spec is cut into a few feature-sized tasks (one sprint), each carrying its spec excerpt |
 | `/wa-task` | No argument: prioritization pass only — reorders, YAGNI, can split |
