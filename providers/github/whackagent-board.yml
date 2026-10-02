@@ -1,4 +1,4 @@
-# whackagent board hooks — template version: 14
+# whackagent board hooks — template version: 15
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Caller only: the logic lives in rlatapy-luna/whackagent and updates itself through the `hooks-v1` tag,
 # so this file changes only when its triggers, permissions or secrets do (/wa-setup backlog offers it).
@@ -19,7 +19,7 @@ on:
 permissions:
   contents: write
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 concurrency:
   # event + action in the group: GitHub keeps one pending run per group and cancels the older one, so a

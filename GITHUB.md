@@ -141,7 +141,7 @@ Without an argument, it picks the top unclaimed `grilled` ticket. It claims `cod
 
 ### `/wa-feedback #12 <notes>`
 
-Claims `coding` from `review`. Its input is your notes **plus the PR's review comments**, triaged the same way. A PR already marked ready is turned back into a draft first, so nobody merges code that is moving. The round ends with a push and a body refresh; the ticket goes back to `review`.
+Claims `coding` from `review`. Its input is your notes **plus the PR's review comments**, triaged the same way. A PR already marked ready is turned back into a draft first, so nobody merges code that is moving. The round ends with a push and a body refresh; the ticket goes back to `review`, and the hook posts the new `## Feedback` round (what you asked, triage, what changed, verdicts) as a comment on the ticket and on the PR.
 
 ### `/wa-validate #12`
 

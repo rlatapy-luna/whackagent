@@ -50,6 +50,6 @@ created:                # YYYY-MM-DD
 
 ## Feedback
 
-<!-- Fill by /wa-feedback, one block per round: what you asked (your words), triage
+<!-- Fill by /wa-feedback, one `### Round <n> — YYYY-MM-DD` block per round: what you asked (your words), triage
      (defect / adjustment / new scope / rule), what changed, review + verify verdicts,
      any rule promoted into convention module. Rounds append, never overwrite. -->

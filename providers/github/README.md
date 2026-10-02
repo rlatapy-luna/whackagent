@@ -42,7 +42,7 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 | `push` to `wa/**` | branch `wa/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
 | `pull_request: opened/reopened` | head `wa/<n>-…`, same repo, not `done` — **draft or not** | `review`, coding claim deleted |
 | `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges |
-| `pull_request: synchronize` | coding claim exists | `review`, claim deleted (agent round over) |
+| `pull_request: synchronize` | coding claim exists | `review`, claim deleted (agent round over); `## Feedback` rounds new since previous head posted on ticket and PR |
 | `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted. Sprint without branch + last sub-issue closed → sprint parent closed |
 | `pull_request: closed`, merged, head `<WA_SPRINT_PREFIX><name>` | — | sprint parent `<name>` closed (sprint landed) |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |

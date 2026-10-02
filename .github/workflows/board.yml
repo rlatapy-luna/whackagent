@@ -8,7 +8,8 @@
 #   push to wa/<n>-<slug> holding its spec → grilled   (releases the grilling claim)
 #   PR opened / reopened, draft or not      → review (releases the coding claim)
 #   draft marked ready / back to draft      → nothing moves (already review)
-#   push to an open PR while coding claimed → review (end of an agent round)
+#   push to an open PR while coding claimed → review (end of an agent round); new `## Feedback`
+#                                            rounds of the task file posted on the ticket and the PR
 #   PR merged (any base)                   → done, issue closed; sprint parent closed when the
 #                                            sprint has no branch and its last sub-issue is done
 #   sprint branch PR merged                → sprint parent issue closed (sprint landed)
@@ -140,7 +141,7 @@ jobs:
               return parent && parent.labels.nodes.some((l) => l.name === SPRINT_LABEL) ? parent : null;
             }
 
-            async function specReady(number, sha) {
+            async function taskFile(number, sha) {
               let listing;
               try {
                 ({ data: listing } = await github.rest.repos.getContent({ owner, repo, path: tasksPath, ref: sha }));
@@ -153,13 +154,34 @@ jobs:
                 core.notice(`${file.path}: frontmatter issue: does not match #${number}`);
                 return null;
               }
-              const section = text.split(/^## Acceptance criteria\s*$/m)[1];
-              const body = section ? section.split(/^## /m)[0].replace(/<!--[\s\S]*?-->/g, "").trim() : "";
-              if (!body) {
-                core.notice(`${file.path}: Acceptance criteria empty, grill not finished`);
+              return { path: file.path, text };
+            }
+
+            const section = (text, heading) => {
+              const after = text.split(new RegExp(`^## ${escape(heading)}\\s*$`, "m"))[1];
+              return after ? after.split(/^## /m)[0].replace(/<!--[\s\S]*?-->/g, "").trim() : "";
+            };
+
+            async function specReady(number, sha) {
+              const task = await taskFile(number, sha);
+              if (!task) return null;
+              if (!section(task.text, "Acceptance criteria")) {
+                core.notice(`${task.path}: Acceptance criteria empty, grill not finished`);
                 return null;
               }
-              return file.path;
+              return task.path;
+            }
+
+            // `## Feedback` rounds (### blocks) new since `before`; force push dropped `before` → last round only
+            async function newFeedback(number, before, after) {
+              const blocks = (task) => task ? section(task.text, "Feedback").split(/^(?=### )/m).map((b) => b.trim()).filter(Boolean) : [];
+              const now = blocks(await taskFile(number, after));
+              if (!now.length) return [];
+              const reachable = await github.rest.repos.getCommit({ owner, repo, ref: before })
+                .then(() => true, (e) => { if ([404, 422].includes(e.status)) return false; throw e; });
+              if (!reachable) return now.slice(-1);
+              const old = blocks(await taskFile(number, before));
+              return now.filter((b) => !old.includes(b));
             }
 
             const event = context.eventName;
@@ -233,7 +255,17 @@ jobs:
                 if (!(await claimExists(number, "coding"))) return;
                 await setState(ticket, "review");
                 await release(number, "coding");
-                await comment(number, `🔀 **review** — round pushed to #${pr.number}`);
+                const rounds = await newFeedback(number, payload.before, payload.after);
+                const notes = rounds.length ? `\n\n${rounds.join("\n\n")}`.slice(0, 60000) : "";
+                await comment(number, `🔀 **review** — round pushed to #${pr.number}${notes}`);
+                if (notes) {
+                  const body = `📝 **feedback** — round pushed for #${number}${notes}`;
+                  // caller template < 15 grants pull-requests: read only → post with the PAT instead
+                  await comment(pr.number, body).catch((e) => {
+                    if (e.status !== 403) throw e;
+                    return projects.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+                  });
+                }
                 return;
               }
 
