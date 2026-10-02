@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-02
+
 ### Added
 
 - GitHub provider: each `/wa-feedback` round is posted as a comment on the ticket and on its PR (your notes, triage, what changed, verdicts), from the task file's new `### Round <n>` block in `## Feedback`. Ships through the `hooks-v1` tag. Hooks template version 15 grants `pull-requests: write` so the PR comment comes from github-actions; older callers post it with `WA_PROJECT_TOKEN`. Run `/wa-setup backlog` to upgrade.
