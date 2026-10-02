@@ -11,6 +11,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift and Kotlin are multi-module packs with the same file names; TypeScript and generic (fallback for every other language) are one file each.
 - `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
 - `providers/`: backlog providers. `CONTRACT.md` defines the verbs and the six states (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`) every skill uses. `local.md` maps the default file-based backlog onto it; `github/` holds the `wa-backlog` script, the `whackagent-board.yml` hooks workflow and its README.
+- `.github/workflows/board.yml`: the board hooks logic, a reusable workflow every project calls through the `hooks-v1` tag. `providers/github/whackagent-board.yml` is the caller `/wa-setup` installs; keep its triggers and permissions in sync with what `board.yml` needs.
 - `README.md`: public doc on GitHub. No agent reads it.
 - `GITHUB.md`: public walkthrough of the GitHub provider across the whole workflow. No agent reads it; keep it in sync when a skill's GitHub provider section changes.
 - `CHANGELOG.md`: public release notes, Keep a Changelog format, newest first. No agent reads it.
@@ -58,6 +59,8 @@ Always update `CHANGELOG.md` in the same commit as any change a plugin user woul
 ## Releasing
 
 Bump the version in all three places, `plugin.json` and both fields of `marketplace.json`, in one `chore: release X.Y.Z` commit. The same commit renames `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD` and adds a fresh empty `## [Unreleased]` above it.
+
+After pushing the release commit, move the hooks tag onto it (`git tag -f hooks-v1 && git push -f origin hooks-v1`): every project's caller runs `board.yml` from that tag, so this is what ships hook changes. Test `board.yml` on the playground first. A change callers must follow (new trigger, permission or secret) gets a new tag `hooks-v2` plus a caller template version bump, never a move of `hooks-v1`.
 
 ## Commits
 

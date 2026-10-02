@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- GitHub board hooks are now a reusable workflow in the whackagent repo: projects keep a small caller (hooks template version 14) and get hook fixes with every whackagent release, without a PR. Run `/wa-setup backlog` once to replace the old full copy.
+
 ## [0.22.0] - 2026-10-02
 
 ### Changed

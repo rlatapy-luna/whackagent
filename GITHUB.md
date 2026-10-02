@@ -35,7 +35,7 @@ There is no local mirror and no `BACKLOG.md`. The task file carries only whackag
 The machinery is three pieces:
 
 - **`wa-backlog`** (`providers/github/wa-backlog`): a Python script (stdlib + `gh`) that implements every contract verb. Skills call it for every backlog read or write.
-- **`whackagent-board.yml`**: the hooks workflow, installed in the project's `.github/workflows/`. It reacts to issue, push and PR events and moves the board.
+- **`whackagent-board.yml`**: the hooks workflow, installed in the project's `.github/workflows/`. It reacts to issue, push and PR events and moves the board. The project file is a small caller: the logic is the reusable workflow `rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v1`, and each whackagent release moves that tag, so every project runs the new logic without a PR. The caller only changes when its triggers, permissions or secret do.
 - **Repo variables** (`WA_PROJECT_NUMBER`, `WA_STATES`, `WA_BRANCH_PREFIX`, …) shared by the script and the workflow, plus the **`WA_PROJECT_TOKEN`** secret, a classic PAT with `project` + `repo` scopes. The secret is needed because the default Actions token can't write to Projects v2.
 
 ## The six states

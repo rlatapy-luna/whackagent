@@ -1,0 +1,265 @@
+# whackagent board hooks — reusable logic. Projects never copy this file: their caller
+# (providers/github/whackagent-board.yml, installed by /wa-setup) holds the triggers, permissions and
+# concurrency, and runs this through `uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v1`.
+# Each release moves `hooks-v1`, so every project runs the new logic on its next event. A change callers
+# must follow (new trigger, permission, secret) needs a new tag `hooks-v2` and a new caller template version.
+# Moves tickets on the GitHub Project from repository events, so the board follows the code:
+#   issue opened                          → todo (sprint parents, label wa-sprint, stay off the board)
+#   push to wa/<n>-<slug> holding its spec → grilled   (releases the grilling claim)
+#   PR opened / reopened, draft or not      → review (releases the coding claim)
+#   draft marked ready / back to draft      → nothing moves (already review)
+#   push to an open PR while coding claimed → review (end of an agent round)
+#   PR merged (any base)                   → done, issue closed; sprint parent closed when the
+#                                            sprint has no branch and its last sub-issue is done
+#   sprint branch PR merged                → sprint parent issue closed (sprint landed)
+#   PR closed unmerged                     → grilled
+# `coding` is transient: an agent holds it only while it works. Every round ends with a push,
+# so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
+# Settings are the caller repository's variables (`vars`), written by `wa-backlog provision`. Projects v2
+# writes need the WA_PROJECT_TOKEN secret (classic PAT, scopes: project, repo), passed by the caller:
+# `secrets: inherit` only works inside one owner, so the caller names it. Everything else uses the
+# caller's GITHUB_TOKEN.
+
+name: whackagent board
+
+on:
+  workflow_call:
+    secrets:
+      WA_PROJECT_TOKEN:
+        required: false
+
+jobs:
+  board:
+    if: vars.WA_PROJECT_NUMBER != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        env:
+          WA_PROJECT_TOKEN: ${{ secrets.WA_PROJECT_TOKEN }}
+          WA_PROJECT_OWNER: ${{ vars.WA_PROJECT_OWNER }}
+          WA_PROJECT_NUMBER: ${{ vars.WA_PROJECT_NUMBER }}
+          WA_STATUS_FIELD: ${{ vars.WA_STATUS_FIELD }}
+          WA_STATES: ${{ vars.WA_STATES }}
+          WA_TASKS_PATH: ${{ vars.WA_TASKS_PATH }}
+          WA_BRANCH_PREFIX: ${{ vars.WA_BRANCH_PREFIX }}
+          WA_SPRINT_PREFIX: ${{ vars.WA_SPRINT_PREFIX }}
+        with:
+          script: |
+            const env = process.env;
+            if (!env.WA_PROJECT_TOKEN) {
+              core.setFailed("WA_PROJECT_TOKEN secret missing: classic PAT with scopes project + repo");
+              return;
+            }
+            // Second client on the PAT: GITHUB_TOKEN can't reach Projects v2. Same class as `github`.
+            const projects = new github.constructor({ auth: env.WA_PROJECT_TOKEN });
+            const { owner, repo } = context.repo;
+            const prefix = env.WA_BRANCH_PREFIX || "wa/";
+            // "none" = sprints have no branch (branch.sprint_prefix: ""): an empty variable reads as unset
+            const sprintPrefix = env.WA_SPRINT_PREFIX === "none" ? "" : (env.WA_SPRINT_PREFIX || "sprint/");
+            const SPRINT_LABEL = "wa-sprint";
+            const tasksPath = (env.WA_TASKS_PATH || ".whackagent/tasks").replace(/\/$/, "");
+            const statusField = env.WA_STATUS_FIELD || "Status";
+            const states = {
+              todo: "Todo", grilling: "Grilling", grilled: "Grilled", coding: "Coding",
+              "review": "Review", done: "Done",
+              ...JSON.parse(env.WA_STATES || "{}"),
+            };
+
+            const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const issueFromBranch = (branch) => {
+              const match = branch.match(new RegExp(`^${escape(prefix)}(\\d+)-`));
+              return match ? Number(match[1]) : null;
+            };
+
+            let projectCache;
+            async function project() {
+              if (projectCache) return projectCache;
+              const data = await projects.graphql(
+                `query($l:String!,$n:Int!,$f:String!){repositoryOwner(login:$l){... on ProjectV2Owner{
+                  projectV2(number:$n){id field(name:$f){... on ProjectV2SingleSelectField{id options{id name}}}}}}}`,
+                { l: env.WA_PROJECT_OWNER || owner, n: Number(env.WA_PROJECT_NUMBER), f: statusField });
+              const p = data.repositoryOwner.projectV2;
+              if (!p || !p.field) throw new Error(`project or field ${statusField} not found`);
+              const byName = Object.fromEntries(p.field.options.map((o) => [o.name, o.id]));
+              projectCache = { id: p.id, field: p.field.id, byName };
+              return projectCache;
+            }
+
+            async function item(number) {
+              const p = await project();
+              const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: number });
+              const added = await projects.graphql(
+                `mutation($p:ID!,$c:ID!,$f:String!){addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id
+                  fieldValueByName(name:$f){... on ProjectV2ItemFieldSingleSelectValue{name}}}}}`,
+                { p: p.id, c: issue.node_id, f: statusField });
+              const node = added.addProjectV2ItemById.item;
+              const current = node.fieldValueByName?.name;
+              const state = Object.keys(states).find((s) => states[s] === current) || null;
+              // column set but state null = a column whackagent doesn't own (Blocked, …): hands off
+              return { id: node.id, state, column: current || null, issue };
+            }
+
+            async function setState(ticket, state) {
+              const p = await project();
+              await projects.graphql(
+                `mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){updateProjectV2ItemFieldValue(input:{
+                  projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$o}}){projectV2Item{id}}}`,
+                { p: p.id, i: ticket.id, f: p.field, o: p.byName[states[state]] });
+              core.info(`#${ticket.issue.number}: ${ticket.state ?? "none"} → ${state}`);
+            }
+
+            async function claimExists(number, phase) {
+              try {
+                await github.rest.git.getRef({ owner, repo, ref: `wa-claims/${number}/${phase}` });
+                return true;
+              } catch (e) { if (e.status === 404) return false; throw e; }
+            }
+
+            async function release(number, phase) {
+              try {
+                await github.rest.git.deleteRef({ owner, repo, ref: `wa-claims/${number}/${phase}` });
+              } catch (e) { if (![404, 422].includes(e.status)) throw e; }
+            }
+
+            const comment = (number, body) =>
+              github.rest.issues.createComment({ owner, repo, issue_number: number, body });
+
+            // Sprint = parent issue labeled wa-sprint; sprint name = its title in kebab-case; tickets are its sub-issues.
+            const sprintName = (title) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+            async function closeSprint(number, why) {
+              await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
+              await comment(number, `🏁 **sprint landed** — ${why}`);
+            }
+
+            async function sprintParent(number) {
+              const data = await github.graphql(
+                `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){
+                  parent{number title state labels(first:20){nodes{name}}}}}}`,
+                { o: owner, r: repo, n: number });
+              const parent = data.repository.issue.parent;
+              return parent && parent.labels.nodes.some((l) => l.name === SPRINT_LABEL) ? parent : null;
+            }
+
+            async function specReady(number, sha) {
+              let listing;
+              try {
+                ({ data: listing } = await github.rest.repos.getContent({ owner, repo, path: tasksPath, ref: sha }));
+              } catch (e) { if (e.status === 404) return null; throw e; }
+              const file = (Array.isArray(listing) ? listing : []).find((f) => new RegExp(`^${number}-.*\\.md$`).test(f.name));
+              if (!file) return null;
+              const { data } = await github.rest.repos.getContent({ owner, repo, path: file.path, ref: sha });
+              const text = Buffer.from(data.content, "base64").toString("utf8");
+              if (!new RegExp(`^issue:\\s*#?${number}\\s*$`, "m").test(text)) {
+                core.notice(`${file.path}: frontmatter issue: does not match #${number}`);
+                return null;
+              }
+              const section = text.split(/^## Acceptance criteria\s*$/m)[1];
+              const body = section ? section.split(/^## /m)[0].replace(/<!--[\s\S]*?-->/g, "").trim() : "";
+              if (!body) {
+                core.notice(`${file.path}: Acceptance criteria empty, grill not finished`);
+                return null;
+              }
+              return file.path;
+            }
+
+            const event = context.eventName;
+            const payload = context.payload;
+
+            if (event === "issues") {
+              if (payload.issue.pull_request) return;
+              if (payload.issue.labels.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name))) return;
+              const ticket = await item(payload.issue.number);
+              if (!ticket.column) await setState(ticket, "todo");
+              return;
+            }
+
+            if (event === "push") {
+              if (payload.deleted) return;
+              const branch = context.ref.replace("refs/heads/", "");
+              const number = issueFromBranch(branch);
+              if (!number) return;
+              const spec = await specReady(number, payload.after);
+              if (!spec) return;
+              const ticket = await item(number);
+              if (ticket.column && !["todo", "grilling"].includes(ticket.state)) return;
+              await setState(ticket, "grilled");
+              await release(number, "grilling");
+              // sha permalink: the branch is deleted on merge, the commit stays
+              const specUrl = `${context.serverUrl}/${owner}/${repo}/blob/${payload.after}/${spec}`;
+              const name = spec.split("/").pop();
+              await comment(number, `✅ **grilled** — spec [\`${name}\`](${specUrl}) on \`${branch}\``);
+              return;
+            }
+
+            if (event === "pull_request") {
+              const pr = payload.pull_request;
+              if (pr.head.repo?.full_name !== pr.base.repo.full_name) return;
+              const number = issueFromBranch(pr.head.ref);
+              if (!number) {
+                // sprint branch landed → its parent issue closes
+                if (!sprintPrefix || !pr.head.ref.startsWith(sprintPrefix) || payload.action !== "closed" || !pr.merged) return;
+                const name = pr.head.ref.slice(sprintPrefix.length);
+                const { data: open } = await github.rest.issues.listForRepo({ owner, repo, labels: SPRINT_LABEL, state: "open", per_page: 100 });
+                const parent = open.find((i) => sprintName(i.title) === name && !i.pull_request);
+                if (parent) await closeSprint(parent.number, `#${pr.number} merged \`${pr.head.ref}\` into \`${pr.base.ref}\``);
+                return;
+              }
+              const ticket = await item(number);
+              if (ticket.column && !ticket.state) {
+                core.info(`#${number} sits in column ${ticket.column}, not a whackagent state: untouched`);
+                return;
+              }
+              const action = payload.action;
+
+              if (action === "opened" || action === "reopened") {
+                if (ticket.state === "done") return;
+                await setState(ticket, "review");
+                await release(number, "coding");
+                const kind = pr.draft ? "draft " : "";
+                await comment(number, `🔀 **review** — ${kind}#${pr.number} → \`${pr.base.ref}\``);
+                return;
+              }
+
+              if (action === "ready_for_review" || action === "converted_to_draft") {
+                // draft ↔ ready changes who looks next (tester or merger), not the state. Never touches the
+                // claim: an agent mid-round may flip it (`gh pr ready --undo` before a fix), its push ends the round.
+                if (action === "ready_for_review" && ticket.state !== "done") {
+                  await comment(number, `✅ **ready** — #${pr.number} ready to merge`);
+                }
+                return;
+              }
+
+              if (action === "synchronize") {
+                if (!(await claimExists(number, "coding"))) return;
+                await setState(ticket, "review");
+                await release(number, "coding");
+                await comment(number, `🔀 **review** — round pushed to #${pr.number}`);
+                return;
+              }
+
+              if (action === "closed" && pr.merged) {
+                await setState(ticket, "done");
+                await release(number, "grilling");
+                await release(number, "coding");
+                if (ticket.issue.state === "open") {
+                  await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
+                }
+                await comment(number, `🎉 **done** — #${pr.number} merged into \`${pr.base.ref}\``);
+                // Sprint without branch: tickets land straight on the target, so the last one lands the sprint.
+                // With a branch, they land in it and the sprint lands with the sprint branch PR (above).
+                const parent = await sprintParent(number);
+                if (parent && parent.state === "OPEN" && pr.base.ref !== sprintPrefix + sprintName(parent.title)) {
+                  const { data: subs } = await github.request("GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
+                    { owner, repo, issue_number: parent.number, per_page: 100 });
+                  if (subs.every((s) => s.state === "closed")) await closeSprint(parent.number, `last ticket #${number} landed`);
+                }
+                return;
+              }
+
+              if (action === "closed") {
+                if (ticket.state === "done") return;
+                await setState(ticket, "grilled");
+                await release(number, "coding");
+                await comment(number, `↩️ **grilled** — #${pr.number} closed unmerged, spec kept on \`${pr.head.ref}\``);
+              }
+            }

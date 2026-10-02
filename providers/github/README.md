@@ -7,7 +7,7 @@
 | Piece | Where | Role |
 |---|---|---|
 | `wa-backlog` | `${CLAUDE_PLUGIN_ROOT}/providers/github/wa-backlog` | every contract verb. Python 3 stdlib + `gh`. Run from repo root. |
-| board workflow | `whackagent-board.yml` → target repo `.github/workflows/` | hooks: issue opened, spec pushed, PR opened/pushed/merged/closed |
+| board workflow | caller `whackagent-board.yml` → target repo `.github/workflows/`; logic = reusable `rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v1` | hooks: issue opened, spec pushed, PR opened/pushed/merged/closed. Caller holds triggers, permissions, concurrency, passes secret. Logic updates itself: each release moves `hooks-v1` |
 | repo variables | `WA_PROJECT_OWNER`, `WA_PROJECT_NUMBER`, `WA_STATUS_FIELD`, `WA_SIZE_FIELD`, `WA_STATES`, `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_SPRINT_PREFIX` (`none` = sprints have no branch), `WA_STALE_AFTER_HOURS` | single source for script + workflow. Written by `wa-backlog provision`. |
 | secret | `WA_PROJECT_TOKEN` | classic PAT, scopes `project` + `repo`. Workflow Projects writes only — `GITHUB_TOKEN` can't reach Projects v2. |
 | claims | refs `refs/wa-claims/<issue#>/<phase>` | lock. Ref points at empty commit whose message names agent. |
@@ -51,7 +51,7 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 
 **Conflicting PR = no hook.** GitHub skips `pull_request` workflows when PR merge ref conflicts: push to conflicting PR moves nothing, claim stays. Round end checks `mergeable`, rebases ticket range when `CONFLICTING`.
 
-Workflow runs from default branch for `issues`, from pushed ref for `push`/`pull_request` — so it must be merged on default branch **and** present on ticket branches (branches forked after merge carry it).
+Logic always = `hooks-v1`, whatever ref runs caller. Caller runs from default branch for `issues`, from pushed ref for `push`/`pull_request` — so it must be merged on default branch **and** present on ticket branches (branches forked after merge carry it).
 
 Custom `branch.prefix` → edit `branches:` filter in workflow to match.
 
@@ -59,7 +59,7 @@ Custom `branch.prefix` → edit `branches:` filter in workflow to match.
 
 1. `gh auth status` shows scope `project`. Missing → user runs `! gh auth refresh -h github.com -s project` (browser device flow — can't be done for them).
 2. `wa-backlog provision --title "<name>"` (new) or `--project <n>` (adopt). Existing Project: never rewrites columns — adds missing state options keeping existing ids, or maps states onto existing names with `--state grilled="Ready for dev"`. Creates `Size` if missing. Links repo. Writes variables.
-3. Workflow: copy to `.github/workflows/whackagent-board.yml` on branch `wa-setup/board-hooks`, open PR — never push default branch directly. Hooks live once merged.
+3. Workflow: copy caller to `.github/workflows/whackagent-board.yml` on branch `wa-setup/board-hooks`, open PR — never push default branch directly. Hooks live once merged. Existing file with no `uses:` line (full copy, template version ≤ 13) → same PR replaces it: logic stops needing upgrades.
 4. Secret: user creates PAT — `https://github.com/settings/tokens/new?scopes=project,repo&description=whackagent-board` — then `! pbpaste | gh secret set WA_PROJECT_TOKEN -R <repo>` (clipboard, token never in chat). `provision` output `secret_WA_PROJECT_TOKEN` confirms.
 5. Offer (ask): import open issues as `todo` — `wa-backlog get <n>` per issue adds it. Offer (ask): smoke test — `create` → `claim grilling` → `release --reset-to todo` → close issue.
 
