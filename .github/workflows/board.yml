@@ -9,7 +9,7 @@
 #   PR opened / reopened, draft or not      → review (releases the coding claim)
 #   draft marked ready / back to draft      → nothing moves (already review)
 #   push to an open PR while coding claimed → review (end of an agent round); new `## Feedback`
-#                                            rounds of the task file posted on the ticket and the PR
+#                                            rounds of the task file linked (line permalinks) on the ticket and the PR
 #   PR merged (any base)                   → done, issue closed; sprint parent closed when the
 #                                            sprint has no branch and its last sub-issue is done
 #   sprint branch PR merged                → sprint parent issue closed (sprint landed)
@@ -172,16 +172,34 @@ jobs:
               return task.path;
             }
 
-            // `## Feedback` rounds (### blocks) new since `before`; force push dropped `before` → last round only
+            // `### ` blocks of `## Feedback`, with 1-based line range in the file
+            const feedbackRounds = (text) => {
+              const lines = text.split("\n");
+              const start = lines.findIndex((l) => /^## Feedback\s*$/.test(l));
+              if (start < 0) return [];
+              const rounds = [];
+              for (let i = start + 1; i < lines.length && !/^## /.test(lines[i]); i++) {
+                if (/^### /.test(lines[i])) rounds.push({ from: i + 1, to: i + 1 });
+                else if (rounds.length && lines[i].trim()) rounds[rounds.length - 1].to = i + 1;
+              }
+              return rounds.map((r) => ({ ...r, text: lines.slice(r.from - 1, r.to).join("\n") }));
+            };
+
+            // permalinks to rounds new since `before`; force push dropped `before` → last round only
             async function newFeedback(number, before, after) {
-              const blocks = (task) => task ? section(task.text, "Feedback").split(/^(?=### )/m).map((b) => b.trim()).filter(Boolean) : [];
-              const now = blocks(await taskFile(number, after));
-              if (!now.length) return [];
+              const task = await taskFile(number, after);
+              let rounds = task ? feedbackRounds(task.text) : [];
+              if (!rounds.length) return [];
               const reachable = await github.rest.repos.getCommit({ owner, repo, ref: before })
                 .then(() => true, (e) => { if ([404, 422].includes(e.status)) return false; throw e; });
-              if (!reachable) return now.slice(-1);
-              const old = blocks(await taskFile(number, before));
-              return now.filter((b) => !old.includes(b));
+              if (!reachable) rounds = rounds.slice(-1);
+              else {
+                const prev = await taskFile(number, before);
+                const old = prev ? feedbackRounds(prev.text).map((r) => r.text) : [];
+                rounds = rounds.filter((r) => !old.includes(r.text));
+              }
+              // bare ?plain=1 line permalink on its own line → GitHub embeds the snippet from the file
+              return rounds.map((r) => `${context.serverUrl}/${owner}/${repo}/blob/${after}/${task.path}?plain=1#L${r.from}-L${r.to}`);
             }
 
             const event = context.eventName;
@@ -256,7 +274,7 @@ jobs:
                 await setState(ticket, "review");
                 await release(number, "coding");
                 const rounds = await newFeedback(number, payload.before, payload.after);
-                const notes = rounds.length ? `\n\n${rounds.join("\n\n")}`.slice(0, 60000) : "";
+                const notes = rounds.length ? `\n\n${rounds.join("\n\n")}` : "";
                 await comment(number, `🔀 **review** — round pushed to #${pr.number}${notes}`);
                 if (notes) {
                   const body = `📝 **feedback** — round pushed for #${number}${notes}`;

@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- GitHub provider: feedback round comments on the ticket and PR now hold a line permalink to the round in the task file, which GitHub shows as an embedded snippet, instead of a copy of the text. The task file stays the source of truth.
+
 ## [0.24.0] - 2026-10-02
 
 ### Added
