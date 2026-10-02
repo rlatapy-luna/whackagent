@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- `/wa-grill` searches for existing libraries and SDKs before settling on a hand-rolled integration, parser or protocol client, and records the survey in `## Context / Decisions`.
+
 ## [0.21.0] - 2026-10-01
 
 ### Changed
