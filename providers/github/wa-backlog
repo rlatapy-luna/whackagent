@@ -52,8 +52,8 @@ SIZE_COLORS = {"quickwin": "GREEN", "medium": "YELLOW", "large": "RED"}
 CLAIM_FROM = {"grilling": {"todo"}, "coding": {"grilled", "review"}}
 CLAIM_NAMESPACE = "wa-claims"
 IGNORE_LABEL = "wa-ignore"
-# Sprint = parent issue labeled wa-sprint, titled with the sprint name; its tickets are its sub-issues.
-# Not a ticket itself: kept off the board, never claimed. The milestone is the release scope.
+# Sprint = parent issue labeled wa-sprint, sprint name = its title in kebab-case; its tickets are its
+# sub-issues. Not a ticket itself: kept off the board, never claimed. The milestone is the release scope.
 SPRINT_LABEL = "wa-sprint"
 
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
@@ -277,8 +277,13 @@ def is_sprint(issue):
     return SPRINT_LABEL in [l["name"] for l in issue["labels"]["nodes"]]
 
 
+def sprint_name(title):
+    """Kebab-case of a sprint issue title: the branch-safe name. Same rule as sprintName() in the hooks."""
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
 def sprint_of(parent):
-    return parent["title"] if parent and is_sprint(parent) else None
+    return sprint_name(parent["title"]) if parent and is_sprint(parent) else None
 
 
 def to_ticket(config, node, claim_map, with_owners=False, keep_sha=False):
@@ -436,7 +441,7 @@ def op_list(args):
             continue
         if not wanted and not args.all and ticket["state"] == "done":
             continue
-        if args.sprint and ticket["sprint"] != args.sprint:
+        if args.sprint and ticket["sprint"] != sprint_name(args.sprint):
             continue
         if args.milestone and ticket["milestone"] != args.milestone:
             continue
@@ -639,14 +644,18 @@ def set_milestone(config, number, title):
     rest("PATCH", f"repos/{config['repo']}/issues/{number}", {"milestone": milestone_number(config, title)})
 
 
+def sprint_issues(config, name):
+    return [
+        i for i in rest("GET", f"repos/{config['repo']}/issues?labels={SPRINT_LABEL}&state=all&per_page=100")
+        if sprint_name(i["title"]) == name and "pull_request" not in i
+    ]
+
+
 def sprint_issue(config, name):
     """Number of sprint <name>'s parent issue, created on first use. A closed one (sprint landed
     before) is reopened: same name, same sprint."""
     repo = config["repo"]
-    found = [
-        i for i in rest("GET", f"repos/{repo}/issues?labels={SPRINT_LABEL}&state=all&per_page=100")
-        if i["title"] == name and "pull_request" not in i
-    ]
+    found = sprint_issues(config, name)
     if found:
         if found[0]["state"] == "closed":
             rest("PATCH", f"repos/{repo}/issues/{found[0]['number']}", {"state": "open"})
@@ -658,6 +667,7 @@ def sprint_issue(config, name):
 def set_sprint(config, number, sprint):
     """Make the ticket a sub-issue of sprint <sprint>'s parent issue; "" detaches it."""
     repo = config["repo"]
+    sprint = sprint_name(sprint)
     owner, name = repo.split("/")
     parent = graphql(
         "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){parent{number title labels(first:20){nodes{name}}}}}}",
@@ -686,6 +696,35 @@ def op_set_field(args):
     else:
         set_milestone(config, args.number, args.value)
     emit({"number": args.number, args.field: args.value or None})
+
+
+def op_split(args):
+    """The ticket becomes the root of its split: sprint named after its title, off the board, children
+    join it as sub-issues (create --sprint <name>). Number, history and milestone stay."""
+    config = load()
+    number = args.number
+    ticket = find(config, number, with_owners=False)
+    if ticket["closed"]:
+        raise Failure(f"#{number} is closed", EXIT_WRONG_STATE)
+    if ticket["sprint"]:  # sprints don't nest: the children join this one instead
+        raise Failure(f"#{number} is already in sprint {ticket['sprint']!r}", EXIT_WRONG_STATE)
+    if ticket["claims"]:
+        held = ", ".join(c["phase"] for c in ticket["claims"])
+        raise Failure(f"#{number} is claimed ({held}) — release it first", EXIT_WRONG_STATE)
+    name = sprint_name(ticket["title"])
+    if not name:
+        raise Failure(f"#{number} title has no letter or digit to name a sprint", EXIT_USAGE)
+    clash = sprint_issues(config, name)
+    if clash:
+        raise Failure(f"sprint {name!r} already exists (#{clash[0]['number']}) — retitle #{number} first", EXIT_WRONG_STATE)
+    rest("POST", f"repos/{config['repo']}/issues/{number}/labels", {"labels": [SPRINT_LABEL]})
+    graphql(
+        "mutation($p:ID!,$i:ID!){deleteProjectV2Item(input:{projectId:$p,itemId:$i}){deletedItemId}}",
+        p=config["project_id"],
+        i=ticket["item_id"],
+    )
+    comment(config, number, f"🌳 **split** — sprint `{name}`, its tickets are the sub-issues of this issue")
+    emit({"number": number, "sprint": name})
 
 
 def op_comment(args):
@@ -973,6 +1012,10 @@ def parser():
     s = sub.add_parser("close-milestone", help="close a shipped milestone (/wa-release only)")
     s.add_argument("title")
     s.set_defaults(func=op_close_milestone)
+
+    s = sub.add_parser("split", help="ticket becomes the sprint root of its split, children = sub-issues")
+    s.add_argument("number", type=int)
+    s.set_defaults(func=op_split)
 
     s = sub.add_parser("comment")
     s.add_argument("number", type=int)

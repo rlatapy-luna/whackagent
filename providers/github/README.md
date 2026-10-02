@@ -24,7 +24,7 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | state | Project `Status` single-select, options named per `WA_STATES` |
 | priority | Project item position (top = next) |
 | size | Project `Size` single-select: `quickwin`, `medium`, `large` |
-| sprint | parent issue, label `wa-sprint`, title = sprint name; tickets = its **sub-issues**. Created on first use, reopened when name reused. Not a ticket: off board, `get`/`claim` exit 4. Ticket already under a non-sprint parent → `set-field sprint` exit 4 (one parent per issue) |
+| sprint | parent issue, label `wa-sprint`, sprint name = title in kebab-case (`AI setup` → `ai-setup`); tickets = its **sub-issues**. Created on first use, reopened when name reused. `split <n>` turns a split ticket into its sprint root: label added, card removed from board, number/history/milestone kept. Not a ticket: off board, `get`/`claim` exit 4. Ticket already under a non-sprint parent → `set-field sprint` exit 4 (one parent per issue) |
 | milestone | release scope — `create` joins highest open milestone (version order of titles, then number), `--milestone ""` = none. Created by humans only. Closed by humans, or `close-milestone` from `/wa-release` on yes — never by hooks |
 | reservation | issue **assignees**. Assigned to another account than the `gh` one → `reserved: true`, `claim` exit 3 with `assigned: true`. Unassigned or assigned to you → claimable. Winning `claim` assigns the `gh` account (trailer `assigned: <login>` in claim commit); `release` removes it only when that trailer says claim made it. Hooks never touch assignees |
 | excluded | label `wa-ignore` |
@@ -68,6 +68,6 @@ Custom `branch.prefix` → edit `branches:` filter in workflow to match.
 - **Project item list lags** writes by 1–3 min (GitHub indexing). `list` may miss brand-new tickets; `get`/`claim` read through issue — always current.
 - Claim race: N agents claim same ticket → exactly one exit 0, rest exit 3 with owner (tested 6-way). Only `Reference already exists` counts as taken; any other ref error surfaces as-is.
 - Columns outside the six states (board's own `Blocked`, default `In Progress`) are kept by provision with their colors/descriptions, and left alone by script and hooks: `state: null`, `column: <name>`, not claimable.
-- Closed issues (canceled, split parent) hidden from `list`, never claimable.
+- Closed issues (canceled) hidden from `list`, never claimable. Split parent = sprint root, off board.
 - Right after someone moves a card by hand, a read may see previous column for a second or two (GitHub replica lag).
 - Organization project: works with same PAT scopes; GitHub App path (not tied to one person) not built yet.

@@ -44,6 +44,7 @@ All print JSON on stdout, messages on stderr.
 | `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` / `set-field <id> milestone <title\|"">` | fields; sprint created on first use, milestone must be known to `milestones` (never created) | object |
 | `milestones` | release scopes, **highest first** (*Milestones*) — open ones, then closed ones still holding open tickets | `[{title,open,tickets,done}]` — `tickets` total, `done` closed (landed or canceled) |
 | `close-milestone <title>` | close shipped milestone — **`/wa-release` only, on user's yes** | `{title,open:false}`; unknown → exit 2 |
+| `split <id>` | ticket too big → becomes **root of sprint** named after its title (kebab-case), leaves board; children join via `create --sprint <name>`. Unclaimed, open, not in sprint, name free — else exit 4 | `{number,sprint}` |
 | `comment <id> <text>` | human-facing trail | object |
 | `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |

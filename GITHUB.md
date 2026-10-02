@@ -21,7 +21,7 @@ An agent never writes "this is grilled", "this is in review" or "this is done" o
 | State | Project `Status` field (the board columns) |
 | Priority | card order on the Project (top = next) |
 | Size | Project `Size` field: `quickwin`, `medium`, `large` |
-| Sprint | a parent issue labeled `wa-sprint`, titled with the sprint name; its tickets are its **sub-issues** (GitHub shows a progress bar) |
+| Sprint | a parent issue labeled `wa-sprint`; the sprint name is its title in kebab-case (`AI setup` → `ai-setup`); its tickets are its **sub-issues** (GitHub shows a progress bar) |
 | Milestone | the repo's GitHub milestones |
 | Dependencies | issue **Relationships** ("blocked by") |
 | Spec | the task file `{tasks}/<n>-<slug>.md`, **on the ticket branch**, merged with the code |
@@ -133,7 +133,7 @@ Prioritization is **never automatic** under GitHub, because the board order is s
 4. Commits the task file (`task: grill #12 <slug>`) and pushes, once, at the end.
 5. The hook sees the spec on the branch and moves the ticket to `grilled`, dropping the grilling lock.
 
-Abort → `release --reset-to todo`, and the empty remote branch is deleted. A split → the children become new tickets in the same sprint and milestone, and the parent is released and closed with a comment linking them.
+Abort → `release --reset-to todo`, and the empty remote branch is deleted. A split → the parent is released and becomes the sprint root (`split`: label `wa-sprint`, off the board, number, history and milestone kept; sprint name = its title in kebab-case), and the children become new tickets in its milestone, as its sub-issues. A parent already in a sprint can't become one: its children join that sprint and it is closed with a comment linking them.
 
 ### `/wa-code #12`
 
@@ -179,7 +179,7 @@ Same flow as with files. Readiness comes from `wa-backlog list --milestone`, and
 
 ## Sprints, milestones, dependencies
 
-- **Sprint** = parent issue (`wa-sprint` label) with the tickets as sub-issues. `set-field <n> sprint <name>` creates the parent on first use. Ticket branches fork off the sprint branch `sprint/<name>`, and ticket PRs target it. When the last ticket lands, `/wa-close` proposes the sprint PR onto `close.target`; merging it closes the parent. Without sprint branches (`WA_SPRINT_PREFIX=none`), the parent closes when its last sub-issue lands.
+- **Sprint** = parent issue (`wa-sprint` label) with the tickets as sub-issues. `set-field <n> sprint <name>` creates the parent on first use; a grill split turns the split ticket itself into the parent. Ticket branches fork off the sprint branch `sprint/<name>`, and ticket PRs target it. When the last ticket lands, `/wa-close` proposes the sprint PR onto `close.target`; merging it closes the parent. Without sprint branches (`WA_SPRINT_PREFIX=none`), the parent closes when its last sub-issue lands.
 - **Milestone** = release scope, not a sprint. You create milestones on GitHub. New tickets join the highest open one (version order of titles), so they never grow the scope that's about to ship. The hooks never touch milestones.
 - **Dependencies** = "blocked by" relationships. `/wa-autopilot` makes a ticket wait for its blocker's wave, or **stacks** it: the dependent PR targets the blocker's branch. Provisioning turns on `delete_branch_on_merge`, so merging the bottom PR deletes its branch and GitHub retargets the next PR automatically.
 

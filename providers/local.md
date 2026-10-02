@@ -31,6 +31,7 @@ Local `status: review` sits inside contract `coding` (coded, verifier not run) �
 | `set-field` | edit frontmatter `size:` / `sprint:` / `milestone:` |
 | `close-milestone` | remove entry from `backlog.milestones` (tasks keep `milestone:`) |
 | `milestones` | config `backlog.milestones` (open) highest first, then `milestone:` values not in that list whose tasks aren't all `done`/`canceled` (closed); counts from task files, `done` = `status: done`/`canceled` |
+| `split` | no root entity: parent `status: canceled` (line under **Canceled**), `sprint: <kebab title>`, `note: split → sprint <name>`. Already has `sprint:` → exit 4 |
 | `comment` | no-op |
 | `depend` | task `note:` `Depends on …` line (graph lives in text) |
 | `claims` | always empty |

@@ -1,4 +1,4 @@
-# whackagent board hooks — template version: 12
+# whackagent board hooks — template version: 13
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened                          → todo (sprint parents, label wa-sprint, stay off the board)
@@ -133,7 +133,8 @@ jobs:
             const comment = (number, body) =>
               github.rest.issues.createComment({ owner, repo, issue_number: number, body });
 
-            // Sprint = parent issue labeled wa-sprint, titled with the sprint name; tickets are its sub-issues.
+            // Sprint = parent issue labeled wa-sprint; sprint name = its title in kebab-case; tickets are its sub-issues.
+            const sprintName = (title) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
             async function closeSprint(number, why) {
               await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
               await comment(number, `🏁 **sprint landed** — ${why}`);
@@ -208,7 +209,7 @@ jobs:
                 if (!sprintPrefix || !pr.head.ref.startsWith(sprintPrefix) || payload.action !== "closed" || !pr.merged) return;
                 const name = pr.head.ref.slice(sprintPrefix.length);
                 const { data: open } = await github.rest.issues.listForRepo({ owner, repo, labels: SPRINT_LABEL, state: "open", per_page: 100 });
-                const parent = open.find((i) => i.title === name && !i.pull_request);
+                const parent = open.find((i) => sprintName(i.title) === name && !i.pull_request);
                 if (parent) await closeSprint(parent.number, `#${pr.number} merged \`${pr.head.ref}\` into \`${pr.base.ref}\``);
                 return;
               }
@@ -256,7 +257,7 @@ jobs:
                 // Sprint without branch: tickets land straight on the target, so the last one lands the sprint.
                 // With a branch, they land in it and the sprint lands with the sprint branch PR (above).
                 const parent = await sprintParent(number);
-                if (parent && parent.state === "OPEN" && pr.base.ref !== sprintPrefix + parent.title) {
+                if (parent && parent.state === "OPEN" && pr.base.ref !== sprintPrefix + sprintName(parent.title)) {
                   const { data: subs } = await github.request("GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
                     { owner, repo, issue_number: parent.number, per_page: 100 });
                   if (subs.every((s) => s.state === "closed")) await closeSprint(parent.number, `last ticket #${number} landed`);

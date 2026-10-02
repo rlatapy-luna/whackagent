@@ -129,9 +129,9 @@ Product-owner hat: what matters now, what order. New task(s) from this run = **f
    - **keep** — stays in todo.
    - **defer** — keep but push down order.
    - **cancel** — set `status: canceled`, move under Canceled, note why.
-3. **Split** when task too big for one coherent feature: create child task files (`<slug>-<part>.md`), link to parent via `note:`/`wiki:`, mark parent `canceled` or keep as umbrella — your call, tell user.
+3. **Split** when task too big for one coherent feature: parent → **`split <id>`** (root of sprint named after its title), create child task files (`<slug>-<part>.md`), link to parent via `note:`/`wiki:`.
    - **Children inherit milestone** — parent's, never highest: split adds no scope (**wa-board → Milestones**).
-   - **Children inherit sprint.** Parent had one → every child gets same `sprint`. Parent had none → split *is* reason sprints exist: name one after body of work parent described (`login redesign` → `login-refacto`), set on all children, say so in one-line split proposal. Parent kept as umbrella → carries sprint too.
+   - **Children inherit sprint.** Parent had one → every child gets same `sprint`. Parent had none → split *is* reason sprints exist: `split` names it after parent title in kebab-case (`Login redesign` → `login-redesign`), set on all children, say so in one-line split proposal. Title doesn't name body of work → fix title first (**wa-board → Titles and summaries**).
 4. **Re-estimate size** when picture changed (`large` 🔴 task split may now be `medium`/`quickwin`). Update each task `size`.
 5. **Reorder.** Order in **Todo** section = priority (top = next). No numeric labels in `{backlog}` — order alone carries priority. Reflect new order in `{backlog}`.
    - **Sprint moves as block.** Its tasks stay contiguous in section, own internal order (dependencies first). Prioritize *sprint* against rest, then tasks inside. Splitting sprint across order needs reason — say out loud (*"pulled login-apple out of the block: it unblocks onboarding"*).

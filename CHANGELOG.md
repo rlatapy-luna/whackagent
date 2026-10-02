@@ -7,6 +7,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 ### Changed
 
 - `/wa-grill` searches for existing libraries and SDKs before settling on a hand-rolled integration, parser or protocol client, and records the survey in `## Context / Decisions`.
+- A grill split on GitHub keeps the split ticket: it becomes the sprint's parent issue (new `split` verb), keeping its number, history and milestone, and the child tickets become its sub-issues. It used to be closed and replaced by a new sprint issue. Sprint names are now the kebab-case of the parent issue title, so a parent can keep a readable title. Hooks template version 13: run `/wa-setup backlog` to upgrade.
 
 ## [0.21.0] - 2026-10-01
 
