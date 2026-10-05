@@ -347,7 +347,7 @@ paths:
   worktrees: ../<repo>-worktrees   # task worktrees, must be outside the repo
 ```
 
-Relative resolves from the repo root, absolute works too (a wiki in a sibling repo). Only `.whackagent/config.md` is fixed — it's the file that carries the paths. Omit a key and it takes the default above, so a config written before `paths:` existed keeps working. Moving a path after setup means moving the files yourself; nothing back-fills. Reports aren't versioned: everything in them already lives in the task file and the wiki, so `/wa-setup` adds them to `.gitignore` (and offers to untrack ones already committed). A shared wiki is also a good reason to set `compress_wiki: false` — caveman compression saves the agents tokens and costs your teammates readability.
+Relative resolves from the repo root (`{worktrees}` from the main checkout root, even inside a worktree); a sibling repo is a relative path too (`../team-wiki/docs`). The config is versioned and shared, so never put a user-specific absolute path (`/Users/<name>/…`, `~/…`) or your personal commit identity in it: leave `commit.author_*` empty and each committer's own `git config` identity is used. Only `.whackagent/config.md` is fixed — it's the file that carries the paths. Omit a key and it takes the default above, so a config written before `paths:` existed keeps working. Moving a path after setup means moving the files yourself; nothing back-fills. Reports aren't versioned: everything in them already lives in the task file and the wiki, so `/wa-setup` adds them to `.gitignore` (and offers to untrack ones already committed). A shared wiki is also a good reason to set `compress_wiki: false` — caveman compression saves the agents tokens and costs your teammates readability.
 
 ## Task
 

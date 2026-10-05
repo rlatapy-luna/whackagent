@@ -10,8 +10,9 @@ project_kind: app              # app | web | server | cli | package  (picks arch
 
 paths:                         # WHERE whackagent keep each kind of file. Skills refer as
                                # {backlog} {tasks} {wiki} {reports} {conventions} {worktrees} — never literal path.
-                               # Relative path resolve from repo root; absolute allowed
-                               # (wiki in sibling repo, say).
+                               # Relative path resolve from repo root (sibling repo: ../other/docs).
+                               # Config versioned, shared → NEVER user-specific absolute path
+                               # (/Users/<name>, /home/<name>, ~): breaks every other machine.
                                # Point at committed, human-browsable folder when team share them —
                                # `docs/wiki` read on GitHub, `.whackagent/wiki` no.
                                # Missing key → default below, so old config still work.
@@ -21,8 +22,9 @@ paths:                         # WHERE whackagent keep each kind of file. Skills
   reports: .whackagent/reports          # run reports — local, gitignored by /wa-setup
   conventions: .whackagent/conventions  # convention modules copied here by /wa-setup
   worktrees: ../<repo>-worktrees  # task worktrees (branch.worktree, /wa-autopilot). <repo> = repo
-                               # folder name. MUST sit OUTSIDE repo: nested checkout get indexed,
-                               # grepped, globbed by builds.
+                               # folder name. Resolve from MAIN checkout root, even when setup run
+                               # from a worktree — keep relative. MUST sit OUTSIDE repo: nested
+                               # checkout get indexed, grepped, globbed by builds.
                                # `.whackagent/config.md` itself NOT configurable: it carry these
                                # paths, so must sit at known spot.
                                # Move path after setup → move files too; nothing back-fill.
@@ -125,9 +127,10 @@ verify:                        # runtime check — implementer drive app it just
 commit:
   auto_commit_after_validation: false   # may Claude commit once YOU validate feature?
                                # (name kept for old configs: it gate the commit /wa-close make)
-  author_name: ""              # commits ALWAYS use this — never "Claude". /wa-setup fill
-  author_email: ""             # from `git config user.name` / `user.email`. Empty → that git
-                               # identity at commit time, never a made-up one.
+  author_name: ""              # commits use this — never "Claude". Empty (default) → committer's own
+  author_email: ""             # `git config user.name` / `user.email` at commit time, never made-up one.
+                               # Config versioned, shared → never personal identity here: teammates'
+                               # commits would carry it. Set only for shared identity (team bot).
 
 branch:
   per_task: false              # /wa-code work on own branch per task instead of current one

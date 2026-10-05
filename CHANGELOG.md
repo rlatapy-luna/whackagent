@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- `/wa-setup` no longer writes user-specific values into the versioned config: `commit.author_name` / `author_email` stay empty (each committer's own git identity) and paths stay relative (`paths.worktrees` is `../<repo>-worktrees` even when setup runs from a worktree). Reconfigure flags existing home-dir paths and personal identities and offers the fix.
+
 ## [0.26.0] - 2026-10-05
 
 ### Added
