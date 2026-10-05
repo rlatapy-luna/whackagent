@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- The verifier now flags duplicated or re-implemented logic under its `structure` lens, for every language, and searches the codebase for existing code the diff rewrites instead of relying only on the plan's reuse list.
+
 ## [0.24.1] - 2026-10-02
 
 ### Changed
