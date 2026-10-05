@@ -8,7 +8,7 @@
 |---|---|---|
 | `wa-backlog` | `${CLAUDE_PLUGIN_ROOT}/providers/github/wa-backlog` | every contract verb. Python 3 stdlib + `gh`. Run from repo root. |
 | board workflow | caller `whackagent-board.yml` → target repo `.github/workflows/`; logic = reusable `rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v1` | hooks: issue opened, spec pushed, PR opened/pushed/merged/closed. Caller holds triggers, permissions, concurrency, passes secret. Logic updates itself: each release moves `hooks-v1` |
-| repo variables | `WA_PROJECT_OWNER`, `WA_PROJECT_NUMBER`, `WA_STATUS_FIELD`, `WA_SIZE_FIELD`, `WA_STATES`, `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_SPRINT_PREFIX` (`none` = sprints have no branch), `WA_STALE_AFTER_HOURS` | single source for script + workflow. Written by `wa-backlog provision`. |
+| repo variables | `WA_PROJECT_OWNER`, `WA_PROJECT_NUMBER`, `WA_STATUS_FIELD`, `WA_SIZE_FIELD`, `WA_STATES`, `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_SPRINT_PREFIX` (`none` = sprints have no branch), `WA_STALE_AFTER_HOURS`, `WA_TRACKS` (JSON list of `branch.tracks` keys, never a default milestone) | single source for script + workflow. Written by `wa-backlog provision`. |
 | secret | `WA_PROJECT_TOKEN` | classic PAT, scopes `project` + `repo`. Workflow Projects writes only — `GITHUB_TOKEN` can't reach Projects v2. |
 | claims | refs `refs/wa-claims/<issue#>/<phase>` | lock. Ref points at empty commit whose message names agent. |
 

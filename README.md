@@ -97,6 +97,25 @@ You own the list. With the local backlog it's `backlog.milestones` in the config
 
 `/wa-board` prints one progress line per milestone, highest first, and marks where new tasks go: `🎯 0.3.0 — 0/3 (3 todo) ← new tasks`. `/wa-board 0.3.0` and `/wa-autopilot 0.3.0` take a milestone like they take a sprint.
 
+### Tracks
+
+A track is a **long-shot feature that lives beside your base branch** on its own long-lived trunk, like a server experiment on `develop_synchro` next to `develop`. It may land one day or never. Without tracks configured, nothing in this section applies and the flow is unchanged.
+
+```yaml
+branch:
+  tracks:
+    server: develop_synchro   # milestone title: branch
+```
+
+- **Membership is a milestone.** A task in the `server` milestone forks from `develop_synchro` and opens its PR there, sprint branches included. Every other task forks from `branch.base` as usual.
+- **New tasks never join a track by default.** The default milestone skips tracks. When an idea clearly belongs to one, `/wa-task` or `/wa-grill` suggests the track with a reason, and only your yes moves it there.
+- **Moving a task that already has a branch** rebases its commits onto the other trunk, resolves conflicts through the implementer, shows you the diff, force-pushes after you confirm and retargets the PR. A move always resets validation, since the same diff now runs on a different codebase.
+- **Syncing.** `/wa-board` shows how far the track lags (`🎯 server — 2/6 (2 in review, 4 todo) · 30 behind develop`), and `/wa-code` offers a sync before forking off a stale trunk. A sync merges the base into the track through a `wa-sync/<track>-<date>` PR, never a rebase, and it only runs on your yes.
+- **Back-ports.** Shipping part of the track early on the base is a plain task with `ported-from: #<pr>` in its task file. The next sync knows that code is a duplicate and keeps the track version.
+- **Landing.** When the long-shot wins, you create a task with `lands: <track>` on the release milestone it ships in. It is grilled like any task, then does a final sync and merges the track into its branch for one PR onto the base, to be merged with a merge commit. After it lands, whackagent offers to remove the track from the config.
+- **Abandoning.** On your word, the track's open tasks are canceled and the config entry goes. The branch is kept.
+- `/wa-release` refuses a track milestone, and `/wa-autopilot` never moves, syncs or lands a track.
+
 ### Releasing
 
 `/wa-release 0.3.0` ships a milestone. With no argument it lists the open milestones and suggests the lowest one, since that's the scope that ships next.

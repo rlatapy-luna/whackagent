@@ -142,6 +142,12 @@ branch:
                                # So task 3 of sprint see task 1 work — same screen, no blind conflict.
                                # Created by whoever need it first: /wa-code step 0 or /wa-autopilot
                                # wave setup. Empty string → sprint get no branch, tasks use base:.
+  tracks: {}                   # long-shot features on own long-lived trunk beside base:
+                               #   {server: develop_synchro} — key = milestone title, value = branch.
+                               # Task in that milestone fork from + land on that branch instead of
+                               # base:/close.target. New tasks never join it by default; agent
+                               # suggests, you decide. Rules: wa-board → Tracks. Needs per_task.
+                               # You own list. Empty (default) → no track, flow unchanged.
   checkout_next: true          # after /wa-close commit, hop onto next task branch (worktree mode:
                                #   create its worktree)
                                # (only when per_task AND commit.auto_commit_after_validation)

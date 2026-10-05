@@ -30,7 +30,7 @@ An agent never writes "this is grilled", "this is in review" or "this is done" o
 | Lock | a git ref `refs/wa-claims/<n>/<phase>` |
 | Reservation | issue **assignees**: assigned to another account = no agent of yours may claim it |
 
-There is no local mirror and no `BACKLOG.md`. The task file carries only whackagent's own data (`issue:`, `phase:`, `wiki:`, `note:`, `created:`) plus the spec sections; title, state, size, sprint and milestone live on GitHub only.
+There is no local mirror and no `BACKLOG.md`. The task file carries only whackagent's own data (`issue:`, `phase:`, `wiki:`, `note:`, `created:`, plus `ported-from:` / `lands:` for tracks) plus the spec sections; title, state, size, sprint and milestone live on GitHub only.
 
 The machinery is three pieces:
 
@@ -181,6 +181,7 @@ Same flow as with files. Readiness comes from `wa-backlog list --milestone`, and
 
 - **Sprint** = parent issue (`wa-sprint` label) with the tickets as sub-issues. `set-field <n> sprint <name>` creates the parent on first use; a grill split turns the split ticket itself into the parent. Ticket branches fork off the sprint branch `sprint/<name>`, and ticket PRs target it. When the last ticket lands, `/wa-close` proposes the sprint PR onto `close.target`; merging it closes the parent. Without sprint branches (`WA_SPRINT_PREFIX=none`), the parent closes when its last sub-issue lands.
 - **Milestone** = release scope, not a sprint. You create milestones on GitHub. New tickets join the highest open one (version order of titles), so they never grow the scope that's about to ship. The hooks never touch milestones.
+- **Track** = long-shot feature on its own long-lived trunk (`branch.tracks: {server: develop_synchro}` in the config, keyed by milestone title). Tickets in that milestone fork from and PR into the track branch, and new tickets never land there by default: `/wa-setup` passes each track to `provision --track`, stored in the `WA_TRACKS` repo variable, so `create` skips it. The hooks need nothing new: track PRs merge like any other, and sync branches (`wa-sync/<track>-<date>`) don't match the ticket prefix. See [Tracks](README.md#tracks).
 - **Dependencies** = "blocked by" relationships. `/wa-autopilot` makes a ticket wait for its blocker's wave, or **stacks** it: the dependent PR targets the blocker's branch. Provisioning turns on `delete_branch_on_merge`, so merging the bottom PR deletes its branch and GitHub retargets the next PR automatically.
 
 > **Don't delete a stacked branch by hand.** GitHub retargets dependent PRs only when the branch is deleted at merge time. Deleting it later (`git push --delete`, the API) **closes** every PR based on it. Retarget those PRs first.

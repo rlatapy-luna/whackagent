@@ -39,14 +39,14 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 
 1. **Resolve** `#12` / `12` / index. Ticket in `review` → **claim** `wa-backlog claim <n> coding` for this last round (exit 3 → someone mid-round, say who, stop). Legacy hooks (**wa-board → Backlog provider**, *Hooks version gate*): claim still held from delivery → same-host holder counts as yours, other host → stop. `phase:` in task file plays role of `status:` in step 1.
 2. **Wiki + commit** (steps 2b + 4) — always on ticket branch, task file included (`phase: validated`, Review/Verification filled) and wiki pages step 2b touched: they ride in ticket PR.
-3. **Rebase onto PR base** — `<branch.sprint_prefix><sprint>` when ticket has sprint, else `close.target`. Fetch first. Replay **ticket range only**: `git rebase --onto <base> $start^` (**wa-board → Backlog provider**, squash merge) — plain `git rebase <base>` replays squashed parents' commits and conflicts on every one. Stacked PR whose parent just landed: GitHub retargets it to parent's base once parent branch deleted; check `gh pr view --json baseRefName`, else `gh pr edit --base <base>`. PR base still another ticket's open branch (parent not landed) → **stop**: close parent first — rebasing ticket range onto sprint now drops parent's code. Conflicts mechanical (wiki index lines, import lists, generated files) → resolve yourself; touching logic → stop and ask with recommended resolution. Then **re-run build + tests**; red → stop, back to `/wa-feedback`.
+3. **Rebase onto PR base** — `<branch.sprint_prefix><sprint>` when ticket has sprint, else `close.target` (track ticket: its trunk, **wa-board → Tracks**). Fetch first. Replay **ticket range only**: `git rebase --onto <base> $start^` (**wa-board → Backlog provider**, squash merge) — plain `git rebase <base>` replays squashed parents' commits and conflicts on every one. Stacked PR whose parent just landed: GitHub retargets it to parent's base once parent branch deleted; check `gh pr view --json baseRefName`, else `gh pr edit --base <base>`. PR base still another ticket's open branch (parent not landed) → **stop**: close parent first — rebasing ticket range onto sprint now drops parent's code. Conflicts mechanical (wiki index lines, import lists, generated files) → resolve yourself; touching logic → stop and ask with recommended resolution. Then **re-run build + tests**; red → stop, back to `/wa-feedback`.
 4. **Push + PR** — `git push --force-with-lease` (rebased), then `gh pr create --base <base> --head <branch>` — title, body, labels, assignees, reviewers per **wa-board → Pull requests** — then `wa-backlog link-pr <n> <pr>` (milestone + Development link). **Existing draft PR** for branch (normal case: every round pushed to it) → push, refresh body (`gh pr edit`), `wa-backlog link-pr <n> <pr>` (idempotent — repairs PRs opened before it existed), then `gh pr ready <pr>` + `pr.reviewers` requested (**wa-board → Pull requests**) — draft = your test, ready = your merge. **Existing open non-draft PR** (fix round, or autopilot-validated PR already ready) → push + refresh body (**wa-board → Backlog provider**, *PR body refresh*), no new PR. Plan block names PR base and says it pushes; always confirmed, every time.
 5. **Board** — push fires `synchronize`: hook keeps `review`, releases coding claim; `ready_for_review` only comments. Confirm `wa-backlog get <n>` (re-read once after ~30 s). Never set state yourself.
 6. **Branch kept** — PR needs branch. Worktree (autopilot leftover or `branch.worktree`) removed only when clean — branch lives on remote, next round recreates it.
 7. **`done` is not yours** — merge on GitHub (human, or project's merge policy) → hook sets `done`, closes issue. Milestone untouched — humans close it.
 8. **Next** (`branch.checkout_next`) → next ticket only through **claim**: `/wa-code` without arg picks top unclaimed `grilled`. Never check out ticket branch you don't hold.
 
-Sprint landing (below) unchanged: last ticket of sprint merged into `sprint/<name>` → propose sprint PR onto `close.target` per **wa-board → Pull requests** (`{title}` = sprint name), body names sprint parent issue (`Sprint #<parent>`). Merge → hook closes parent: sprint landed.
+Sprint landing (below) unchanged: last ticket of sprint merged into `sprint/<name>` → propose sprint PR onto `close.target` (track sprint: its trunk) per **wa-board → Pull requests** (`{title}` = sprint name), body names sprint parent issue (`Sprint #<parent>`). Merge → hook closes parent: sprint landed.
 
 ## Plan block
 
@@ -76,18 +76,20 @@ Rules:
 
 **Task in sprint** (`sprint:` set, `branch.sprint_prefix` non-empty):
 
-1. Sprint branch = `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`). Absent → create from `branch.base`; happen when task coded before sprints existed.
+1. Sprint branch = `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`). Absent → create from `branch.base` (track task: its trunk); happen when task coded before sprints existed.
 2. Merge task branch into it. **Not rebase, not squash** — sprint branch is working branch, history yours to rewrite later if want.
 3. **Conflict → stop, leave merge in progress**, name files, say task stay `validated` until resolved. Never `--abort` behind their back, never guess resolution: conflict between two tasks of one sprint = real design question.
 4. Task branch landed → `delete_branch: auto` delete it.
 
-**Standalone task** (no sprint, or `sprint_prefix` empty) → `close.strategy`:
+**Standalone task** (no sprint, or `sprint_prefix` empty) → `close.strategy`. Track task (**wa-board → Tracks**): `close.target` below reads its trunk.
 
 - **`nothing`** (default) — stop after commit. Branch stay exactly where it is. Say plainly (`branch wa/login-apple kept — PR is yours`) so nobody wait on PR that not coming.
 - **`pr`** — push branch, then `gh pr create --base <close.target>`: title, body, labels, assignees, reviewers per **wa-board → Pull requests** (opened ready → reviewers at creation). Print URL. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
 - **`merge`** — merge into `close.target` locally, **no push**. Target checked out elsewhere or dirty → say so, stop. Conflict → same rule as sprint merge: leave it, name files.
 
 **`branch.worktree: true`** — merges run in a worktree, never switch main checkout. Target (sprint branch or `close.target`) checked out nowhere → task worktree, clean after commit: `git switch <target>`, merge task branch there. Target checked out in main checkout → merge there, only when clean; dirty → say so, stop. Conflict → merge left in progress **in that checkout**, name its path; cleanup skips worktree holding it.
+
+**Task carrying `lands: <track>`** (**wa-board → Tracks**, *Landing*) → PR body says **merge commit, never squash** (squash flattens whole trunk history); `merge` strategy uses `--no-ff`. Local, landed → offer removing track from `branch.tracks`, on yes. GitHub → `/wa-board` offers it once PR merged.
 
 **`branch.per_task: false`** — task coded on whatever branch you were on. Nothing to land, nothing to delete: commit, mark done, say so. Skip *Landing* and *Cleanup* whole.
 
@@ -107,7 +109,7 @@ Order matter — worktree holding branch block deleting it.
 Last task of sprint reach `done` — no task of that sprint left in `todo`, `in-progress`, `review` or `validated`:
 
 1. Say it: `🏁 login-refacto — 5/5, last task closed.`
-2. **Propose** applying `close.strategy` to sprint branch, onto `close.target` — same three behaviours as standalone task, recommendation first:
+2. **Propose** applying `close.strategy` to sprint branch, onto `close.target` (track sprint: its trunk) — same three behaviours as standalone task, recommendation first:
    ```
    → Recommended: PR sprint/login-refacto → main   (close.strategy: pr)
      Otherwise: keep the branch, you ship it yourself.

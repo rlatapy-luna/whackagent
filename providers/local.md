@@ -23,7 +23,7 @@ Local `status: review` sits inside contract `coding` (coded, verifier not run) �
 |---|---|
 | `list` | read `{backlog}` sections in order, frontmatter of each linked task. `--milestone` filters on `milestone:` |
 | `get` | read `{tasks}/<slug>.md` |
-| `create` | write `{tasks}/<slug>.md` from `templates/task.md`, append line under **Todo** in `{backlog}`. `milestone:` = `--milestone`, else highest entry of `backlog.milestones` (CONTRACT → *Milestones*), else empty |
+| `create` | write `{tasks}/<slug>.md` from `templates/task.md`, append line under **Todo** in `{backlog}`. `milestone:` = `--milestone`, else highest entry of `backlog.milestones` that isn't key of `branch.tracks` (CONTRACT → *Milestones*), else empty |
 | `claim` | no-op — single agent. Set `status: in-progress` when coding starts |
 | `release` | no-op |
 | `set-state` | edit frontmatter `status:` (+ move line to matching `{backlog}` section) |

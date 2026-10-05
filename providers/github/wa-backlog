@@ -203,6 +203,7 @@ def load(refresh=False):
         "tasks_path": variables.get("WA_TASKS_PATH", ".whackagent/tasks"),
         "branch_prefix": variables.get("WA_BRANCH_PREFIX", "wa/"),
         "stale_after_hours": int(variables.get("WA_STALE_AFTER_HOURS", "24")),
+        "tracks": json.loads(variables.get("WA_TRACKS", "[]")),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(config, indent=2))
@@ -604,8 +605,10 @@ def milestone_rank(milestone):
 
 
 def latest_milestone(config):
-    """Number of the highest open milestone (milestone_rank), or None."""
-    opened = milestones(config, "open")
+    """Number of the highest open milestone (milestone_rank), or None. Track milestones (branch.tracks)
+    never: new work lands on base, joining a track is the user's call."""
+    tracks = set(config.get("tracks", []))
+    opened = [m for m in milestones(config, "open") if m["title"] not in tracks]
     return max(opened, key=milestone_rank)["number"] if opened else None
 
 
@@ -922,6 +925,7 @@ def op_provision(args):
         "WA_BRANCH_PREFIX": args.branch_prefix,
         "WA_SPRINT_PREFIX": args.sprint_prefix or "none",  # "none": an empty variable reads as unset
         "WA_STALE_AFTER_HOURS": str(args.stale_after_hours),
+        "WA_TRACKS": json.dumps(args.track or []),
     }
     for name, value in variables.items():
         gh(["variable", "set", name, "--repo", repo, "--body", value])
@@ -1061,6 +1065,7 @@ def parser():
     s.add_argument("--branch-prefix", default="wa/")
     s.add_argument("--sprint-prefix", default="sprint/", help='branch.sprint_prefix ("" = sprints have no branch)')
     s.add_argument("--stale-after-hours", type=int, default=24)
+    s.add_argument("--track", action="append", metavar="MILESTONE", help="branch.tracks key: never a default milestone")
     s.set_defaults(func=op_provision)
     return p
 

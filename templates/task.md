@@ -1,6 +1,6 @@
 ---
 # GitHub provider (backlog.provider: github): file named {tasks}/<issue#>-<slug>.md, lives on ticket
-# branch, frontmatter keeps ONLY issue / phase / wiki / note / created. title, summary, size, sprint,
+# branch, frontmatter keeps ONLY issue / phase / wiki / note / created (+ ported-from / lands when set). title, summary, size, sprint,
 # milestone, status live on GitHub (issue + Project) — never here. phase: in-progress | review | validated.
 # issue: 12
 # phase:
@@ -19,6 +19,8 @@ status: todo            # todo | in-progress | review | validated | done | cance
 grilled: false          # true once clarified via /wa-grill (grill-me)
 wiki:                   # [[page]] refs, comma-separated
 note:                   # free-form trigger / context (optional, not auto-evaluated)
+# ported-from: #530     # TRACKS only (wa-board → Tracks): back-port of track PR onto base. Sync reads it.
+# lands: server         # TRACKS only: this task merges track into base. Uncomment when set.
 created:                # YYYY-MM-DD
 ---
 
