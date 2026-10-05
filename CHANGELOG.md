@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-05
+
 ### Added
 
 - Tracks: a long-shot feature can live on its own long-lived trunk beside your base branch (`branch.tracks: {server: develop_synchro}`, keyed by milestone title). Tasks in that milestone fork from and land on the track branch, new tasks never join it unless you say so, `/wa-board` shows how far the track lags and `/wa-code` offers a sync PR, back-ports carry `ported-from:`, and a `lands:` task merges the track back. Moving a coded task between trunks rebases it and resets its validation. GitHub provider: `wa-backlog provision --track` stores the list in the new `WA_TRACKS` repo variable; re-run `/wa-setup backlog` after adding a track. Projects without `branch.tracks` see no change.
