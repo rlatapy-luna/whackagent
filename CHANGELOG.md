@@ -6,10 +6,15 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [0.25.0] - 2026-10-05
 
+### Added
+
+- GitHub provider: PR bodies now carry the task's run report in a collapsed section, and when the PR merges the hook posts that report on the ticket. Tasks without a report post nothing extra. Ships through the `hooks-v1` tag.
+
+## [0.24.2] - 2026-10-05
+
 ### Changed
 
 - The verifier now flags duplicated or re-implemented logic under its `structure` lens, for every language, and searches the codebase for existing code the diff rewrites instead of relying only on the plan's reuse list.
-- GitHub provider: PR bodies now carry the task's run report in a collapsed section, and when the PR merges the hook posts that report on the ticket. Tasks without a report post nothing extra. Ships through the `hooks-v1` tag.
 
 ## [0.24.1] - 2026-10-02
 
