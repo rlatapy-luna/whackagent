@@ -10,7 +10,8 @@
 #   draft marked ready / back to draft      → nothing moves (already review)
 #   push to an open PR while coding claimed → review (end of an agent round); new `## Feedback`
 #                                            rounds of the task file linked (line permalinks) on the ticket and the PR
-#   PR merged (any base)                   → done, issue closed; sprint parent closed when the
+#   PR merged (any base)                   → done, issue closed, run report of the PR body (between
+#                                            <!-- wa-report --> markers) posted on it; sprint parent closed when the
 #                                            sprint has no branch and its last sub-issue is done
 #   sprint branch PR merged                → sprint parent issue closed (sprint landed)
 #   PR closed unmerged                     → grilled
@@ -294,7 +295,9 @@ jobs:
                 if (ticket.issue.state === "open") {
                   await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
                 }
-                await comment(number, `🎉 **done** — #${pr.number} merged into \`${pr.base.ref}\``);
+                // run report: local file the skills copy into the PR body, posted only when there
+                const report = /<!-- wa-report -->([\s\S]*?)<!-- \/wa-report -->/.exec(pr.body ?? "")?.[1].trim();
+                await comment(number, `🎉 **done** — #${pr.number} merged into \`${pr.base.ref}\`${report ? `\n\n${report}` : ""}`);
                 // Sprint without branch: tickets land straight on the target, so the last one lands the sprint.
                 // With a branch, they land in it and the sprint lands with the sprint branch PR (above).
                 const parent = await sprintParent(number);

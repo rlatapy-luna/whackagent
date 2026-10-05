@@ -62,7 +62,7 @@ stateDiagram-v2
 | `grilled` | spec written, ready to code | hook: ticket branch pushed with a task file holding non-empty `## Acceptance criteria` |
 | `coding` | **locked, short-lived**: one agent is working a round right now | agent `claim <n> coding` |
 | `review` | a PR is open; humans are on turn | hook: PR opened, or an agent round pushed to it |
-| `done` | the change landed | hook: PR merged, issue closed |
+| `done` | the change landed | hook: PR merged, issue closed, run report from the PR body posted on it |
 
 Two things to keep in mind:
 
