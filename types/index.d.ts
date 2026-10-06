@@ -63,6 +63,6 @@ export type Board =
 
 declare module 'claude-code' {
   interface PluginState {
-    whackagent: { board: Board; filter: string; task: string }
+    whackagent: { board: Board; filter: string; task: string; isBoardHidden: boolean }
   }
 }

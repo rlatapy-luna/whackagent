@@ -38,6 +38,7 @@ const GITHUB_MARK = '<svg fill="currentColor" xmlns="http://www.w3.org/2000/svg"
 const board = atom({ plugin: 'whackagent', key: 'board' } as const, { kind: 'loading' } as Board)
 const filter = atom({ plugin: 'whackagent', key: 'filter' } as const, '')
 const selectedTask = atom({ plugin: 'whackagent', key: 'task' } as const, '')
+const boardHidden = atom({ plugin: 'whackagent', key: 'isBoardHidden' } as const, false)
 
 let lastSignature = ''
 let lastGithubFetch = 0
@@ -384,6 +385,13 @@ export const register: Register = (on, options) => {
         )}
       </Box>
     )
+    const isBoardHidden = await read($, boardHidden)
+    const openCount =
+      current.kind === 'local'
+        ? current.tasks.filter(task => task.status !== 'done' && task.status !== 'canceled').length
+        : current.kind === 'github'
+          ? current.tickets.filter(ticket => ticket.state !== 'done').length
+          : 0
     let index = 0
 
     return (
@@ -391,36 +399,47 @@ export const register: Register = (on, options) => {
         <Box marginBottom={1} flexDirection="row" alignItems="center" gap={1}>
           {logo ?? <Text dimColor>{`provider: ${current.kind}`}</Text>}
           {view.milestone !== '' && <Text dimColor>{`· milestone: ${view.milestone}`}</Text>}
+          <Button
+            label={isBoardHidden ? '▸ board' : '▾ board'}
+            plain
+            onPress={() => void update($, boardHidden, isHidden => !isHidden)}
+          />
         </Box>
-        {view.tabs.length > 0 && (
-          <Box flexDirection="row" flexWrap="wrap" gap={1} marginBottom={1}>
-            {['', ...view.tabs].map(tab => (
-              <Button
-                key={`tab-${tab}`}
-                label={`${tab === view.filter ? '● ' : ''}${tab || 'All'}`}
-                variant={tab === view.filter ? 'primary' : 'secondary'}
-                onPress={() => void update($, filter, () => tab)}
-              />
+        {isBoardHidden ? (
+          <Text dimColor>{`${openCount} open task${openCount === 1 ? '' : 's'}`}</Text>
+        ) : (
+          <Box flexDirection="column">
+            {view.tabs.length > 0 && (
+              <Box flexDirection="row" flexWrap="wrap" gap={1} marginBottom={1}>
+                {['', ...view.tabs].map(tab => (
+                  <Button
+                    key={`tab-${tab}`}
+                    label={`${tab === view.filter ? '● ' : ''}${tab || 'All'}`}
+                    variant={tab === view.filter ? 'primary' : 'secondary'}
+                    onPress={() => void update($, filter, () => tab)}
+                  />
+                ))}
+              </Box>
+            )}
+            {view.sections.length === 0 && <Text dimColor>Backlog empty.</Text>}
+            {view.sections.map(section => (
+              <Box key={section.title} flexDirection="column" marginBottom={1}>
+                <Text bold>{section.title}</Text>
+                {section.rows.map(row => {
+                  index += 1
+                  return rowNode(row, `${index} · `, section.isClosed)
+                })}
+                {section.hidden > 0 && <Text dimColor>{`    +${section.hidden} more`}</Text>}
+              </Box>
+            ))}
+            {view.legend !== '' && <Text dimColor>{view.legend}</Text>}
+            {[...view.scopes, ...view.notes].map(line => (
+              <Box key={line}>
+                <Text dimColor>{line}</Text>
+              </Box>
             ))}
           </Box>
         )}
-        {view.sections.length === 0 && <Text dimColor>Backlog empty.</Text>}
-        {view.sections.map(section => (
-          <Box key={section.title} flexDirection="column" marginBottom={1}>
-            <Text bold>{section.title}</Text>
-            {section.rows.map(row => {
-              index += 1
-              return rowNode(row, `${index} · `, section.isClosed)
-            })}
-            {section.hidden > 0 && <Text dimColor>{`    +${section.hidden} more`}</Text>}
-          </Box>
-        ))}
-        {view.legend !== '' && <Text dimColor>{view.legend}</Text>}
-        {[...view.scopes, ...view.notes].map(line => (
-          <Box key={line}>
-            <Text dimColor>{line}</Text>
-          </Box>
-        ))}
         {current.kind === 'github' && (
           <Box marginTop={1}>
             <Button label="↻ refresh" onPress={reload} />
