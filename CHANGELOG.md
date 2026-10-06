@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-06
+
 ### Added
 
 - `/wa-close <sprint>` lands a complete sprint later: the sprint PR when its branch still holds unlanded work, else (GitHub) closes the sprint parent issue after asking. Not complete → says what's left.
