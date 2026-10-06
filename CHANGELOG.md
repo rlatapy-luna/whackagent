@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-06
+
 ### Added
 
 - Backlog pane: an open milestone whose tasks are all landed (at least one done, none left, not a track) shows `· ready to ship` with a `release` button that types `/wa-release <milestone>`.
