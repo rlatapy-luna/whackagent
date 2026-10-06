@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-10-06
+
 ### Added
 
 - Backlog pane: a `feedback` button on GitHub tickets in review whose PR is ready, as on drafts.
