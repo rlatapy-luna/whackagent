@@ -231,7 +231,7 @@ test('row actions follow the task state', async () => {
   expect(labels(ticketActions(free!))).toEqual(['feedback', 'validate', 'autopilot'])
   expect(ticketActions(claimed!)).toEqual([])
   expect(labels(ticketActions({ ...claimed!, claimedBy: '' }))).toEqual(['code', 'autopilot'])
-  expect(labels(ticketActions(ready!))).toEqual(['autopilot'])
+  expect(labels(ticketActions(ready!))).toEqual(['feedback', 'autopilot'])
 })
 
 const TASK_FILE = `---

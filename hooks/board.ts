@@ -385,12 +385,11 @@ function ticketStepActions(ticket: GithubTicket, phase: string): Action[] {
   const { number } = ticket
   if (ticket.state === 'todo') return [action('grill', `/wa-grill ${number}`)]
   if (ticket.state === 'grilled') return [action('code', `/wa-code ${number}`)]
-  if (ticket.state === 'review' && ticket.pr?.isDraft !== false) {
-    return phase === 'validated'
-      ? [action('close', `/wa-close ${number}`), action('feedback', `/wa-feedback ${number} `)]
-      : [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
-  }
-  return []
+  if (ticket.state !== 'review') return []
+  if (ticket.pr?.isDraft === false) return [action('feedback', `/wa-feedback ${number} `)]
+  return phase === 'validated'
+    ? [action('close', `/wa-close ${number}`), action('feedback', `/wa-feedback ${number} `)]
+    : [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
 }
 
 export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
