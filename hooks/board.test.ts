@@ -2,6 +2,8 @@ import { expect, test } from 'claude-code/testing'
 
 import {
   activeGithubIds,
+  githubSprintRows,
+  localSprintRows,
   githubReleases,
   localReleases,
   activeLocalIds,
@@ -21,7 +23,6 @@ import {
   parseBacklog,
   parseConfig,
   parseFields,
-  sprintLines,
   toTask,
 } from './board'
 
@@ -123,7 +124,8 @@ test('sprint and milestone lines count done over total, newest open marked', asy
     task({ slug: 'c', milestone: '0.2.0' }),
     task({ slug: 'd', milestone: 'server' }),
   ]
-  expect(sprintLines(tasks)).toEqual(['🏁 s1 — 1/2 (1 in review)'])
+  expect(localSprintRows(tasks).map(sprint => [sprint.title, sprint.summary])).toEqual([['s1', '1/2 done (1 in review)']])
+  expect(localSprintRows(tasks, '0.2.0')).toEqual([])
   expect(milestoneLines(tasks, ['0.2.0', '0.10.0', 'server'], ['server'])).toEqual([
     '🎯 0.10.0 — 1/2 (1 in review) ← new tasks',
     '🎯 0.2.0 — 0/1 (1 todo)',
@@ -185,7 +187,8 @@ test('github view orders by contract state', async () => {
   expect(view.sections[2]?.rows[0]?.tags.map(tag => tag.text)).toEqual(['#3', '🧪 draft #9'])
   expect(view.sections[2]?.rows[0]?.tags[1]?.href).toBeUndefined()
   expect(view.sections[0]?.rows[0]?.tags.map(tag => tag.text)).toEqual(['#2', 'login', '⚠'])
-  expect(view.scopes).toEqual(['🏁 login — 1/2 (1 todo)', '🎯 0.5.0 — 1/3 (1 todo, 1 in review) ← new tasks'])
+  expect(view.scopes).toEqual(['🎯 0.5.0 — 1/3 (1 todo, 1 in review) ← new tasks'])
+  expect(view.sprints.map(sprint => [sprint.title, sprint.summary])).toEqual([['login', '1/2 done (1 todo)']])
   expect(view.milestone).toBe('0.5.0')
 })
 
@@ -414,7 +417,8 @@ test('github: closed as not planned is canceled, not done, wherever its column',
   const view = githubView(tickets, [], milestones, [])
   expect(view.sections.map(section => `${section.icon} ${section.title}`)).toEqual(['🔨 Coding', '🎉 Done'])
   expect(githubView(tickets, [], milestones, [], 'm').sections.map(section => section.title)).toEqual(['Coding', 'Canceled'])
-  expect(view.scopes).toEqual(['🏁 s — 0/2 (1 coding)', '🎯 m — 1/2 (1 coding) ← new tasks'])
+  expect(view.scopes).toEqual(['🎯 m — 1/2 (1 coding) ← new tasks'])
+  expect(view.sprints.map(sprint => sprint.summary)).toEqual(['0/2 done (1 coding)'])
   expect(ticketActions(tickets[1]!)).toEqual([])
 })
 
@@ -428,11 +432,15 @@ test('a complete open milestone offers a release; 0/0, all canceled, live, close
     task({ slug: 'f', milestone: '0.2.0' }, 'done'),
   ]
   expect(localReleases(tasks, ['0.3.0', '0.4.0', '0.5.0', '0.6.0', 'server'], ['server'])).toEqual([
-    { line: '🎯 0.3.0 — 1/2 · ready to ship', action: { label: 'release', command: '/wa-release 0.3.0' } },
+    { name: '0.3.0', line: '🎯 0.3.0 — 1/2 · ready to ship', action: { label: 'release', command: '/wa-release 0.3.0' } },
   ])
-  expect(localView(tasks, ['0.3.0', '0.5.0'], [], '0.5.0').releases).toEqual([])
+  expect(localView(tasks, ['0.3.0', '0.5.0'], [], '0.5.0').ready).toEqual([])
   const { tickets } = toTickets(
-    [row({ number: 1, state: 'done', closed: true, milestone: '1.0' }), row({ number: 2, state: 'todo', milestone: '1.1' })],
+    [
+      row({ number: 1, state: 'done', closed: true, milestone: '1.0' }),
+      row({ number: 2, state: 'todo', milestone: '1.1' }),
+      row({ number: 3, state: 'done', closed: true, milestone: '1.0-sprint' }),
+    ],
     [],
     'wa/',
   )
@@ -444,8 +452,65 @@ test('a complete open milestone offers a release; 0/0, all canceled, live, close
         { title: '1.0', isOpen: true, tickets: 1, done: 1 },
         { title: '0.9', isOpen: true, tickets: 0, done: 0 },
         { title: '0.8', isOpen: false, tickets: 2, done: 2 },
+        { title: '1.0-sprint', isOpen: true, tickets: 3, done: 1 },
       ],
       [],
     ).map(ready => ready.action.command),
-  ).toEqual(['/wa-release 1.0'])
+  ).toEqual(['/wa-release 1.0', '/wa-release 1.0-sprint'])
+})
+
+test('a closed section shows its 3 most recent, all once expanded', async () => {
+  const done = ['a', 'b', 'c', 'd', 'e'].map(slug => task({ slug }, 'done'))
+  const collapsed = localView(done, [], []).sections[0]!
+  expect([collapsed.rows.map(one => one.key), collapsed.hidden, collapsed.isExpanded]).toEqual([['c', 'd', 'e'], 2, false])
+  const open = localView(done, [], [], '', ['done']).sections[0]!
+  expect([open.rows.length, open.hidden, open.isExpanded]).toEqual([5, 0, true])
+  expect(localView(done.slice(0, 2), [], [], '', ['done']).sections[0]?.isExpanded).toBe(false)
+})
+
+test('github: every open sprint parent is a row; all tickets closed offers close; milestone tab keeps its sprints', async () => {
+  const { tickets } = toTickets(
+    [
+      row({ number: 1, state: 'done', closed: true, sprint: 'smarter-report' }),
+      row({ number: 2, state: 'done', closed: true, not_planned: true, sprint: 'smarter-report' }),
+      row({ number: 3, state: 'coding', sprint: 'login-refacto' }),
+    ],
+    [],
+    'wa/',
+  )
+  const parents = [
+    { number: 183, title: 'Smarter report', milestone: '0.5.0' },
+    { number: 90, title: 'Login refacto', milestone: '' },
+    { number: 91, title: 'Empty sprint', milestone: '' },
+  ]
+  expect(
+    githubSprintRows(tickets, parents).map(sprint => [
+      sprint.title,
+      sprint.tags.map(tag => tag.text),
+      sprint.summary,
+      sprint.actions.map(one => one.command),
+      (sprint.children ?? []).map(child => child.key),
+    ]),
+  ).toEqual([
+    [
+      'Smarter report',
+      ['#183', '0.5.0'],
+      '1/2 done · complete',
+      ['/wa-close smarter-report'],
+      ['1', '2'],
+    ],
+    ['Login refacto', ['#90'], '0/1 done (1 coding)', [], ['3']],
+    ['Empty sprint', ['#91'], 'no ticket yet', [], []],
+  ])
+  expect(githubSprintRows(tickets, parents, '0.5.0').map(sprint => sprint.title)).toEqual(['Smarter report'])
+  const view = githubView(tickets, [], [], [], '', [], parents)
+  expect(view.scopes).toEqual([])
+  expect(view.ready).toEqual([])
+})
+
+test('a milestone ready to ship drops its progress line', async () => {
+  const { tickets } = toTickets([row({ number: 1, state: 'done', closed: true, milestone: '0.5.0' })], [], 'wa/')
+  const view = githubView(tickets, [], [{ title: '0.5.0', isOpen: true, tickets: 2, done: 1 }], [])
+  expect(view.scopes).toEqual([])
+  expect(view.ready.map(ready => ready.line)).toEqual(['🎯 0.5.0 — 1/1 · ready to ship'])
 })

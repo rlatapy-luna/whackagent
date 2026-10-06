@@ -50,7 +50,7 @@ test('board toggle is drawn first and folds the board', async ($, on) => {
 
 const GITHUB_CONFIG = '---\nbacklog:\n  provider: github\n---\n'
 const ROWS = [
-  { number: 12, title: 'Login', summary: 'S', state: 'coding', size: 'medium', assignees: ['me'], reserved: false, claims: [] },
+  { number: 12, title: 'Login', summary: 'S', state: 'coding', size: 'medium', sprint: 'auth', assignees: ['me'], reserved: false, claims: [] },
   { number: 13, title: 'Export', summary: 'S', state: 'review', size: 'medium', assignees: [], reserved: false, claims: [] },
 ]
 const PULLS = [
@@ -74,6 +74,7 @@ test('a PR opens from its tag and its in-flight tab: link on desktop, gh button 
     if (command.includes('wa-backlog list')) return ok(JSON.stringify(ROWS))
     if (command.includes('wa-backlog milestones')) return ok('[]')
     if (command.startsWith('gh pr list')) return ok(JSON.stringify(PULLS))
+    if (command.startsWith('gh issue list')) return ok(JSON.stringify([{ number: 90, title: 'Auth', milestone: null }]))
     if (command.includes('rev-parse --abbrev-ref')) return ok('main')
     return ok(command.startsWith('git') ? '' : '{}')
   })
@@ -82,6 +83,11 @@ test('a PR opens from its tag and its in-flight tab: link on desktop, gh button 
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
+    const toggle = async () => (await ui.find({ key: 'toggle-sprint-auth' }))?.props.label
+    expect(await toggle()).toBe('▸ 1 ticket')
+    await ui.press({ key: 'toggle-sprint-auth' })
+    expect(await toggle()).toBe('▾ hide tickets')
+    await ui.press({ key: 'toggle-sprint-auth' })
     if (surface === 'desktop') {
       const links = await Promise.all([ui.find({ type: 'Link', text: /draft #40/ }), ui.find({ type: 'Link', text: /PR #41/ })])
       expect(links.map(link => link?.props.href)).toEqual(['https://github.com/o/r/pull/40', 'https://github.com/o/r/pull/41'])
@@ -93,4 +99,35 @@ test('a PR opens from its tag and its in-flight tab: link on desktop, gh button 
     }
     await ui.unmount()
   }
+})
+
+test('+N more under Done shows every task, show less folds it back', async ($, on) => {
+  const slugs = ['t1', 't2', 't3', 't4', 't5']
+  const files: Record<string, string> = {
+    '/p/.whackagent/config.md': '---\nbacklog:\n  provider: local\n---\n',
+    '/p/.whackagent/BACKLOG.md': `# Backlog\n\n## Done\n\n${slugs.map(slug => `- [${slug}](tasks/${slug}.md)`).join('\n')}\n`,
+    ...Object.fromEntries(slugs.map(slug => [`/p/.whackagent/tasks/${slug}.md`, `---\ntitle: Task ${slug}\nstatus: done\n---\n`])),
+  }
+  on('session.root', () => ({ value: '/p' }))
+  on('session.start', () => ({ cwd: '/p' }))
+  on('command.register', () => ({ value: { command: 'wa-pane' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('fs.read', ($, e) => {
+    const text = files[e.path]
+    return text === undefined ? { deny: `ENOENT ${e.path}` } : { value: text }
+  })
+  on('fs.list', () => ({ value: [] }))
+  on('fs.stat', () => ({ deny: 'ENOENT' }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Task t1/ })).toBeUndefined()
+  await ui.press({ key: 'more-done' })
+  expect(await ui.find({ type: 'Text', text: /Task t1/ })).toBeDefined()
+  expect((await ui.find({ key: 'more-done' }))?.props.label).toBe('show less')
+  await ui.press({ key: 'more-done' })
+  expect(await ui.find({ type: 'Text', text: /Task t1/ })).toBeUndefined()
+  await ui.unmount()
 })

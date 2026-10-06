@@ -180,9 +180,9 @@ Sprint = **optional kebab-case label** on task (`sprint: login-refacto`), groupi
 - **Slug vs sprint**: task slug wins over sprint of same name. Name clash → say which one you took.
 
 - **One branch, when `branch.per_task`.** `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`), created from `branch.base` (track task: its trunk, **Tracks**) by whoever needs it first — `/wa-code` step 0 or `/wa-autopilot` wave. Tasks of sprint fork off it and `/wa-close` merges them back, so each task starts from sprint current state. `branch.sprint_prefix: ""` turns that off: tasks use `branch.base` like any other. Nothing merges into sprint branch before its task reviewed and closed.
-- **A sprint is complete, never `done`.** No sprint status exists. Complete when no task of it left in `todo`/`in-progress`/`review`/`validated` — `/wa-close` notices and offers to land sprint branch.
+- **A sprint is complete, never `done`.** No sprint status exists. Complete when no task of it left in `todo`/`in-progress`/`review`/`validated` — `/wa-close` notices and offers to land sprint branch; missed then (no, closed elsewhere, GitHub parent still open) → `/wa-close <sprint>` lands it later.
 
-Commands taking sprint name: `/wa-board <sprint>` (filtered view), `/wa-autopilot <sprint>` (batch its todo tasks), `/wa-task` (assigns and inherits). `/wa-grill`, `/wa-code`, `/wa-validate`, `/wa-feedback`, `/wa-close` stay **per task** — one task is their unit, and whole sprint unattended is what `/wa-autopilot` already does better.
+Commands taking sprint name: `/wa-board <sprint>` (filtered view), `/wa-autopilot <sprint>` (batch its todo tasks), `/wa-task` (assigns and inherits), `/wa-close <sprint>` (land complete sprint, **wa-close → Sprint arg**). `/wa-grill`, `/wa-code`, `/wa-validate`, `/wa-feedback` stay **per task** — one task is their unit, and whole sprint unattended is what `/wa-autopilot` already does better.
 
 ## Milestones
 

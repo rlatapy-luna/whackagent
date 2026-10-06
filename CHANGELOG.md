@@ -4,6 +4,17 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- `/wa-close <sprint>` lands a complete sprint later: the sprint PR when its branch still holds unlanded work, else (GitHub) closes the sprint parent issue after asking. Not complete → says what's left.
+- Backlog pane: a **🏁 Sprints** section at the top of the board, one row per sprint (GitHub: every open `wa-sprint` parent, with its `#n` and milestone) with its progress, a `▸ N tickets` toggle that unfolds its tickets under it, and a `close` button (`/wa-close <sprint>`) once all its tickets are closed. It replaces the 🏁 progress lines under the board.
+- Backlog pane: `+N more` under 🎉 Done or 🚫 Canceled lists every task of that section; `show less` folds it back to the three most recent.
+
+### Fixed
+
+- Backlog pane: a milestone ready to ship no longer also shows its progress line.
+- Backlog pane: a GitHub milestone is ready to ship once every ticket on the board is landed; its sprint parent issues (`wa-sprint`) and `wa-ignore` issues no longer hide the `release` button.
+
 ## [0.34.0] - 2026-10-06
 
 ### Added

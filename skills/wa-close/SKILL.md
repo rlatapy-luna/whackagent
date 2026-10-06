@@ -1,6 +1,6 @@
 ---
 name: wa-close
-description: Close validated task — record done, commit, land branch (sprint merge, PR, or nothing per config), clean branch and worktree. Last step of task lifecycle.
+description: Close validated task — record done, commit, land branch (sprint merge, PR, or nothing per config), clean branch and worktree. Last step of task lifecycle. `/wa-close <sprint>` lands a complete sprint.
 ---
 
 # /wa-close
@@ -15,7 +15,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 
 ## Do
 
-1. **Resolve task.** Slug or display index, per **wa-board → Task indexes**; echo what resolved. No arg → most recent `validated`. Read `.whackagent/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **wa-board → Paths**.
+1. **Resolve task.** Slug or display index, per **wa-board → Task indexes**; echo what resolved. No arg → most recent `validated`. Arg names sprint, no task (**wa-board → Sprints**, *Resolving a name*; GitHub: open `wa-sprint` parent, kebab title) → *Sprint arg* below instead. Read `.whackagent/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **wa-board → Paths**.
    - `status: validated` → normal path, continue.
    - `status: review` → **never reviewed.** Say so, send to `/wa-validate <slug>`, stop. Closing here close unreviewed code.
    - `status: in-progress` → not coded. Stop.
@@ -103,6 +103,17 @@ Order matter — worktree holding branch block deleting it.
    - `always` → delete. **Unmerged → ask first**, say what would be lost.
    - `never` → keep, say so.
 3. **Local only.** Never delete remote branch, never `push --delete`, unless asked in that message.
+
+## Sprint arg — land complete sprint
+
+`/wa-close <sprint>` — sprint whose tasks all closed but never landed: no at last task's close, tasks closed elsewhere, GitHub parent left open.
+
+1. **Complete?** Task left `todo` / `in-progress` / `review` / `validated` (GitHub: open sub-issue on board) → list what left, stop. None `done`, all canceled → nothing to ship: GitHub → offer closing parent as not planned (`gh issue close <parent> --reason "not planned"`, confirm first); local → say so, stop.
+2. **Anything to land?** Fetch. Sprint branch `<branch.sprint_prefix><sprint>` holds commits not in `close.target` (track sprint: its trunk) — `git rev-list --count <target>..<sprint branch>` > 0 → *Sprint landing* steps 2–4 below (GitHub: sprint PR body `Sprint #<parent>`; merge → hook closes parent). Branch absent, empty or already in target → nothing to land.
+3. **Nothing to land** → GitHub: close parent — `gh issue close <parent> --comment "🏁 sprint landed — every sub-issue closed, nothing left on the sprint branch"`. Outward: confirm first. Local: say complete, nothing to do.
+4. **Report** one line: `🏁 <sprint> — <done>/<total> · <PR #n opened | parent #n closed | already landed>`.
+
+Never touches a task: their states stay theirs.
 
 ## Sprint landing
 

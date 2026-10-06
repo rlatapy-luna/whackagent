@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Board, BoardTask, MilestoneCount, TaskFocus } from '../types'
+import type { Board, BoardTask, MilestoneCount, SprintParent, TaskFocus } from '../types'
 import type { FocusView, PullRequest, View, ViewRow, WaConfig, Worktree } from './board'
 import {
   SIZE_ICON,
@@ -39,6 +39,8 @@ const board = atom({ plugin: 'whackagent', key: 'board' } as const, { kind: 'loa
 const filter = atom({ plugin: 'whackagent', key: 'filter' } as const, '')
 const selectedTask = atom({ plugin: 'whackagent', key: 'task' } as const, '')
 const boardHidden = atom({ plugin: 'whackagent', key: 'isBoardHidden' } as const, false)
+const expandedStates = atom({ plugin: 'whackagent', key: 'expanded' } as const, [] as string[])
+const openSprints = atom({ plugin: 'whackagent', key: 'openSprints' } as const, [] as string[])
 
 let lastSignature = ''
 let lastGithubFetch = 0
@@ -210,13 +212,16 @@ async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, is
   if (!isForced && now - lastGithubFetch < GITHUB_POLL_MS) return refreshFocusFiles($)
   lastGithubFetch = now
   const script = `${$.plugin.root}/providers/github/wa-backlog`
-  const [rows, milestones, pulls, refs] = await Promise.all([
+  const [rows, milestones, pulls, refs, sprints] = await Promise.all([
     runJson($, ['python3', script, 'list', '--all', '--owners'], at.root, 'wa-backlog list'),
     runJson($, ['python3', script, 'milestones'], at.root, 'wa-backlog milestones'),
     runJson($, ['gh', 'pr', 'list', '--json', 'number,headRefName,isDraft,url', '--limit', '200'], at.root, 'gh pr list').catch(
       () => [],
     ),
     ticketRefs($, at, config.branchPrefix),
+    runJson($, ['gh', 'issue', 'list', '--label', 'wa-sprint', '--state', 'open', '--json', 'number,title,milestone', '--limit', '100'], at.root, 'gh issue list').catch(
+      () => [],
+    ),
   ])
   const { tickets, drafts } = toTickets(rows as Record<string, unknown>[], pulls as PullRequest[], config.branchPrefix)
   const counts = (milestones as { title: string; open: boolean; tickets: number; done: number }[]).map(
@@ -238,7 +243,18 @@ async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, is
       return githubFocus($, at, config, script, pulls as PullRequest[], id, source)
     }),
   )
-  const next: Board = { kind: 'github', tickets, drafts, milestones: counts, tracks: config.tracks, active, here }
+  const next: Board = {
+    kind: 'github',
+    tickets,
+    drafts,
+    milestones: counts,
+    sprints: (Array.isArray(sprints) ? (sprints as { number: number; title: string; milestone: { title: string } | null }[]) : []).map(
+      (parent): SprintParent => ({ number: parent.number, title: parent.title, milestone: parent.milestone?.title ?? '' }),
+    ),
+    tracks: config.tracks,
+    active,
+    here,
+  }
   const signature = `github\n${JSON.stringify(next)}`
   return signature === lastSignature ? undefined : { next, signature }
 }
@@ -281,7 +297,7 @@ function focusesOf(current: Board): FocusView[] {
   return []
 }
 
-function viewOf(current: Board, milestone: string): View | string {
+function viewOf(current: Board, milestone: string, expanded: readonly string[]): View | string {
   switch (current.kind) {
     case 'loading':
       return 'Reading backlog…'
@@ -290,9 +306,9 @@ function viewOf(current: Board, milestone: string): View | string {
     case 'error':
       return `Backlog unreadable: ${current.message}`
     case 'local':
-      return localView(current.tasks, current.milestones, current.tracks, milestone)
+      return localView(current.tasks, current.milestones, current.tracks, milestone, expanded)
     case 'github':
-      return githubView(current.tickets, current.drafts, current.milestones, current.tracks, milestone)
+      return githubView(current.tickets, current.drafts, current.milestones, current.tracks, milestone, expanded, current.sprints)
   }
 }
 
@@ -330,7 +346,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Link } = $.ui.resolve(e)
     const current = await read($, board)
-    const view = viewOf(current, await read($, filter))
+    const view = viewOf(current, await read($, filter), await read($, expandedStates))
     const reload = () => void refresh($, true)
 
     if (typeof view === 'string') {
@@ -403,6 +419,7 @@ export const register: Register = (on, options) => {
       </Box>
     )
     const isBoardHidden = await read($, boardHidden)
+    const sprintsOpen = await read($, openSprints)
     const openCount =
       current.kind === 'local'
         ? current.tasks.filter(task => task.status !== 'done' && task.status !== 'canceled').length
@@ -439,6 +456,39 @@ export const register: Register = (on, options) => {
                 ))}
               </Box>
             )}
+            {view.sprints.length > 0 && (
+              <Box flexDirection="column" marginBottom={1}>
+                <Text bold>🏁 Sprints</Text>
+                {view.sprints.map(row => {
+                  const children = row.children ?? []
+                  const isOpen = sprintsOpen.includes(row.key)
+                  return (
+                    <Box key={row.key} flexDirection="column">
+                      {rowNode(row, '', false)}
+                      {children.length > 0 && (
+                        <Box paddingLeft={4}>
+                          <Button
+                            key={`toggle-${row.key}`}
+                            label={isOpen ? '▾ hide tickets' : `▸ ${children.length} ticket${children.length === 1 ? '' : 's'}`}
+                            plain
+                            onPress={() =>
+                              void update($, openSprints, keys =>
+                                keys.includes(row.key) ? keys.filter(key => key !== row.key) : [...keys, row.key],
+                              )
+                            }
+                          />
+                        </Box>
+                      )}
+                      {isOpen && (
+                        <Box flexDirection="column" paddingLeft={4}>
+                          {children.map(child => rowNode(child, '', false))}
+                        </Box>
+                      )}
+                    </Box>
+                  )
+                })}
+              </Box>
+            )}
             {view.sections.length === 0 && <Text dimColor>Backlog empty.</Text>}
             {view.sections.map(section => (
               <Box key={section.title} flexDirection="column" marginBottom={1}>
@@ -447,7 +497,22 @@ export const register: Register = (on, options) => {
                   index += 1
                   return rowNode(row, `${index} · `, section.isClosed)
                 })}
-                {section.hidden > 0 && <Text dimColor>{`    +${section.hidden} more`}</Text>}
+                {(section.hidden > 0 || section.isExpanded) && (
+                  <Box paddingLeft={4}>
+                    <Button
+                      key={`more-${section.state}`}
+                      label={section.isExpanded ? 'show less' : `+${section.hidden} more`}
+                      plain
+                      onPress={() =>
+                        void update($, expandedStates, states =>
+                          states.includes(section.state)
+                            ? states.filter(state => state !== section.state)
+                            : [...states, section.state],
+                        )
+                      }
+                    />
+                  </Box>
+                )}
               </Box>
             ))}
             {view.legend !== '' && <Text dimColor>{view.legend}</Text>}
@@ -456,7 +521,7 @@ export const register: Register = (on, options) => {
                 <Text dimColor>{line}</Text>
               </Box>
             ))}
-            {view.releases.map(ready => (
+            {view.ready.map(ready => (
               <Box key={ready.line} flexDirection="row" flexWrap="wrap" gap={1}>
                 <Text color="success">{ready.line}</Text>
                 <Button label={ready.action.label} onPress={fill(ready.action.command)} />

@@ -1,4 +1,4 @@
-import type { BoardTask, GithubState, GithubTicket, MilestoneCount, TaskFile, TaskFocus, TaskStatus } from '../types'
+import type { BoardTask, GithubState, GithubTicket, MilestoneCount, SprintParent, TaskFile, TaskFocus, TaskStatus } from '../types'
 
 export type WaConfig = {
   backlog: string
@@ -20,8 +20,17 @@ export type ViewRow = {
   tags: { text: string; tone: Tone; href?: string }[]
   summary: string
   actions: Action[]
+  children?: ViewRow[]
 }
-export type ViewSection = { icon: string; title: string; rows: ViewRow[]; hidden: number; isClosed: boolean }
+export type ViewSection = {
+  state: string
+  icon: string
+  title: string
+  rows: ViewRow[]
+  hidden: number
+  isClosed: boolean
+  isExpanded: boolean
+}
 export type FocusLine = { mark: string; text: string; tone: Tone | 'plain' }
 export type FocusBlock = { title: string; lines: FocusLine[] }
 export type FocusPr = { number: number; isDraft: boolean; url: string }
@@ -34,12 +43,13 @@ export type FocusView = {
   blocks: FocusBlock[]
 }
 
-export type Release = { line: string; action: Action }
+export type Release = { name: string; line: string; action: Action }
 export type View = {
   sections: ViewSection[]
   legend: string
   scopes: string[]
-  releases: Release[]
+  sprints: ViewRow[]
+  ready: Release[]
   notes: string[]
   milestone: string
   tabs: string[]
@@ -314,16 +324,6 @@ export const newestMilestone = (milestones: readonly string[], tracks: readonly 
 export const newestGithubMilestone = (milestones: readonly MilestoneCount[], tracks: readonly string[]) =>
   milestones.find(milestone => milestone.isOpen && !tracks.includes(milestone.title))?.title ?? ''
 
-export function sprintLines(tasks: readonly BoardTask[]): string[] {
-  const sprints = [...new Set(tasks.map(task => task.sprint).filter(Boolean))]
-  return sprints.flatMap(sprint => {
-    const members = tasks.filter(task => task.sprint === sprint)
-    if (!members.some(isLive)) return []
-    const done = members.filter(task => task.status === 'done').length
-    return [scopeLine('🏁', sprint, done, members.length, breakdown(members.map(task => task.status), STATUS_ORDER, LOCAL_LABEL))]
-  })
-}
-
 export const milestoneLines = (tasks: readonly BoardTask[], milestones: readonly string[], tracks: readonly string[]) =>
   milestoneScopes(tasks, milestones, tracks).map(scope => scope.line)
 
@@ -341,17 +341,68 @@ function milestoneScopes(tasks: readonly BoardTask[], milestones: readonly strin
     })
 }
 
-export function githubSprintLines(tickets: readonly GithubTicket[]): string[] {
-  const sprints = [...new Set(tickets.map(ticket => ticket.sprint).filter(Boolean))]
+export const sprintName = (title: string) =>
+  title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+const sprintSummary = (done: number, total: number, parts: readonly string[], isComplete: boolean) =>
+  `${done}/${total} done${parts.length > 0 ? ` (${parts.join(', ')})` : ''}${isComplete ? ' · complete' : ''}`
+
+export function localSprintRows(tasks: readonly BoardTask[], filter = ''): ViewRow[] {
+  const sprints = [...new Set(tasks.map(task => task.sprint).filter(Boolean))]
   return sprints.flatMap(sprint => {
-    const members = tickets.filter(ticket => ticket.sprint === sprint)
+    const members = tasks.filter(task => task.sprint === sprint)
+    if (!members.some(isLive) || (filter && !members.some(task => task.milestone === filter))) return []
+    const done = members.filter(task => task.status === 'done').length
+    const parts = breakdown(members.map(task => task.status), STATUS_ORDER, LOCAL_LABEL)
+    return [
+      {
+        key: `sprint-${sprint}`,
+        size: '',
+        title: sprint,
+        tags: [],
+        summary: sprintSummary(done, members.length, parts, false),
+        actions: [],
+        children: STATUS_ORDER.flatMap(status => members.filter(task => task.status === status)).map(localRow),
+      },
+    ]
+  })
+}
+
+export function githubSprintRows(tickets: readonly GithubTicket[], parents: readonly SprintParent[], filter = ''): ViewRow[] {
+  const known = new Set(parents.map(parent => sprintName(parent.title)))
+  const orphans = [...new Set(tickets.filter(ticket => ticket.sprint && isOpenTicket(ticket) && !known.has(ticket.sprint)).map(ticket => ticket.sprint))]
+  const entries = [
+    ...parents.map(parent => ({ sprint: sprintName(parent.title), title: parent.title, number: parent.number, milestone: parent.milestone })),
+    ...orphans.map(sprint => ({ sprint, title: sprint, number: 0, milestone: '' })),
+  ]
+  return entries.flatMap(entry => {
+    const members = tickets.filter(ticket => ticket.sprint === entry.sprint)
+    if (filter && entry.milestone !== filter && !members.some(ticket => ticket.milestone === filter)) return []
     const done = members.filter(ticket => ticket.state === 'done').length
-    if (!members.some(isOpenTicket)) return []
-    return [scopeLine('🏁', sprint, done, members.length, breakdown(members.map(ticket => ticket.state), GITHUB_ORDER, GITHUB_LABEL))]
+    const isComplete = members.length > 0 && !members.some(isOpenTicket)
+    const parts = breakdown(members.map(ticket => ticket.state), GITHUB_ORDER, GITHUB_LABEL)
+    return [
+      {
+        key: `sprint-${entry.sprint}`,
+        size: '',
+        title: entry.title,
+        tags: [
+          ...(entry.number ? [{ text: `#${entry.number}`, tone: 'muted' as const }] : []),
+          ...(entry.milestone ? [{ text: entry.milestone, tone: 'muted' as const }] : []),
+        ],
+        summary: members.length === 0 ? 'no ticket yet' : sprintSummary(done, members.length, parts, isComplete),
+        actions: isComplete ? [action('close', `/wa-close ${entry.sprint}`)] : [],
+        children: GITHUB_ORDER.flatMap(state => members.filter(ticket => ticket.state === state)).map(ticket => githubRow(ticket)),
+      },
+    ]
   })
 }
 
 const release = (name: string, done: number, total: number): Release => ({
+  name,
   line: `${scopeLine('🎯', name, done, total, [])} · ready to ship`,
   action: { label: 'release', command: `/wa-release ${name}` },
 })
@@ -373,11 +424,10 @@ export function githubReleases(
   tracks: readonly string[],
 ): Release[] {
   return milestones.flatMap(milestone => {
-    const isComplete = milestone.tickets > 0 && milestone.done === milestone.tickets
-    const hasLanded = tickets.some(ticket => ticket.milestone === milestone.title && ticket.state === 'done')
-    return milestone.isOpen && !tracks.includes(milestone.title) && isComplete && hasLanded
-      ? [release(milestone.title, milestone.done, milestone.tickets)]
-      : []
+    if (!milestone.isOpen || tracks.includes(milestone.title)) return []
+    const members = tickets.filter(ticket => ticket.milestone === milestone.title)
+    const done = members.filter(ticket => ticket.state === 'done').length
+    return done > 0 && !members.some(isOpenTicket) ? [release(milestone.title, done, members.length)] : []
   })
 }
 
@@ -451,33 +501,36 @@ function sections<T>(
   titles: Record<string, string>,
   closedStates: readonly string[],
   toRow: (item: T) => ViewRow,
+  expanded: readonly string[] = [],
 ): ViewSection[] {
   return order.flatMap(state => {
     const members = items.filter(item => stateOf(item) === state)
     if (members.length === 0) return []
     const isClosed = closedStates.includes(state)
-    const shown = isClosed ? members.slice(-CLOSED_SHOWN) : members
+    const isExpanded = isClosed && expanded.includes(state) && members.length > CLOSED_SHOWN
+    const shown = isClosed && !isExpanded ? members.slice(-CLOSED_SHOWN) : members
     return [
-      { icon: STATE_ICON[state] ?? '·', title: titles[state] ?? state, rows: shown.map(toRow), hidden: members.length - shown.length, isClosed },
+      {
+        state,
+        icon: STATE_ICON[state] ?? '·',
+        title: titles[state] ?? state,
+        rows: shown.map(toRow),
+        hidden: members.length - shown.length,
+        isClosed,
+        isExpanded,
+      },
     ]
   })
 }
 
-function scoped<T extends { milestone: string }>(
-  items: readonly T[],
-  sprintScopes: readonly string[],
-  milestoneScopes: readonly Scope[],
-  filter: string,
-) {
+function scoped<T extends { milestone: string }>(items: readonly T[], milestoneScopes: readonly Scope[], filter: string) {
   const tabs = milestoneScopes.map(scope => scope.name)
   const active = tabs.includes(filter) ? filter : ''
   return {
     tabs,
     filter: active,
     shown: active ? items.filter(item => item.milestone === active) : items,
-    scopes: active
-      ? milestoneScopes.filter(scope => scope.name === active).map(scope => scope.line)
-      : [...sprintScopes, ...milestoneScopes.map(scope => scope.line)],
+    scopes: milestoneScopes.filter(scope => !active || scope.name === active).map(scope => scope.line),
   }
 }
 
@@ -532,15 +585,17 @@ export function localView(
   milestones: readonly string[],
   tracks: readonly string[],
   filter = '',
+  expanded: readonly string[] = [],
 ): View {
-  const scope = scoped(tasks, sprintLines(tasks), milestoneScopes(tasks, milestones, tracks), filter)
+  const scope = scoped(tasks, milestoneScopes(tasks, milestones, tracks), filter)
   const order = scope.filter ? STATUS_ORDER : STATUS_ORDER.filter(status => status !== 'canceled')
-  const parts = sections(scope.shown, order, task => task.status, LOCAL_TITLE, ['done', 'canceled'], localRow)
+  const parts = sections(scope.shown, order, task => task.status, LOCAL_TITLE, ['done', 'canceled'], localRow, expanded)
   return {
     sections: parts,
     legend: legendOf(parts),
     scopes: scope.scopes,
-    releases: scope.filter ? [] : localReleases(tasks, milestones, tracks),
+    sprints: localSprintRows(tasks, scope.filter),
+    ready: scope.filter ? [] : localReleases(tasks, milestones, tracks),
     notes: [],
     milestone: newestMilestone(milestones, tracks),
     tabs: scope.tabs,
@@ -554,15 +609,19 @@ export function githubView(
   milestones: readonly MilestoneCount[],
   tracks: readonly string[],
   filter = '',
+  expanded: readonly string[] = [],
+  sprints: readonly SprintParent[] = [],
 ): View {
-  const scope = scoped(tickets, githubSprintLines(tickets), githubMilestoneScopes(tickets, milestones, tracks), filter)
+  const scope = scoped(tickets, githubMilestoneScopes(tickets, milestones, tracks), filter)
   const order = scope.filter ? GITHUB_ORDER : GITHUB_ORDER.filter(state => state !== 'canceled')
-  const parts = sections(scope.shown, order, ticket => ticket.state, GITHUB_TITLE, ['done', 'canceled'], ticket => githubRow(ticket))
+  const parts = sections(scope.shown, order, ticket => ticket.state, GITHUB_TITLE, ['done', 'canceled'], ticket => githubRow(ticket), expanded)
+  const releases = githubReleases(tickets, milestones, tracks)
   return {
     sections: parts,
     legend: legendOf(parts),
-    scopes: scope.scopes,
-    releases: scope.filter ? [] : githubReleases(tickets, milestones, tracks),
+    scopes: scope.scopes.filter(line => !releases.some(ready => line.startsWith(`🎯 ${ready.name} — `))),
+    sprints: githubSprintRows(tickets, sprints, scope.filter),
+    ready: scope.filter ? [] : releases,
     notes: !scope.filter && drafts.length > 0 ? [`📝 ${drafts.length} draft${drafts.length > 1 ? 's' : ''} — convert to issue on GitHub`] : [],
     milestone: newestGithubMilestone(milestones, tracks),
     tabs: scope.tabs,

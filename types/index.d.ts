@@ -44,6 +44,8 @@ export type TaskFocus = {
   prUrl: string
 }
 
+export type SprintParent = { number: number; title: string; milestone: string }
+
 export type MilestoneCount = { title: string; isOpen: boolean; tickets: number; done: number }
 
 export type Board =
@@ -56,6 +58,7 @@ export type Board =
       tickets: GithubTicket[]
       drafts: string[]
       milestones: MilestoneCount[]
+      sprints: SprintParent[]
       tracks: string[]
       active: TaskFocus[]
       here: string
@@ -63,6 +66,6 @@ export type Board =
 
 declare module 'claude-code' {
   interface PluginState {
-    whackagent: { board: Board; filter: string; task: string; isBoardHidden: boolean }
+    whackagent: { board: Board; filter: string; task: string; isBoardHidden: boolean; expanded: string[]; openSprints: string[] }
   }
 }
