@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-06
+
 ### Added
 
 - GitHub provider: `wa-backlog list` rows carry `not_planned` (issue closed as not planned).
