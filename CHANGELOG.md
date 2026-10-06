@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-06
+
 ### Added
 
 - Live backlog pane beside the conversation: the `/wa-board` list per state, with milestone tabs, per-task action buttons (`grill`, `code`, `feedback`, `validate`, `close`) and a `next:` button that type the command into the prompt. Works for the local and GitHub providers and refreshes on its own. Opens at session start in a whackagent project (turn off with the `auto_open` plugin option), or anytime with `/wa-pane`.
