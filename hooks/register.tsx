@@ -328,7 +328,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const { Box, Text, Button, Link } = $.ui.resolve(e)
     const current = await read($, board)
     const view = viewOf(current, await read($, filter))
     const reload = () => void refresh($, true)
@@ -357,6 +357,14 @@ export const register: Register = (on, options) => {
     const chosen = await read($, selectedTask)
     const focus = focuses.find(one => one.id === chosen) ?? focuses.find(one => one.id === here) ?? focuses[0]
     const fill = (command: string) => () => void $.prompt.fill({ text: command })
+    const openPr = (url: string) => () =>
+      void $.session.root().then(root => $.process.run(['gh', 'pr', 'view', url, '--web'], { cwd: root }))
+    const prLink = (url: string, label: string, key: string) =>
+      surface === 'terminal' || !url ? (
+        <Button key={key} label={label} plain onPress={openPr(url || label.replace(/\D/g, ''))} />
+      ) : (
+        <Link key={key} href={url} label={label} />
+      )
     const toneColor = (tone: string) => (tone === 'sprint' ? 'suggestion' : tone === 'warning' ? 'warning' : undefined)
     const rowNode = (row: ViewRow, label: string, isClosed: boolean) => (
       <Box key={row.key} flexDirection="column">
@@ -365,11 +373,18 @@ export const register: Register = (on, options) => {
           <Text bold={!isClosed} dimColor={isClosed} wrap="truncate-end">
             {row.title}
           </Text>
-          {row.tags.map(tag => (
-            <Text dimColor={tag.tone === 'muted'} color={toneColor(tag.tone)}>
-              {tag.text === '⚠' ? ' ⚠' : ` · ${tag.text}`}
-            </Text>
-          ))}
+          {row.tags.map(tag =>
+            tag.href ? (
+              <Box key={`${row.key}-${tag.text}`} flexDirection="row">
+                <Text dimColor> · </Text>
+                {prLink(tag.href, tag.text, `pr-${row.key}`)}
+              </Box>
+            ) : (
+              <Text dimColor={tag.tone === 'muted'} color={toneColor(tag.tone)}>
+                {tag.text === '⚠' ? ' ⚠' : ` · ${tag.text}`}
+              </Text>
+            ),
+          )}
         </Box>
         {(row.summary !== '' || row.actions.length > 0) && (
           <Box paddingLeft={4} flexDirection="row" gap={1}>
@@ -467,6 +482,12 @@ export const register: Register = (on, options) => {
                 </Text>
               </Box>
             ))}
+            {focus.pr && (
+              <Box paddingLeft={4} flexDirection="row" gap={1}>
+                {prLink(focus.pr.url, `PR #${focus.pr.number}`, 'open-pr')}
+                <Text dimColor>{focus.pr.isDraft ? '· 🧪 draft' : '· 🔀 ready'}</Text>
+              </Box>
+            )}
             {focus.blocks.map(block => (
               <Box key={block.title} flexDirection="column" marginTop={1}>
                 <Text bold>{block.title}</Text>

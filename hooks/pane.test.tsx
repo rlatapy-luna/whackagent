@@ -47,3 +47,50 @@ test('board toggle is drawn first and folds the board', async ($, on) => {
     await ui.unmount()
   }
 })
+
+const GITHUB_CONFIG = '---\nbacklog:\n  provider: github\n---\n'
+const ROWS = [
+  { number: 12, title: 'Login', summary: 'S', state: 'coding', size: 'medium', assignees: ['me'], reserved: false, claims: [] },
+  { number: 13, title: 'Export', summary: 'S', state: 'review', size: 'medium', assignees: [], reserved: false, claims: [] },
+]
+const PULLS = [
+  { number: 40, headRefName: 'wa/13-export', isDraft: true, url: 'https://github.com/o/r/pull/40' },
+  { number: 41, headRefName: 'wa/12-login', isDraft: true, url: 'https://github.com/o/r/pull/41' },
+]
+
+test('a PR opens from its tag and its in-flight tab: link on desktop, gh button on terminal', async ($, on) => {
+  const ok = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+  on('session.root', () => ({ value: '/p' }))
+  on('session.start', () => ({ cwd: '/p' }))
+  on('command.register', () => ({ value: { command: 'wa-pane' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('clock.now', () => ({ value: 1_800_000_000_000 }))
+  on('fs.read', ($, e) => (e.path === '/p/.whackagent/config.md' ? { value: GITHUB_CONFIG } : { deny: `ENOENT ${e.path}` }))
+  on('fs.stat', () => ({ deny: 'ENOENT' }))
+  const opened: string[] = []
+  on('process.run', ($, e) => {
+    const command = e.argv.join(' ')
+    if (command.startsWith('gh pr view')) opened.push(command)
+    if (command.includes('wa-backlog list')) return ok(JSON.stringify(ROWS))
+    if (command.includes('wa-backlog milestones')) return ok('[]')
+    if (command.startsWith('gh pr list')) return ok(JSON.stringify(PULLS))
+    if (command.includes('rev-parse --abbrev-ref')) return ok('main')
+    return ok(command.startsWith('git') ? '' : '{}')
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    if (surface === 'desktop') {
+      const links = await Promise.all([ui.find({ type: 'Link', text: /draft #40/ }), ui.find({ type: 'Link', text: /PR #41/ })])
+      expect(links.map(link => link?.props.href)).toEqual(['https://github.com/o/r/pull/40', 'https://github.com/o/r/pull/41'])
+    } else {
+      const found = await Promise.all([ui.find({ key: 'pr-13' }), ui.find({ key: 'open-pr' })])
+      expect(found.map(one => one?.type)).toEqual(['Button', 'Button'])
+      await ui.press({ key: 'pr-13' })
+      expect(opened).toEqual(['gh pr view https://github.com/o/r/pull/40 --web'])
+    }
+    await ui.unmount()
+  }
+})

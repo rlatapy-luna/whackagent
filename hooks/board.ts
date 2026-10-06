@@ -17,14 +17,22 @@ export type ViewRow = {
   key: string
   size: string
   title: string
-  tags: { text: string; tone: Tone }[]
+  tags: { text: string; tone: Tone; href?: string }[]
   summary: string
   actions: Action[]
 }
 export type ViewSection = { icon: string; title: string; rows: ViewRow[]; hidden: number; isClosed: boolean }
 export type FocusLine = { mark: string; text: string; tone: Tone | 'plain' }
 export type FocusBlock = { title: string; lines: FocusLine[] }
-export type FocusView = { id: string; icon: string; row: ViewRow | null; facts: string[]; blocks: FocusBlock[] }
+export type FocusPr = { number: number; isDraft: boolean; url: string }
+export type FocusView = {
+  id: string
+  icon: string
+  row: ViewRow | null
+  facts: string[]
+  pr: FocusPr | null
+  blocks: FocusBlock[]
+}
 
 export type View = { sections: ViewSection[]; legend: string; scopes: string[]; notes: string[]; milestone: string; tabs: string[]; filter: string }
 
@@ -256,7 +264,7 @@ export function toTickets(
       claimedBy: claims.length > 0 ? (text(claims[0]?.agent).split(/[/\\]/).pop() ?? '') || '?' : '',
       reservedBy: row.reserved === true ? (assignees[0] ?? '?') : '',
       isMine: assignees.length > 0 && row.reserved !== true,
-      pr: pull ? { number: pull.number, isDraft: pull.isDraft } : null,
+      pr: pull ? { number: pull.number, isDraft: pull.isDraft, url: pull.url ?? '' } : null,
     })
   }
   return { tickets, drafts }
@@ -453,7 +461,13 @@ const githubRow = (ticket: GithubTicket, phase = ''): ViewRow => ({
     ...(ticket.claimedBy ? [{ text: `🔒 ${ticket.claimedBy}`, tone: 'muted' as const }] : []),
     ...(ticket.reservedBy ? [{ text: `👤 @${ticket.reservedBy}`, tone: 'muted' as const }] : []),
     ...(ticket.state === 'review' && ticket.pr
-      ? [{ text: ticket.pr.isDraft ? `🧪 draft #${ticket.pr.number}` : `🔀 ready #${ticket.pr.number}`, tone: 'muted' as const }]
+      ? [
+          {
+            text: ticket.pr.isDraft ? `🧪 draft #${ticket.pr.number}` : `🔀 ready #${ticket.pr.number}`,
+            tone: 'muted' as const,
+            ...(ticket.pr.url ? { href: ticket.pr.url } : {}),
+          },
+        ]
       : []),
     ...(ticket.state === 'todo' ? [{ text: NOT_GRILLED, tone: 'warning' as const }] : []),
   ],
@@ -660,7 +674,14 @@ const whereLine = (focus: TaskFocus, here: string) =>
 export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, here = ''): FocusView {
   const task = tasks.find(one => one.slug === focus.id)
   if (!task) {
-    return { id: focus.id, icon: '·', row: null, facts: ['not in the backlog', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
+    return {
+      id: focus.id,
+      icon: '·',
+      row: null,
+      facts: ['not in the backlog', ...whereLine(focus, here)],
+      pr: null,
+      blocks: fileBlocks(focus.file),
+    }
   }
   const facts = [
     [withIcon(task.status), task.isGrilled ? 'grilled' : 'not grilled', task.milestone ? `milestone ${task.milestone}` : '']
@@ -673,6 +694,7 @@ export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, he
     id: task.slug,
     icon: STATE_ICON[task.status] ?? '·',
     row: localRow(task),
+    pr: null,
     facts,
     blocks: [
       ...sprintBlock(task.sprint, members, one => one.slug === task.slug, one => ({
@@ -689,7 +711,14 @@ export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, he
 export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFocus, here = ''): FocusView {
   const ticket = tickets.find(one => `#${one.number}` === focus.id)
   if (!ticket) {
-    return { id: focus.id, icon: '·', row: null, facts: ['not on the board yet', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
+    return {
+      id: focus.id,
+      icon: '·',
+      row: null,
+      facts: ['not on the board yet', ...whereLine(focus, here)],
+      pr: null,
+      blocks: fileBlocks(focus.file),
+    }
   }
   const phase = focus.file?.phase ?? ''
   const openBlockers = focus.blockedBy.filter(blocker => blocker.isOpen).map(blocker => `#${blocker.number}`)
@@ -697,7 +726,6 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
     [withIcon(ticket.state), phase ? `phase: ${phase}` : '', ticket.milestone ? `milestone ${ticket.milestone}` : '']
       .filter(Boolean)
       .join(' · '),
-    ...(ticket.pr ? [`PR #${ticket.pr.number} ${ticket.pr.isDraft ? 'draft' : 'ready'}${focus.prUrl ? ` — ${focus.prUrl}` : ''}`] : []),
     ...(openBlockers.length > 0 ? [`⛔ blocked by ${openBlockers.join(', ')}`] : []),
     ...whereLine(focus, here),
   ]
@@ -706,6 +734,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
     id: focus.id,
     icon: STATE_ICON[ticket.state] ?? '·',
     row: githubRow(ticket, phase),
+    pr: ticket.pr && { ...ticket.pr, url: ticket.pr.url || focus.prUrl },
     facts,
     blocks: [
       ...sprintBlock(ticket.sprint, members, one => one.number === ticket.number, one => ({

@@ -156,13 +156,13 @@ test('github rows map claims, reservations, PRs, drafts; drop ignored and cancel
       row({ number: 16, state: 'todo', closed: true }),
       { draft: true, title: 'Idea', item_id: 'x' },
     ],
-    [{ number: 40, headRefName: 'wa/13-export', isDraft: true }],
+    [{ number: 40, headRefName: 'wa/13-export', isDraft: true, url: 'https://x/pull/40' }],
     'wa/',
   )
   expect(drafts).toEqual(['Idea'])
   expect(tickets.map(ticket => [ticket.number, ticket.claimedBy, ticket.reservedBy, ticket.pr])).toEqual([
     [12, '12-login', '', null],
-    [13, '', '', { number: 40, isDraft: true }],
+    [13, '', '', { number: 40, isDraft: true, url: 'https://x/pull/40' }],
     [14, '', 'bob', null],
   ])
 })
@@ -181,6 +181,7 @@ test('github view orders by contract state', async () => {
   const view = githubView(tickets, drafts, [{ title: '0.5.0', isOpen: true, tickets: 3, done: 1 }], [])
   expect(view.sections.map(section => `${section.icon} ${section.title}`)).toEqual(['📥 Todo', '📐 Grilled', '👀 Review', '🎉 Done'])
   expect(view.sections[2]?.rows[0]?.tags.map(tag => tag.text)).toEqual(['#3', '🧪 draft #9'])
+  expect(view.sections[2]?.rows[0]?.tags[1]?.href).toBeUndefined()
   expect(view.sections[0]?.rows[0]?.tags.map(tag => tag.text)).toEqual(['#2', 'login', '⚠'])
   expect(view.scopes).toEqual(['🏁 login — 1/2 (1 todo)', '🎯 0.5.0 — 1/3 (1 todo, 1 in review) ← new tasks'])
   expect(view.milestone).toBe('0.5.0')
@@ -320,7 +321,8 @@ test('github focus marks criteria from verification, lists sprint siblings and o
     ],
     prUrl: 'https://x/pull/40',
   })
-  expect(view.facts).toEqual(['👀 review · phase: validated · milestone 0.4.1', 'PR #40 draft — https://x/pull/40', '⛔ blocked by #10', '🌳 /src/app-worktrees/177-ai-group-menu'])
+  expect(view.facts).toEqual(['👀 review · phase: validated · milestone 0.4.1', '⛔ blocked by #10', '🌳 /src/app-worktrees/177-ai-group-menu'])
+  expect(view.pr).toEqual({ number: 40, isDraft: true, url: 'https://x/pull/40' })
   expect(view.row?.actions.map(one => one.label)).toEqual(['close', 'feedback', 'autopilot'])
   expect(view.blocks.map(block => block.title)).toEqual([
     '🏁 menus — 1/2',

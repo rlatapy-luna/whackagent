@@ -24,7 +24,7 @@ export type GithubTicket = {
   claimedBy: string
   reservedBy: string
   isMine: boolean
-  pr: { number: number; isDraft: boolean } | null
+  pr: { number: number; isDraft: boolean; url: string } | null
 }
 
 export type TaskFile = {
