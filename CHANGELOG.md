@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-06
+
 ### Added
 
 - Backlog pane: a ticket's PR opens from its board row and its tasks in flight tab: in the terminal its tag is a button that opens it in the browser (`gh pr view --web`, any terminal), in the desktop app and VS Code a link.
