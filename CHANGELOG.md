@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- Backlog pane: the board toggle could be cut off at the end of the header line in a narrow docked pane. It is now a `[ hide board ]` / `[ show board ]` button first in the header (hotkey `b`), and the header wraps.
+
 ## [0.29.0] - 2026-10-06
 
 ### Added

@@ -396,14 +396,15 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Box marginBottom={1} flexDirection="row" alignItems="center" gap={1}>
-          {logo ?? <Text dimColor>{`provider: ${current.kind}`}</Text>}
-          {view.milestone !== '' && <Text dimColor>{`· milestone: ${view.milestone}`}</Text>}
+        <Box marginBottom={1} flexDirection="row" flexWrap="wrap" alignItems="center" gap={1}>
           <Button
-            label={isBoardHidden ? '▸ board' : '▾ board'}
-            plain
+            key="board-toggle"
+            label={isBoardHidden ? 'show board' : 'hide board'}
+            hotkey="b"
             onPress={() => void update($, boardHidden, isHidden => !isHidden)}
           />
+          {logo ?? <Text dimColor>{`provider: ${current.kind}`}</Text>}
+          {view.milestone !== '' && <Text dimColor>{`· milestone: ${view.milestone}`}</Text>}
         </Box>
         {isBoardHidden ? (
           <Text dimColor>{`${openCount} open task${openCount === 1 ? '' : 's'}`}</Text>
