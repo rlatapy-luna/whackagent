@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-06
+
 ### Added
 
 - Backlog pane: an `autopilot` button on every task not done, next to its other moves.
