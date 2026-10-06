@@ -1,4 +1,4 @@
-import type { BoardTask, GithubState, GithubTicket, MilestoneCount, TaskStatus } from '../types'
+import type { BoardTask, GithubState, GithubTicket, MilestoneCount, TaskFile, TaskFocus, TaskStatus } from '../types'
 
 export type WaConfig = {
   backlog: string
@@ -22,12 +22,15 @@ export type ViewRow = {
   actions: Action[]
 }
 export type ViewSection = { title: string; rows: ViewRow[]; hidden: number; isClosed: boolean }
-export type NextStep = { command: string } | { hint: string }
-export type View = { sections: ViewSection[]; legend: string; scopes: string[]; notes: string[]; next: NextStep; milestone: string; tabs: string[]; filter: string }
+export type FocusLine = { mark: string; text: string; tone: Tone | 'plain' }
+export type FocusBlock = { title: string; lines: FocusLine[] }
+export type FocusView = { id: string; row: ViewRow | null; facts: string[]; blocks: FocusBlock[] }
+
+export type View = { sections: ViewSection[]; legend: string; scopes: string[]; notes: string[]; milestone: string; tabs: string[]; filter: string }
 
 type Scope = { name: string; line: string }
 
-export type PullRequest = { number: number; headRefName: string; isDraft: boolean }
+export type PullRequest = { number: number; headRefName: string; isDraft: boolean; url?: string }
 
 export const STATUS_ORDER: readonly TaskStatus[] = ['todo', 'in-progress', 'review', 'validated', 'done', 'canceled']
 const GITHUB_ORDER: readonly GithubState[] = ['todo', 'grilling', 'grilled', 'coding', 'review', 'done']
@@ -142,14 +145,10 @@ export function parseFields(text: string): Record<string, string> {
   return fields
 }
 
-export function parseBacklog(text: string): BacklogEntry[] {
-  const sectionStatus = Object.fromEntries(
-    Object.entries(LOCAL_TITLE).map(([status, title]) => [title.toLowerCase(), status as TaskStatus]),
-  )
-  const entries: BacklogEntry[] = []
-  let status: TaskStatus | undefined
+function uncommented(lines: readonly string[]): string[] {
+  const out: string[] = []
   let isInComment = false
-  for (const raw of text.split(/\r?\n/)) {
+  for (const raw of lines) {
     let line = raw
     if (isInComment) {
       const end = line.indexOf('-->')
@@ -163,6 +162,18 @@ export function parseBacklog(text: string): BacklogEntry[] {
       line = line.slice(0, open)
       isInComment = true
     }
+    out.push(line)
+  }
+  return out
+}
+
+export function parseBacklog(text: string): BacklogEntry[] {
+  const sectionStatus = Object.fromEntries(
+    Object.entries(LOCAL_TITLE).map(([status, title]) => [title.toLowerCase(), status as TaskStatus]),
+  )
+  const entries: BacklogEntry[] = []
+  let status: TaskStatus | undefined
+  for (const line of uncommented(text.split(/\r?\n/))) {
     const heading = line.match(/^##\s+(.+?)\s*$/)
     if (heading) {
       status = sectionStatus[(heading[1] ?? '').toLowerCase()]
@@ -231,6 +242,7 @@ export function toTickets(
       state,
       claimedBy: claims.length > 0 ? (text(claims[0]?.agent).split(/[/\\]/).pop() ?? '') || '?' : '',
       reservedBy: row.reserved === true ? (assignees[0] ?? '?') : '',
+      isMine: assignees.length > 0 && row.reserved !== true,
       pr: pull ? { number: pull.number, isDraft: pull.isDraft } : null,
     })
   }
@@ -322,33 +334,7 @@ function githubMilestoneScopes(
 
 // endregion
 
-// region Next action
-
-export function nextAction(tasks: readonly BoardTask[]): string {
-  const first = (status: TaskStatus) => tasks.find(task => task.status === status)
-  const validated = first('validated')
-  if (validated) return `/wa-close ${validated.slug}`
-  const review = first('review')
-  if (review) return `/wa-validate ${review.slug}`
-  const coding = first('in-progress')
-  if (coding) return `/wa-code ${coding.slug}`
-  const todo = first('todo')
-  if (!todo) return '/wa-task '
-  return todo.isGrilled || todo.size === 'quickwin' ? `/wa-code ${todo.slug}` : `/wa-grill ${todo.slug}`
-}
-
-export function githubNextAction(tickets: readonly GithubTicket[]): NextStep {
-  const isFree = (ticket: GithubTicket) => ticket.claimedBy === '' && ticket.reservedBy === ''
-  const testing = tickets.find(ticket => ticket.state === 'review' && ticket.pr?.isDraft !== false && ticket.reservedBy === '')
-  if (testing) return { command: `/wa-validate ${testing.number}` }
-  const grilled = tickets.find(ticket => ticket.state === 'grilled' && isFree(ticket))
-  if (grilled) return { command: `/wa-code ${grilled.number}` }
-  const todo = tickets.find(ticket => ticket.state === 'todo' && isFree(ticket))
-  if (todo) return { command: `/wa-grill ${todo.number}` }
-  const ready = tickets.find(ticket => ticket.state === 'review' && ticket.pr && !ticket.pr.isDraft)
-  if (ready?.pr) return { hint: `merge PR #${ready.pr.number} on GitHub` }
-  return { command: '/wa-task ' }
-}
+// region Row actions
 
 const action = (label: string, command: string): Action => ({ label, command })
 
@@ -370,13 +356,15 @@ export function taskActions(task: BoardTask): Action[] {
   }
 }
 
-export function ticketActions(ticket: GithubTicket): Action[] {
+export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
   const { number } = ticket
   if (ticket.reservedBy !== '' || ticket.claimedBy !== '') return []
   if (ticket.state === 'todo') return [action('grill', `/wa-grill ${number}`)]
   if (ticket.state === 'grilled') return [action('code', `/wa-code ${number}`)]
   if (ticket.state === 'review' && ticket.pr?.isDraft !== false) {
-    return [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
+    return phase === 'validated'
+      ? [action('close', `/wa-close ${number}`), action('feedback', `/wa-feedback ${number} `)]
+      : [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
   }
   return []
 }
@@ -397,7 +385,7 @@ function sections<T>(
     const members = items.filter(item => stateOf(item) === state)
     if (members.length === 0) return []
     const isClosed = closedStates.includes(state)
-    const shown = isClosed ? members.slice(0, CLOSED_SHOWN) : members
+    const shown = isClosed ? members.slice(-CLOSED_SHOWN) : members
     return [{ title: titles[state] ?? state, rows: shown.map(toRow), hidden: members.length - shown.length, isClosed }]
   })
 }
@@ -420,6 +408,36 @@ function scoped<T extends { milestone: string }>(
   }
 }
 
+const localRow = (task: BoardTask): ViewRow => ({
+  key: task.slug,
+  size: task.size,
+  title: task.title,
+  tags: [
+    ...(task.sprint ? [{ text: task.sprint, tone: 'sprint' as const }] : []),
+    ...(!task.isGrilled && isLive(task) ? [{ text: NOT_GRILLED, tone: 'warning' as const }] : []),
+  ],
+  summary: task.summary,
+  actions: taskActions(task),
+})
+
+const githubRow = (ticket: GithubTicket, phase = ''): ViewRow => ({
+  key: String(ticket.number),
+  size: ticket.size,
+  title: ticket.title,
+  tags: [
+    { text: `#${ticket.number}`, tone: 'muted' as const },
+    ...(ticket.sprint ? [{ text: ticket.sprint, tone: 'sprint' as const }] : []),
+    ...(ticket.claimedBy ? [{ text: `🔒 ${ticket.claimedBy}`, tone: 'muted' as const }] : []),
+    ...(ticket.reservedBy ? [{ text: `👤 @${ticket.reservedBy}`, tone: 'muted' as const }] : []),
+    ...(ticket.state === 'review' && ticket.pr
+      ? [{ text: ticket.pr.isDraft ? `🧪 draft #${ticket.pr.number}` : `🔀 ready #${ticket.pr.number}`, tone: 'muted' as const }]
+      : []),
+    ...(ticket.state === 'todo' ? [{ text: NOT_GRILLED, tone: 'warning' as const }] : []),
+  ],
+  summary: ticket.summary,
+  actions: ticketActions(ticket, phase),
+})
+
 function legendOf(parts: readonly ViewSection[]): string {
   const rows = parts.flatMap(section => section.rows)
   const sizes = Object.keys(SIZE_NAME).filter(size => rows.some(row => row.size === size))
@@ -437,23 +455,12 @@ export function localView(
   filter = '',
 ): View {
   const scope = scoped(tasks, sprintLines(tasks), milestoneScopes(tasks, milestones, tracks), filter)
-  const parts = sections(scope.shown, STATUS_ORDER, task => task.status, LOCAL_TITLE, ['done', 'canceled'], task => ({
-    key: task.slug,
-    size: task.size,
-    title: task.title,
-    tags: [
-      ...(task.sprint ? [{ text: task.sprint, tone: 'sprint' as const }] : []),
-      ...(!task.isGrilled && isLive(task) ? [{ text: NOT_GRILLED, tone: 'warning' as const }] : []),
-    ],
-    summary: task.summary,
-    actions: taskActions(task),
-  }))
+  const parts = sections(scope.shown, STATUS_ORDER, task => task.status, LOCAL_TITLE, ['done', 'canceled'], localRow)
   return {
     sections: parts,
     legend: legendOf(parts),
     scopes: scope.scopes,
     notes: [],
-    next: { command: nextAction(scope.shown) },
     milestone: newestMilestone(milestones, tracks),
     tabs: scope.tabs,
     filter: scope.filter,
@@ -468,32 +475,220 @@ export function githubView(
   filter = '',
 ): View {
   const scope = scoped(tickets, githubSprintLines(tickets), githubMilestoneScopes(tickets, milestones, tracks), filter)
-  const parts = sections(scope.shown, GITHUB_ORDER, ticket => ticket.state, GITHUB_TITLE, ['done'], ticket => ({
-    key: String(ticket.number),
-    size: ticket.size,
-    title: ticket.title,
-    tags: [
-      { text: `#${ticket.number}`, tone: 'muted' as const },
-      ...(ticket.sprint ? [{ text: ticket.sprint, tone: 'sprint' as const }] : []),
-      ...(ticket.claimedBy ? [{ text: `🔒 ${ticket.claimedBy}`, tone: 'muted' as const }] : []),
-      ...(ticket.reservedBy ? [{ text: `👤 @${ticket.reservedBy}`, tone: 'muted' as const }] : []),
-      ...(ticket.state === 'review' && ticket.pr
-        ? [{ text: ticket.pr.isDraft ? `🧪 draft #${ticket.pr.number}` : `🔀 ready #${ticket.pr.number}`, tone: 'muted' as const }]
-        : []),
-      ...(ticket.state === 'todo' ? [{ text: NOT_GRILLED, tone: 'warning' as const }] : []),
-    ],
-    summary: ticket.summary,
-    actions: ticketActions(ticket),
-  }))
+  const parts = sections(scope.shown, GITHUB_ORDER, ticket => ticket.state, GITHUB_TITLE, ['done'], ticket => githubRow(ticket))
   return {
     sections: parts,
     legend: legendOf(parts),
     scopes: scope.scopes,
     notes: !scope.filter && drafts.length > 0 ? [`📝 ${drafts.length} draft${drafts.length > 1 ? 's' : ''} — convert to issue on GitHub`] : [],
-    next: githubNextAction(scope.shown),
     milestone: newestGithubMilestone(milestones, tracks),
     tabs: scope.tabs,
     filter: scope.filter,
+  }
+}
+
+// endregion
+
+// region Task focus
+
+export type Worktree = { path: string; branch: string }
+
+export function parseWorktrees(porcelain: string): Worktree[] {
+  return porcelain
+    .split(/\n\s*\n/)
+    .flatMap(entry => {
+      const path = entry.match(/^worktree (.+)$/m)?.[1]
+      const branch = entry.match(/^branch refs\/heads\/(.+)$/m)?.[1]
+      return path && branch ? [{ path, branch }] : []
+    })
+}
+
+const GITHUB_ACTIVE: readonly GithubState[] = ['grilling', 'coding']
+const hereFirst = (ids: readonly string[], here: string) => [...ids.filter(id => id === here), ...ids.filter(id => id !== here)]
+
+export const activeLocalIds = (tasks: readonly BoardTask[], here: string) =>
+  hereFirst(
+    tasks.filter(task => task.status === 'in-progress').map(task => task.slug),
+    here,
+  )
+
+export const activeGithubIds = (tickets: readonly GithubTicket[], here: string) =>
+  hereFirst(
+    tickets.filter(ticket => ticket.isMine && GITHUB_ACTIVE.includes(ticket.state)).map(ticket => `#${ticket.number}`),
+    here,
+  )
+
+export function branchTaskId(branch: string, prefix: string, provider: string): string {
+  if (!branch.startsWith(prefix) || branch === prefix) return ''
+  const rest = branch.slice(prefix.length)
+  if (provider !== 'github') return rest
+  return /^\d+-/.test(rest) ? `#${rest.split('-')[0]}` : ''
+}
+
+const clean = (line: string) => line.replace(/\*\*/g, '').replace(/^\s*[-*]\s+/, '').trim()
+
+function bodySections(text: string): Record<string, string[]> {
+  const lines = text.split(/\r?\n/)
+  const end = lines[0]?.trim() === '---' ? lines.findIndex((line, index) => index > 0 && line.trim() === '---') : -1
+  const found: Record<string, string[]> = {}
+  let current: string[] | undefined
+  for (const line of uncommented(lines.slice(end + 1))) {
+    const heading = line.match(/^##\s+(.+?)\s*$/)
+    if (heading) {
+      current = found[heading[1] ?? ''] = []
+      continue
+    }
+    current?.push(line)
+  }
+  return found
+}
+
+function rounds(lines: readonly string[]): { heading: string; lines: string[] }[] {
+  const found: { heading: string; lines: string[] }[] = []
+  for (const line of lines) {
+    const heading = line.match(/^###\s+(.+?)\s*$/)
+    if (heading) found.push({ heading: heading[1] ?? '', lines: [] })
+    else if (line.trim() !== '') found[found.length - 1]?.lines.push(clean(line))
+  }
+  return found
+}
+
+const listItems = (lines: readonly string[], pattern: RegExp) =>
+  lines.flatMap(line => {
+    const item = line.match(pattern)
+    return item ? [clean(item[1] ?? '')] : []
+  })
+
+export function parseTaskFile(text: string): TaskFile {
+  const body = bodySections(text)
+  const verification = (body.Verification ?? []).filter(line => /^\s*[-*]\s+/.test(line)).map(clean)
+  return {
+    phase: parseFields(text).phase ?? '',
+    criteria: listItems(body['Acceptance criteria'] ?? [], /^(?:\d+\.|[-*])\s+(?:\[[ xX]\]\s+)?(.+)$/),
+    bricks: listItems(body.Implementation ?? [], /^\d+\.\s+(.+)$/),
+    review: rounds(body.Review ?? []).pop() ?? { heading: '', lines: [] },
+    verification,
+    feedback: rounds(body.Feedback ?? []),
+  }
+}
+
+export const bricksComment = (body: string) =>
+  body.trimStart().startsWith('🧱') ? listItems(body.split(/\r?\n/), /^\d+\.\s+(.+)$/) : []
+
+const focusLine = (mark: string, text: string, tone: Tone | 'plain' = 'plain'): FocusLine => ({ mark, text, tone })
+
+function fileBlocks(file: TaskFile | null): FocusBlock[] {
+  if (!file) return []
+  const checks = new Map<number, string>()
+  for (const entry of file.verification) {
+    const check = entry.match(/^(✅|❌)\s*AC\s*(\d+)/)
+    if (check) checks.set(Number(check[2]), check[1] ?? '')
+  }
+  const passed = file.verification.filter(entry => entry.startsWith('✅')).length
+  const failed = file.verification.filter(entry => entry.startsWith('❌')).length
+  const others = file.verification.filter(entry => !entry.startsWith('✅'))
+  const blocks: FocusBlock[] = [
+    {
+      title: `Acceptance criteria (${file.criteria.length})`,
+      lines: file.criteria.map((criterion, index) => {
+        const mark = checks.get(index + 1) ?? '·'
+        return focusLine(mark, criterion, mark === '❌' ? 'warning' : 'plain')
+      }),
+    },
+    { title: `Bricks (${file.bricks.length})`, lines: file.bricks.map((brick, index) => focusLine(`${index + 1}.`, brick)) },
+    {
+      title: file.review.heading ? `Review — ${file.review.heading}` : 'Review',
+      lines: file.review.lines.map(entry => focusLine('·', entry)),
+    },
+    {
+      title: passed + failed > 0 ? `Verification ✅ ${passed} ❌ ${failed}` : 'Verification',
+      lines: others.map(entry => focusLine('·', entry, entry.startsWith('❌') ? 'warning' : 'muted')),
+    },
+    {
+      title: `Feedback (${file.feedback.length} round${file.feedback.length === 1 ? '' : 's'})`,
+      lines: file.feedback.map(round => focusLine('·', `${round.heading}${round.lines[0] ? ` — ${round.lines[0]}` : ''}`)),
+    },
+  ]
+  return blocks.filter(block => block.lines.length > 0 || (block.title.startsWith('Verification') && passed + failed > 0))
+}
+
+function sprintBlock<T>(
+  sprint: string,
+  members: readonly T[],
+  isCurrent: (item: T) => boolean,
+  describe: (item: T) => { id: string; title: string; state: string; isDone: boolean },
+): FocusBlock[] {
+  if (!sprint || members.length === 0) return []
+  const rows = members.map(item => ({ ...describe(item), isCurrent: isCurrent(item) }))
+  const done = rows.filter(row => row.isDone).length
+  return [
+    {
+      title: `🏁 ${sprint} — ${done}/${rows.length}`,
+      lines: rows.map(row =>
+        focusLine(row.isCurrent ? '→' : row.isDone ? '✓' : '·', `${row.id} ${row.title} · ${row.state}`, row.isDone ? 'muted' : 'plain'),
+      ),
+    },
+  ]
+}
+
+const whereLine = (focus: TaskFocus, here: string) =>
+  focus.id === here ? ['📍 checked out here'] : focus.worktree ? [`🌳 ${focus.worktree}`] : []
+
+export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, here = ''): FocusView {
+  const task = tasks.find(one => one.slug === focus.id)
+  if (!task) return { id: focus.id, row: null, facts: ['not in the backlog', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
+  const facts = [
+    [`status: ${task.status}`, task.isGrilled ? 'grilled' : 'not grilled', task.milestone ? `milestone ${task.milestone}` : '']
+      .filter(Boolean)
+      .join(' · '),
+    ...whereLine(focus, here),
+  ]
+  const members = tasks.filter(one => one.sprint !== '' && one.sprint === task.sprint)
+  return {
+    id: task.slug,
+    row: localRow(task),
+    facts,
+    blocks: [
+      ...sprintBlock(task.sprint, members, one => one.slug === task.slug, one => ({
+        id: one.slug,
+        title: one.title,
+        state: one.status,
+        isDone: !isLive(one),
+      })),
+      ...fileBlocks(focus.file),
+    ],
+  }
+}
+
+export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFocus, here = ''): FocusView {
+  const ticket = tickets.find(one => `#${one.number}` === focus.id)
+  if (!ticket) {
+    return { id: focus.id, row: null, facts: ['not on the board yet', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
+  }
+  const phase = focus.file?.phase ?? ''
+  const openBlockers = focus.blockedBy.filter(blocker => blocker.isOpen).map(blocker => `#${blocker.number}`)
+  const facts = [
+    [`state: ${ticket.state}`, phase ? `phase: ${phase}` : '', ticket.milestone ? `milestone ${ticket.milestone}` : '']
+      .filter(Boolean)
+      .join(' · '),
+    ...(ticket.pr ? [`PR #${ticket.pr.number} ${ticket.pr.isDraft ? 'draft' : 'ready'}${focus.prUrl ? ` — ${focus.prUrl}` : ''}`] : []),
+    ...(openBlockers.length > 0 ? [`⛔ blocked by ${openBlockers.join(', ')}`] : []),
+    ...whereLine(focus, here),
+  ]
+  const members = tickets.filter(one => one.sprint !== '' && one.sprint === ticket.sprint)
+  return {
+    id: focus.id,
+    row: githubRow(ticket, phase),
+    facts,
+    blocks: [
+      ...sprintBlock(ticket.sprint, members, one => one.number === ticket.number, one => ({
+        id: `#${one.number}`,
+        title: one.title,
+        state: one.state,
+        isDone: one.state === 'done',
+      })),
+      ...fileBlocks(focus.file),
+    ],
   }
 }
 

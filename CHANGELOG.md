@@ -4,6 +4,19 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Backlog pane: **Tasks in flight** below the board, one tab per task being worked on right now (local: in progress; GitHub: your tickets in grilling or coding), even from the main checkout. Each tab shows the task's workflow data: state and phase, PR and open blockers (GitHub), worktree, sprint siblings, acceptance criteria marked from verification, bricks, last review round, verification notes and feedback rounds, with its action buttons.
+
+### Removed
+
+- Backlog pane: the `next:` button is gone; pick the move from each task's own buttons.
+
+### Fixed
+
+- Backlog pane: in a worktree, the local backlog and task files are read from the main checkout instead of the worktree's stale copies.
+- Backlog pane: Done and Canceled show the three most recent tasks, not the three oldest.
+
 ## [0.27.0] - 2026-10-06
 
 ### Added
