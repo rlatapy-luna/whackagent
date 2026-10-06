@@ -12,17 +12,34 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 
 ## Scope
 
-Given tasks, or every `todo` task if none (confirm list first if user present). Best on small well-scoped tasks — say so if one look large or `grilled: false`.
+Given tasks, or every `todo` task if none (confirm list first if user present). Best on small well-scoped tasks — say so if one look large. Each task enters at its own state — **Entry state** below.
 
 **Args take slugs, display indexes, sprint name or milestone title** (resolution **wa-board → Milestones**), mixed, any order: `/wa-autopilot login-apple`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-autopilot 3 sync-offline`, `/wa-autopilot login-refacto`. Indexes = `#` from wa-board list — resolve per **wa-board → Task indexes**. Always **echo resolved list** (`2 → login-apple`). Bad index → stop, say which, no guess.
 
 **Sprint name expands to its `todo` tasks**, backlog order — `in-progress`, `review`, `validated` already moving or waiting on user, don't touch. Resolve per **wa-board → Sprints**; echo expansion (`login-refacto → login-apple · login-layout · login-errors (3 todo, 2 already in review)`) so user see what left out. Sprint with no todo task → say so, stop. Sprint tasks usually touch same screen, so expect most land in **separate waves** — wave planner doing job, not failure.
 
+## Entry state — any state, from where it stands
+
+Task **named explicitly** (slug, index, `#n`) joins batch whatever its state. Sprint / milestone / no-arg expansion still take only `todo` (GitHub: `grilled`): batch never grabs work waiting on user unless user named it. Every task in batch runs only what's left — never redo done work, never do user's part (retest, close, merge). Echo entry per task in plan: `login-apple: review → validate`.
+
+| State | Autopilot does | Ends |
+|---|---|---|
+| `todo`, `grilled: false` (GitHub `todo`) | grill unattended (**AFK mode**, *Grill `todo` tickets unattended*; local: `/wa-grill` steps, same `(autopilot assumption)` tagging), then code + validate | `validated` / `review` |
+| `todo` grilled (GitHub `grilled`) | code + validate — pipeline below | `validated` / `review` |
+| `in-progress` (GitHub `review` + `phase: in-progress`) | resume: worktree on existing task branch, `/wa-code` from first brick not in `## Implementation`, then validate | `validated` / `review` |
+| `review` (GitHub `review` draft, `phase: review`) | validate only — worktree on task branch, step 2.3 (tools, verifier, autofix) | `validated` / `review` |
+| `validated` (GitHub draft, `phase: validated`) | refresh only — fork point moved → rebase (GitHub: ticket range), build + tests + runtime check; red → validate loop again. Never close: retest + `/wa-close` stay user's | `validated` |
+| GitHub `review`, PR ready | keep mergeable — `CONFLICTING` → rebase ticket range, build + tests, push; else nothing | unchanged |
+| GitHub `grilling` / `coding` | claimed: `claim` exit 3 → skip, echo owner | — |
+| `done` / `canceled` | skip, echo | — |
+
+GitHub: claim before touching, as any round — `grilling` from `todo`, `coding` from `grilled` or `review` (**wa-board → Backlog provider**, *Agent round*). Round ends with nothing to push → `release <n> coding --reset-to review`.
+
 ## GitHub provider
 
 `backlog.provider: github` (rules **wa-board → Backlog provider**). Several autopilots, on several machines, may run on one board at once — claims keep them apart.
 
-- **Scope** = unclaimed `grilled` tickets, board order (`wa-backlog list --state grilled`); args = `#n`, indexes, sprint name or milestone title (`list --sprint` / `--milestone`). Never `todo`: grilling needs user — except **AFK mode** (below).
+- **Scope** = unclaimed `grilled` tickets, board order (`wa-backlog list --state grilled`); args = `#n`, indexes, sprint name or milestone title (`list --sprint` / `--milestone`). Expansion never takes `todo` (grilling needs user) — except **AFK mode** (below). Ticket named explicitly → **Entry state**.
 - **Claim each ticket before its worktree** — `wa-backlog claim <n> coding`. Exit 3 → drop from batch, echo `#12 skipped: coded by <agent>` (`assigned: true` → `#12 skipped: assigned to @<login>`). Claim just before wave starts, not whole batch up front: later waves' tickets stay free for others until needed. **Post bricks** (`/wa-code` step 1) right after claim, never before: ticket not held = not yours to write on.
 - **Also check open PRs** before planning waves: `gh pr list --json number,headRefName,files` — ticket whose BRIEF files overlap files of open PR → warn in plan (`#14 touches LoginView like open PR #9 — merge conflict likely`). Warning, not block.
 - **Worktree from existing ticket branch** (grilling pushed it) — fetch, then `git worktree add {worktrees}/<n>-<slug> <branch>`. Never `-b`: spec lives on that branch.
@@ -78,6 +95,7 @@ Each task get own checkout, so parallel implementers never see each other's edit
    ```
    git worktree add {worktrees}/<slug> -b <branch.prefix><slug> <fork point>
    ```
+   Task already has its branch (entered past `todo`, **Entry state**) → `git worktree add {worktrees}/<slug> <branch>`, no `-b`; listed worktree for it → reuse.
    **Sprint branch is created in the main checkout, never inside a worktree**, and only once per sprint per run — two waves of the same sprint share it. Tasks of one sprint in the *same* wave still fork off the sprint branch as it stood at wave start: they run in parallel, so none see each other. That's the wave planner's job to have made safe.
 2. **Spawn one `wa-implementer` per task in the wave, in a single message** so they actually run concurrently. Each gets the standard `/wa-code` step 2 payload **plus its worktree path**, and the instruction: *work only under `<worktree>`, absolute paths, never touch the main checkout or another worktree.*
 3. **Validate each task — autopilot runs `/wa-validate` itself.** Implementer receipt `done` + runtime check green (or build + tests on non-runnable project) → run **`/wa-validate` steps 3–8** for that task, unattended. The runtime check stands in for the user's green light: nobody there to give it, and the user asked autopilot to deliver reviewed code, not code waiting for a verifier.
