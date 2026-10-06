@@ -6,7 +6,12 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Added
 
+- Backlog pane: an `autopilot` button on every task not done, next to its other moves.
 - Backlog pane: **Tasks in flight** below the board, one tab per task being worked on right now (local: in progress; GitHub: your tickets in grilling or coding), even from the main checkout. Each tab shows the task's workflow data: state and phase, PR and open blockers (GitHub), worktree, sprint siblings, acceptance criteria marked from verification, bricks, last review round, verification notes and feedback rounds, with its action buttons.
+
+### Changed
+
+- `/wa-autopilot` takes a task you name in any state and runs only what's left: grills a `todo` one unattended (GitHub too, outside AFK mode), resumes `in-progress`, validates `review`, refreshes `validated` (rebase + checks, never closes), keeps a ready PR mergeable, and skips claimed or done tasks. Sprint, milestone and no-argument batches still take only `todo` / `grilled`.
 
 ### Removed
 

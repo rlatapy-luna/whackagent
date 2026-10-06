@@ -338,13 +338,14 @@ function githubMilestoneScopes(
 
 const action = (label: string, command: string): Action => ({ label, command })
 
-export function taskActions(task: BoardTask): Action[] {
+function stepActions(task: BoardTask): Action[] {
   const { slug } = task
   switch (task.status) {
     case 'todo':
-      return task.isGrilled
-        ? [action('code', `/wa-code ${slug}`)]
-        : [action('grill', `/wa-grill ${slug}`), ...(task.size === 'quickwin' ? [action('code', `/wa-code ${slug}`)] : [])]
+      return [
+        ...(task.isGrilled ? [] : [action('grill', `/wa-grill ${slug}`)]),
+        ...(task.isGrilled || task.size === 'quickwin' ? [action('code', `/wa-code ${slug}`)] : []),
+      ]
     case 'in-progress':
       return [action('code', `/wa-code ${slug}`)]
     case 'review':
@@ -356,9 +357,11 @@ export function taskActions(task: BoardTask): Action[] {
   }
 }
 
-export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
+export const taskActions = (task: BoardTask): Action[] =>
+  isLive(task) ? [...stepActions(task), action('autopilot', `/wa-autopilot ${task.slug}`)] : []
+
+function ticketStepActions(ticket: GithubTicket, phase: string): Action[] {
   const { number } = ticket
-  if (ticket.reservedBy !== '' || ticket.claimedBy !== '') return []
   if (ticket.state === 'todo') return [action('grill', `/wa-grill ${number}`)]
   if (ticket.state === 'grilled') return [action('code', `/wa-code ${number}`)]
   if (ticket.state === 'review' && ticket.pr?.isDraft !== false) {
@@ -367,6 +370,11 @@ export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
       : [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
   }
   return []
+}
+
+export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
+  if (ticket.reservedBy !== '' || ticket.claimedBy !== '' || ticket.state === 'done') return []
+  return [...ticketStepActions(ticket, phase), action('autopilot', `/wa-autopilot ${ticket.number}`)]
 }
 
 // endregion

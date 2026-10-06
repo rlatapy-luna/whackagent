@@ -203,14 +203,20 @@ test('milestone tab narrows tasks and scope line', async () => {
 
 test('row actions follow the task state', async () => {
   const labels = (actions: { label: string }[]) => actions.map(one => one.label)
-  expect(labels(taskActions(task({ slug: 'a' })))).toEqual(['grill'])
-  expect(labels(taskActions(task({ slug: 'a', size: 'quickwin' })))).toEqual(['grill', 'code'])
-  expect(labels(taskActions(task({ slug: 'a', grilled: 'true' })))).toEqual(['code'])
+  expect(labels(taskActions(task({ slug: 'a' })))).toEqual(['grill', 'autopilot'])
+  expect(labels(taskActions(task({ slug: 'a', size: 'quickwin' })))).toEqual(['grill', 'code', 'autopilot'])
+  expect(taskActions(task({ slug: 'a', grilled: 'true' }))).toEqual([
+    { label: 'code', command: '/wa-code a' },
+    { label: 'autopilot', command: '/wa-autopilot a' },
+  ])
   expect(taskActions(task({ slug: 'a' }, 'review'))).toEqual([
     { label: 'feedback', command: '/wa-feedback a ' },
     { label: 'validate', command: '/wa-validate a' },
+    { label: 'autopilot', command: '/wa-autopilot a' },
   ])
-  expect(labels(taskActions(task({ slug: 'a' }, 'validated')))).toEqual(['close', 'feedback'])
+  expect(labels(taskActions(task({ slug: 'a' }, 'validated')))).toEqual(['close', 'feedback', 'autopilot'])
+  expect(labels(taskActions(task({ slug: 'a' }, 'in-progress')))).toEqual(['code', 'autopilot'])
+  expect(taskActions(task({ slug: 'a' }, 'canceled'))).toEqual([])
   expect(taskActions(task({ slug: 'a' }, 'done'))).toEqual([])
   const [free, claimed, ready] = toTickets(
     [
@@ -221,9 +227,10 @@ test('row actions follow the task state', async () => {
     [{ number: 30, headRefName: 'wa/9-x', isDraft: false }],
     'wa/',
   ).tickets
-  expect(labels(ticketActions(free!))).toEqual(['feedback', 'validate'])
+  expect(labels(ticketActions(free!))).toEqual(['feedback', 'validate', 'autopilot'])
   expect(ticketActions(claimed!)).toEqual([])
-  expect(ticketActions(ready!)).toEqual([])
+  expect(labels(ticketActions({ ...claimed!, claimedBy: '' }))).toEqual(['code', 'autopilot'])
+  expect(labels(ticketActions(ready!))).toEqual(['autopilot'])
 })
 
 const TASK_FILE = `---
@@ -314,7 +321,7 @@ test('github focus marks criteria from verification, lists sprint siblings and o
     prUrl: 'https://x/pull/40',
   })
   expect(view.facts).toEqual(['state: review · phase: validated · milestone 0.4.1', 'PR #40 draft — https://x/pull/40', '⛔ blocked by #10', '🌳 /src/app-worktrees/177-ai-group-menu'])
-  expect(view.row?.actions.map(one => one.label)).toEqual(['close', 'feedback'])
+  expect(view.row?.actions.map(one => one.label)).toEqual(['close', 'feedback', 'autopilot'])
   expect(view.blocks.map(block => block.title)).toEqual([
     '🏁 menus — 1/2',
     'Acceptance criteria (3)',

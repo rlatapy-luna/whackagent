@@ -163,6 +163,7 @@ The last round, always shown as a plan and confirmed before it runs:
 Several autopilots, on several machines, can run on one board at once; claims keep them apart.
 
 - Scope = unclaimed `grilled` tickets in board order, or a sprint, a milestone or a list of tickets.
+- A ticket you name (`/wa-autopilot 12`) runs from whatever state it's in and does only what's left: a `todo` ticket is grilled unattended first, a draft PR in review is validated, a validated one is refreshed (rebase + checks, never marked ready for you), a ready PR is kept mergeable. Sprint and milestone batches still take only `grilled` tickets.
 - Each ticket is claimed just before its wave starts, not the whole batch up front, so later tickets stay free for other agents. A ticket someone else holds is skipped.
 - Open PRs are checked before planning: a ticket touching the same files as an open PR gets a merge-conflict warning in the plan.
 - Each ticket gets a worktree on its existing branch, and its bricks comment right after its claim.

@@ -43,7 +43,7 @@ Add the marketplace, then install the plugin:
 | `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
 | `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR, or nothing — `close.strategy`), delete branch + worktree, `done` |
 | `/wa-release [milestone]` | Ships a milestone: checks its tasks landed, then walks you through the project's own documented release flow, confirming every outward step (finds the doc, or interviews you and writes it first) |
-| `/wa-autopilot [tasks\|sprint\|milestone]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel |
+| `/wa-autopilot [tasks\|sprint\|milestone]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel. A task you name runs from whatever state it's in (grills, codes, validates or refreshes what's left; never closes) |
 | `/wa-review [scope]` | Standalone review, 4 lenses (diff / path / project) — audit, optional `--fix` |
 | `/wa-wiki` | Updates the wiki |
 | `/wa-wiki <feature>` | Looks up info in the wiki, then the code |
@@ -52,7 +52,7 @@ Each step suggests the next one. You never have to figure out what to run.
 
 ### Backlog pane
 
-In a project with `.whackagent/config.md`, a live pane beside the conversation shows the backlog in the `/wa-board` format: one section per state, sprint and milestone progress, and one tab per milestone to filter the board. Each task carries buttons for the moves its state allows (`grill`, `code`, `feedback`, `validate`, `close`); pressing one types the command into the prompt, it never runs it. The pane refreshes as task files change (local provider) or every 30 seconds and after `wa-backlog` / `gh pr` commands (GitHub provider), and `↻ refresh` reloads it on demand.
+In a project with `.whackagent/config.md`, a live pane beside the conversation shows the backlog in the `/wa-board` format: one section per state, sprint and milestone progress, and one tab per milestone to filter the board. Each task carries buttons for the moves its state allows (`grill`, `code`, `feedback`, `validate`, `close`), plus `autopilot` on every task not done; pressing one types the command into the prompt, it never runs it. The pane refreshes as task files change (local provider) or every 30 seconds and after `wa-backlog` / `gh pr` commands (GitHub provider), and `↻ refresh` reloads it on demand.
 
 Below the board, **Tasks in flight** has one tab per task being worked on right now, wherever your terminal is (main checkout on `main`, or a worktree): local tasks in progress; under the GitHub provider, your tickets (assigned to you) in `grilling` or `coding`. The one checked out where the session runs comes first, marked 📍. A tab shows its state and phase, PR and open blockers (GitHub), worktree, sprint with each sibling's state, acceptance criteria marked ✅ / ❌ from `## Verification`, bricks, the last review round, verification notes and feedback rounds, with the task's action buttons. Task files are read from the worktree when there is one, else from the ticket branch (`git show`, no fetch).
 
