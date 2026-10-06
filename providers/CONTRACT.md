@@ -34,7 +34,7 @@ All print JSON on stdout, messages on stderr.
 
 | Verb | Does | Output / exit |
 |---|---|---|
-| `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,assignees,reserved,claims,url}]`; draft rows `{draft:true,title}` only when unfiltered |
+| `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,closed,not_planned,assignees,reserved,claims,url}]` (`not_planned`: closed as not planned = canceled); draft rows `{draft:true,title}` only when unfiltered |
 | `get <id>` | one ticket + its branch + its blockers | object, `branch` null before grilling pushed, `blocked_by: [{number,state}]` |
 | `create --title --summary [--size] [--sprint] [--milestone m] [--note]` | new ticket in `todo`, bottom of board; milestone per *Milestones* below | `{number,url,state,milestone}` |
 | `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, assign current account (trackers with assignees), trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |

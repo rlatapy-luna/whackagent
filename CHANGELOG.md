@@ -4,6 +4,18 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- GitHub provider: `wa-backlog list` rows carry `not_planned` (issue closed as not planned).
+
+### Changed
+
+- Backlog pane: a task's buttons sit on their own line under its summary, aligned left.
+
+### Fixed
+
+- GitHub provider: an issue closed as not planned shows under 🚫 Canceled in `/wa-board` and the backlog pane instead of 🎉 Done (the pane shows 🚫 Canceled on milestone tabs only, not on **All**), takes no action buttons and no longer counts as done in sprint and milestone progress.
+
 ## [0.31.1] - 2026-10-06
 
 ### Added

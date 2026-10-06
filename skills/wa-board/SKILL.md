@@ -25,7 +25,7 @@ Dashboard. Lift lid on backlog, point next move.
 
 ## GitHub board
 
-Same list format, sections by contract state, render order: **📥 Todo → 🔥 Grilling → 📐 Grilled → 🔨 Coding → 👀 Review → 🎉 Done** (heading = emoji + name). Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short), `👤 @<login>` when `reserved` (assigned to another account). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
+Same list format, sections by contract state, render order: **📥 Todo → 🔥 Grilling → 📐 Grilled → 🔨 Coding → 👀 Review → 🎉 Done → 🚫 Canceled** (heading = emoji + name). Canceled = issue closed as not planned (`not_planned: true` in `list --all`, whatever its column) — never under Done. Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short), `👤 @<login>` when `reserved` (assigned to another account). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
 
 - `⏳ stale claims` — `claims` rows with `stale: true`: `#12 coding · <agent> · 2d, no push` → suggest `/wa-task release 12`.
 - `📝 drafts` — Project draft items: not tickets, convert to issue on GitHub.

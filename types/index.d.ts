@@ -11,7 +11,7 @@ export type BoardTask = {
   isGrilled: boolean
 }
 
-export type GithubState = 'todo' | 'grilling' | 'grilled' | 'coding' | 'review' | 'done'
+export type GithubState = 'todo' | 'grilling' | 'grilled' | 'coding' | 'review' | 'done' | 'canceled'
 
 export type GithubTicket = {
   number: number

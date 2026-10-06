@@ -386,13 +386,15 @@ export const register: Register = (on, options) => {
             ),
           )}
         </Box>
-        {(row.summary !== '' || row.actions.length > 0) && (
-          <Box paddingLeft={4} flexDirection="row" gap={1}>
-            <Box flexGrow={1} flexShrink={1}>
-              <Text dimColor wrap="truncate-end">
-                {row.summary}
-              </Text>
-            </Box>
+        {row.summary !== '' && (
+          <Box paddingLeft={4}>
+            <Text dimColor wrap="truncate-end">
+              {row.summary}
+            </Text>
+          </Box>
+        )}
+        {row.actions.length > 0 && (
+          <Box paddingLeft={4} flexDirection="row" flexWrap="wrap" gap={1}>
             {row.actions.map(one => (
               <Button key={`${row.key}-${one.label}`} label={one.label} onPress={fill(one.command)} />
             ))}
@@ -405,7 +407,7 @@ export const register: Register = (on, options) => {
       current.kind === 'local'
         ? current.tasks.filter(task => task.status !== 'done' && task.status !== 'canceled').length
         : current.kind === 'github'
-          ? current.tickets.filter(ticket => ticket.state !== 'done').length
+          ? current.tickets.filter(ticket => ticket.state !== 'done' && ticket.state !== 'canceled').length
           : 0
     let index = 0
 

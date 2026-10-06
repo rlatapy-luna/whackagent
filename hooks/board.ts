@@ -41,7 +41,8 @@ type Scope = { name: string; line: string }
 export type PullRequest = { number: number; headRefName: string; isDraft: boolean; url?: string }
 
 export const STATUS_ORDER: readonly TaskStatus[] = ['todo', 'in-progress', 'review', 'validated', 'done', 'canceled']
-const GITHUB_ORDER: readonly GithubState[] = ['todo', 'grilling', 'grilled', 'coding', 'review', 'done']
+const GITHUB_ORDER: readonly GithubState[] = ['todo', 'grilling', 'grilled', 'coding', 'review', 'done', 'canceled']
+const isOpenTicket = (ticket: GithubTicket) => ticket.state !== 'done' && ticket.state !== 'canceled'
 
 const LOCAL_TITLE: Record<TaskStatus, string> = {
   'in-progress': 'In progress',
@@ -58,6 +59,7 @@ const GITHUB_TITLE: Record<GithubState, string> = {
   grilling: 'Grilling',
   todo: 'Todo',
   done: 'Done',
+  canceled: 'Canceled',
 }
 const LOCAL_LABEL: Partial<Record<string, string>> = {
   'in-progress': 'in progress',
@@ -247,8 +249,9 @@ export function toTickets(
       drafts.push(text(row.title))
       continue
     }
-    const state = GITHUB_ORDER.find(one => one === row.state)
-    if (!state || row.ignored === true || (row.closed === true && state !== 'done')) continue
+    const listed = GITHUB_ORDER.find(one => one === row.state)
+    const state = row.not_planned === true ? 'canceled' : listed
+    if (!state || row.ignored === true || (row.closed === true && state === listed && state !== 'done')) continue
     const number = Number(row.number)
     const claims = Array.isArray(row.claims) ? (row.claims as RawRow[]) : []
     const assignees = Array.isArray(row.assignees) ? row.assignees.map(text) : []
@@ -333,7 +336,7 @@ export function githubSprintLines(tickets: readonly GithubTicket[]): string[] {
   return sprints.flatMap(sprint => {
     const members = tickets.filter(ticket => ticket.sprint === sprint)
     const done = members.filter(ticket => ticket.state === 'done').length
-    if (done === members.length) return []
+    if (!members.some(isOpenTicket)) return []
     return [scopeLine('🏁', sprint, done, members.length, breakdown(members.map(ticket => ticket.state), GITHUB_ORDER, GITHUB_LABEL))]
   })
 }
@@ -346,7 +349,7 @@ function githubMilestoneScopes(
   const newest = newestGithubMilestone(milestones, tracks)
   return milestones.flatMap(milestone => {
     if (milestone.tickets === milestone.done) return []
-    const live = tickets.filter(ticket => ticket.milestone === milestone.title && ticket.state !== 'done')
+    const live = tickets.filter(ticket => ticket.milestone === milestone.title && isOpenTicket(ticket))
     const parts = breakdown(live.map(ticket => ticket.state), GITHUB_ORDER, GITHUB_LABEL)
     const line = scopeLine('🎯', milestone.title, milestone.done, milestone.tickets, parts)
     return [{ name: milestone.title, line: `${line}${milestone.title === newest ? ' ← new tasks' : ''}` }]
@@ -393,7 +396,7 @@ function ticketStepActions(ticket: GithubTicket, phase: string): Action[] {
 }
 
 export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
-  if (ticket.reservedBy !== '' || ticket.claimedBy !== '' || ticket.state === 'done') return []
+  if (ticket.reservedBy !== '' || ticket.claimedBy !== '' || !isOpenTicket(ticket)) return []
   return [...ticketStepActions(ticket, phase), action('autopilot', `/wa-autopilot ${ticket.number}`)]
 }
 
@@ -491,7 +494,8 @@ export function localView(
   filter = '',
 ): View {
   const scope = scoped(tasks, sprintLines(tasks), milestoneScopes(tasks, milestones, tracks), filter)
-  const parts = sections(scope.shown, STATUS_ORDER, task => task.status, LOCAL_TITLE, ['done', 'canceled'], localRow)
+  const order = scope.filter ? STATUS_ORDER : STATUS_ORDER.filter(status => status !== 'canceled')
+  const parts = sections(scope.shown, order, task => task.status, LOCAL_TITLE, ['done', 'canceled'], localRow)
   return {
     sections: parts,
     legend: legendOf(parts),
@@ -511,7 +515,8 @@ export function githubView(
   filter = '',
 ): View {
   const scope = scoped(tickets, githubSprintLines(tickets), githubMilestoneScopes(tickets, milestones, tracks), filter)
-  const parts = sections(scope.shown, GITHUB_ORDER, ticket => ticket.state, GITHUB_TITLE, ['done'], ticket => githubRow(ticket))
+  const order = scope.filter ? GITHUB_ORDER : GITHUB_ORDER.filter(state => state !== 'canceled')
+  const parts = sections(scope.shown, order, ticket => ticket.state, GITHUB_TITLE, ['done', 'canceled'], ticket => githubRow(ticket))
   return {
     sections: parts,
     legend: legendOf(parts),
@@ -740,7 +745,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
         id: `#${one.number}`,
         title: one.title,
         state: one.state,
-        isDone: one.state === 'done',
+        isDone: !isOpenTicket(one),
       })),
       ...fileBlocks(focus.file),
     ],

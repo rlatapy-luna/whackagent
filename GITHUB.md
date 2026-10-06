@@ -172,7 +172,7 @@ Several autopilots, on several machines, can run on one board at once; claims ke
 
 ### `/wa-board`
 
-Reads `wa-backlog list`, `milestones` and `claims` instead of a file. On top of the usual dashboard it shows who holds which lock, **stale locks** (with the `/wa-task release` to run), Project draft items (not tickets yet: convert them to issues), and the `review` section split into 🧪 draft (your test) and 🔀 ready (your merge). It never suggests a ticket someone else holds.
+Reads `wa-backlog list`, `milestones` and `claims` instead of a file. On top of the usual dashboard it shows who holds which lock, **stale locks** (with the `/wa-task release` to run), Project draft items (not tickets yet: convert them to issues), and the `review` section split into 🧪 draft (your test) and 🔀 ready (your merge). Issues closed as not planned show under 🚫 Canceled, apart from 🎉 Done. It never suggests a ticket someone else holds.
 
 ### `/wa-release 0.3.0`
 

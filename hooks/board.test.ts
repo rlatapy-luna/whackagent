@@ -200,6 +200,9 @@ test('milestone tab narrows tasks and scope line', async () => {
   expect(scoped.sections.flatMap(section => section.rows.map(row => row.key))).toEqual(['b'])
   expect(scoped.scopes).toEqual(['🎯 0.2.0 — 0/1 (1 todo)'])
   expect(localView(tasks, ['0.2.0', '0.3.0'], [], 'gone').filter).toBe('')
+  const dropped = [...tasks, task({ slug: 'x', milestone: '0.2.0' }, 'canceled')]
+  expect(localView(dropped, ['0.2.0', '0.3.0'], []).sections.map(section => section.title)).not.toContain('Canceled')
+  expect(localView(dropped, ['0.2.0', '0.3.0'], [], '0.2.0').sections.map(section => section.title)).toContain('Canceled')
 })
 
 test('row actions follow the task state', async () => {
@@ -386,3 +389,29 @@ test('tasks in flight: grilling and coding only, checked-out task first', async 
   expect(activeGithubIds(tickets, '#4')).toEqual(['#4', '#1'])
 })
 
+
+test('github: closed as not planned is canceled, not done, wherever its column', async () => {
+  const { tickets } = toTickets(
+    [
+      row({ number: 1, state: 'done', closed: true }),
+      row({ number: 2, state: 'done', closed: true, not_planned: true, sprint: 's', milestone: 'm' }),
+      row({ number: 3, state: 'todo', closed: true, not_planned: true }),
+      row({ number: 4, state: 'todo', closed: true }),
+      row({ number: 5, state: 'coding', sprint: 's', milestone: 'm' }),
+    ],
+    [],
+    'wa/',
+  )
+  expect(tickets.map(ticket => [ticket.number, ticket.state])).toEqual([
+    [1, 'done'],
+    [2, 'canceled'],
+    [3, 'canceled'],
+    [5, 'coding'],
+  ])
+  const milestones = [{ title: 'm', isOpen: true, tickets: 2, done: 1 }]
+  const view = githubView(tickets, [], milestones, [])
+  expect(view.sections.map(section => `${section.icon} ${section.title}`)).toEqual(['🔨 Coding', '🎉 Done'])
+  expect(githubView(tickets, [], milestones, [], 'm').sections.map(section => section.title)).toEqual(['Coding', 'Canceled'])
+  expect(view.scopes).toEqual(['🏁 s — 0/2 (1 coding)', '🎯 m — 1/2 (1 coding) ← new tasks'])
+  expect(ticketActions(tickets[1]!)).toEqual([])
+})
