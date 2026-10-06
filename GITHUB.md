@@ -201,6 +201,8 @@ git rebase --onto origin/<base> $start^      # move it onto a new base
 
 This works whether or not the project squashes.
 
+Sprint PRs are the exception: a sprint branch lands with a **merge commit, never squashed**. Squashing would flatten every ticket of the sprint into one commit and leave the target without the sprint branch's commits, so the sprint PR body says so, and when you ask the agent to merge it, it runs `gh pr merge <pr> --merge`. A track landing follows the same rule.
+
 ## Gotchas
 
 - **The workflow must be on the default branch *and* on ticket branches.** `issues` events run the default branch's copy; `push` and `pull_request` events run the pushed ref's copy. Branches forked after the setup PR merged carry it.

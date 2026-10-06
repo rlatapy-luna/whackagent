@@ -125,6 +125,7 @@ Last task of sprint reach `done` — no task of that sprint left in `todo`, `in-
    → Recommended: PR sprint/login-refacto → main   (close.strategy: pr)
      Otherwise: keep the branch, you ship it yourself.
    ```
+   Lands by **merge commit, never squash** (**wa-board → Sprints**): PR body says so, `merge` strategy uses `--no-ff`, asked to merge sprint PR yourself → `gh pr merge <pr> --merge`.
 3. **Only on yes.** No is a normal answer — the branch stays, the sprint stays complete, nothing is lost. Never fold this into the task's own confirmation at step 3: two different things landing, two yeses.
 4. Sprint branch merged or PR'd → `delete_branch` applies to it the same way it applies to a task branch.
 
