@@ -29,3 +29,6 @@ tmp/
 
 # Python
 __pycache__/
+
+# Claude Code hooks module types, laid by the engine on load
+.claude-plugin/types/

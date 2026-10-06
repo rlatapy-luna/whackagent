@@ -25,7 +25,7 @@ Dashboard. Lift lid on backlog, point next move.
 
 ## GitHub board
 
-Same list format, sections by contract state, render order: **Coding → Review → Grilled → Grilling → Todo → Done**. Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short), `👤 @<login>` when `reserved` (assigned to another account). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
+Same list format, sections by contract state, render order: **Todo → Grilling → Grilled → Coding → Review → Done**. Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short), `👤 @<login>` when `reserved` (assigned to another account). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
 
 - `⏳ stale claims` — `claims` rows with `stale: true`: `#12 coding · <agent> · 2d, no push` → suggest `/wa-task release 12`.
 - `📝 drafts` — Project draft items: not tickets, convert to issue on GitHub.
@@ -39,19 +39,19 @@ Next action (GitHub): `review` + draft → `/wa-feedback <#> <notes>` or `/wa-va
 Canonical way tasks shown anywhere in flow (here, `/wa-task` prioritization pass, `/wa-autopilot` recap). **List, never table.** One section per non-empty status, tasks priority order, two lines per task:
 
 ```
-### In progress
-
-1 · 🟡 **Export CSV**
-    Export reports as CSV
-
 ### Todo
 
-2 · 🟢 **Login Apple** · `login-refacto`
+1 · 🟢 **Login Apple** · `login-refacto`
     Sign in with Apple on login screen
-3 · 🟡 **Login layout** · `login-refacto`
+2 · 🟡 **Login layout** · `login-refacto`
     Login form redesign
-4 · 🔴 **Sync offline** ⚠
+3 · 🔴 **Sync offline** ⚠
     Offline queue + conflicts
+
+### In progress
+
+4 · 🟡 **Export CSV**
+    Export reports as CSV
 
 🟢 quick win · 🟡 medium · 🔴 large · ⚠ not grilled
 🏁 login-refacto — 0/2 (2 todo)
@@ -63,7 +63,7 @@ Rules:
 
 - **Line 1** = `<#> · <size> **<title>**`, then `` · `<sprint>` `` when task has one, then ` ⚠` when `grilled: false`.
 - **Line 2** = task `summary`, indented 4 spaces. Never dump task body.
-- **#** = display index, written `2 ·` — never `2.`: markdown list syntax gets renumbered by renderer. Number **continuously across sections**, top to bottom in render order (In progress → Todo → Review → Validated → Done → Canceled). **Review** = coded, wait your test. **Validated** = you said it match spec, verifier passed, wait your retest to close. Never restart per section — index must be unique in render so user cite it without ambiguity.
+- **#** = display index, written `2 ·` — never `2.`: markdown list syntax gets renumbered by renderer. Number **continuously across sections**, top to bottom in render order (Todo → In progress → Review → Validated → Done → Canceled — lifecycle order). **Review** = coded, wait your test. **Validated** = you said it match spec, verifier passed, wait your retest to close. Never restart per section — index must be unique in render so user cite it without ambiguity.
 - **Size** maps `size`: 🟢 `quickwin` · 🟡 `medium` · 🔴 `large`.
 - **⚠** only on non-grilled tasks. Grilled = nothing — no ✅ on every line.
 - **Sprint tag** only on tasks that have one. Filtered run (`/wa-board <sprint>`) drops it — every task is that sprint.

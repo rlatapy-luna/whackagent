@@ -1,10 +1,11 @@
 # whackagent
 
-Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in the projects it is installed in. The repo is Markdown prompts that Claude reads at run time, with one exception: backlog providers under `providers/` may ship a script and CI workflow (for example `providers/github/wa-backlog`, Python 3 stdlib plus `gh`). There is no build and no test suite; provider scripts are tested against a real tracker (see the playground below).
+Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in the projects it is installed in. The repo is Markdown prompts that Claude reads at run time, with two exceptions: backlog providers under `providers/` may ship a script and CI workflow (for example `providers/github/wa-backlog`, Python 3 stdlib plus `gh`), and `hooks/` holds the backlog pane, a TypeScript function-hooks module. There is no build. Provider scripts are tested against a real tracker (see the playground below); the pane's parsing and view logic is tested with `claude plugin test .`, and `claude plugin validate .` checks the module the way Claude Code loads it.
 
 ## Layout
 
 - `.claude-plugin/plugin.json`: plugin manifest. Registers every skill in `skills[]`.
+- `hooks/`: the backlog pane (`/wa-pane`), loaded through `hooks/hooks.json`. `board.ts` is pure parsing and view logic (config, `{backlog}`, task frontmatter, `wa-backlog list` rows) with its tests in `board.test.ts`; `register.tsx` reads files and runs the provider, keeps the board in session state and draws it. It follows **wa-board → Display format** and **GitHub board**: change the pane when those change. `types/index.d.ts` declares its state, named in `plugin.json` as `types`.
 - `.claude-plugin/marketplace.json`: marketplace entry. Carries the version twice (`metadata.version` and `plugins[0].version`).
 - `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-release`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).

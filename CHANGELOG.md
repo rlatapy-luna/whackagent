@@ -4,6 +4,14 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Live backlog pane beside the conversation: the `/wa-board` list per state, with milestone tabs, per-task action buttons (`grill`, `code`, `feedback`, `validate`, `close`) and a `next:` button that type the command into the prompt. Works for the local and GitHub providers and refreshes on its own. Opens at session start in a whackagent project (turn off with the `auto_open` plugin option), or anytime with `/wa-pane`.
+
+### Changed
+
+- `/wa-board` lists sections in lifecycle order, earliest first: Todo → In progress → Review → Validated → Done → Canceled (GitHub provider: Todo → Grilling → Grilled → Coding → Review → Done). Task numbers follow the new order. The suggested next action is unchanged.
+
 ### Fixed
 
 - `/wa-setup` no longer writes user-specific values into the versioned config: `commit.author_name` / `author_email` stay empty (each committer's own git identity) and paths stay relative (`paths.worktrees` is `../<repo>-worktrees` even when setup runs from a worktree). Reconfigure flags existing home-dir paths and personal identities and offers the fix.

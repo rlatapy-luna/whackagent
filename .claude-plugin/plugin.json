@@ -6,6 +6,15 @@
     "name": "Rémi Latapy"
   },
   "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "auto_open": {
+      "type": "boolean",
+      "title": "Open backlog pane at start",
+      "description": "Open the live backlog pane when a session starts in a whackagent project. /wa-pane opens it either way.",
+      "default": true
+    }
+  },
   "keywords": ["workflow", "backlog", "wiki", "orchestrator", "swift", "kotlin", "android", "ios", "typescript", "autopilot", "code-review", "yagni"],
   "skills": [
     "./skills/wa-setup",

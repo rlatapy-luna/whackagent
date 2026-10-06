@@ -34,6 +34,7 @@ Add the marketplace, then install the plugin:
 | `/wa-setup` | Config + scaffolding (`.whackagent/`) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action (runs on Haiku) |
 | `/wa-board <sprint\|milestone>` | Same, filtered to one sprint or milestone, with its progress |
+| `/wa-pane` | Opens the live backlog pane (see below) |
 | `/wa-task <idea\|spec>` | Creates the task, then re-prioritizes the backlog and suggests `/wa-grill` (never starts it); a large spec is cut into a few feature-sized tasks (one sprint), each carrying its spec excerpt |
 | `/wa-task` | No argument: prioritization pass only — reorders, YAGNI, can split |
 | `/wa-grill [task]` | Grills one task until it's clear (grill-me, includes architecture), writes its acceptance criteria |
@@ -48,6 +49,12 @@ Add the marketplace, then install the plugin:
 | `/wa-wiki <feature>` | Looks up info in the wiki, then the code |
 
 Each step suggests the next one. You never have to figure out what to run.
+
+### Backlog pane
+
+In a project with `.whackagent/config.md`, a live pane beside the conversation shows the backlog in the `/wa-board` format: one section per state, sprint and milestone progress, and one tab per milestone to filter the board. Each task carries buttons for the moves its state allows (`grill`, `code`, `feedback`, `validate`, `close`), and a `next:` button holds the suggested action; pressing one types the command into the prompt, it never runs it. The pane refreshes as task files change (local provider) or every 30 seconds and after `wa-backlog` / `gh pr` commands (GitHub provider), and `↻` reloads it on demand.
+
+It opens on its own at session start when the terminal is at least 144 columns wide; `/wa-pane` opens it at any width. To keep it closed at start, turn off **Open backlog pane at start** (`auto_open`) in the plugin's settings in `/config`. The pane is built on Claude Code's function hooks, an early-access API: on a Claude Code build that can't load it, the skills keep working without it.
 
 ### Referring to tasks
 
