@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-06
+
 ### Changed
 
 - A sprint branch lands with a merge commit, never squashed: the sprint PR body says so, an agent asked to merge it runs `gh pr merge --merge`, and `close.strategy: merge` uses `--no-ff`.
