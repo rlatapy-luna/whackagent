@@ -456,6 +456,12 @@ export const register: Register = (on, options) => {
                 <Text dimColor>{line}</Text>
               </Box>
             ))}
+            {view.releases.map(ready => (
+              <Box key={ready.line} flexDirection="row" flexWrap="wrap" gap={1}>
+                <Text color="success">{ready.line}</Text>
+                <Button label={ready.action.label} onPress={fill(ready.action.command)} />
+              </Box>
+            ))}
           </Box>
         )}
         {current.kind === 'github' && (

@@ -34,7 +34,17 @@ export type FocusView = {
   blocks: FocusBlock[]
 }
 
-export type View = { sections: ViewSection[]; legend: string; scopes: string[]; notes: string[]; milestone: string; tabs: string[]; filter: string }
+export type Release = { line: string; action: Action }
+export type View = {
+  sections: ViewSection[]
+  legend: string
+  scopes: string[]
+  releases: Release[]
+  notes: string[]
+  milestone: string
+  tabs: string[]
+  filter: string
+}
 
 type Scope = { name: string; line: string }
 
@@ -341,6 +351,36 @@ export function githubSprintLines(tickets: readonly GithubTicket[]): string[] {
   })
 }
 
+const release = (name: string, done: number, total: number): Release => ({
+  line: `${scopeLine('🎯', name, done, total, [])} · ready to ship`,
+  action: { label: 'release', command: `/wa-release ${name}` },
+})
+
+export function localReleases(tasks: readonly BoardTask[], milestones: readonly string[], tracks: readonly string[]): Release[] {
+  return milestones
+    .filter(name => !tracks.includes(name))
+    .sort((a, b) => compareVersions(b, a))
+    .flatMap(name => {
+      const members = tasks.filter(task => task.milestone === name)
+      const done = members.filter(task => task.status === 'done').length
+      return done > 0 && !members.some(isLive) ? [release(name, done, members.length)] : []
+    })
+}
+
+export function githubReleases(
+  tickets: readonly GithubTicket[],
+  milestones: readonly MilestoneCount[],
+  tracks: readonly string[],
+): Release[] {
+  return milestones.flatMap(milestone => {
+    const isComplete = milestone.tickets > 0 && milestone.done === milestone.tickets
+    const hasLanded = tickets.some(ticket => ticket.milestone === milestone.title && ticket.state === 'done')
+    return milestone.isOpen && !tracks.includes(milestone.title) && isComplete && hasLanded
+      ? [release(milestone.title, milestone.done, milestone.tickets)]
+      : []
+  })
+}
+
 function githubMilestoneScopes(
   tickets: readonly GithubTicket[],
   milestones: readonly MilestoneCount[],
@@ -500,6 +540,7 @@ export function localView(
     sections: parts,
     legend: legendOf(parts),
     scopes: scope.scopes,
+    releases: scope.filter ? [] : localReleases(tasks, milestones, tracks),
     notes: [],
     milestone: newestMilestone(milestones, tracks),
     tabs: scope.tabs,
@@ -521,6 +562,7 @@ export function githubView(
     sections: parts,
     legend: legendOf(parts),
     scopes: scope.scopes,
+    releases: scope.filter ? [] : githubReleases(tickets, milestones, tracks),
     notes: !scope.filter && drafts.length > 0 ? [`📝 ${drafts.length} draft${drafts.length > 1 ? 's' : ''} — convert to issue on GitHub`] : [],
     milestone: newestGithubMilestone(milestones, tracks),
     tabs: scope.tabs,

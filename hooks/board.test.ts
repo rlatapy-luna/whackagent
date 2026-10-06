@@ -2,6 +2,8 @@ import { expect, test } from 'claude-code/testing'
 
 import {
   activeGithubIds,
+  githubReleases,
+  localReleases,
   activeLocalIds,
   branchTaskId,
   parseWorktrees,
@@ -414,4 +416,36 @@ test('github: closed as not planned is canceled, not done, wherever its column',
   expect(githubView(tickets, [], milestones, [], 'm').sections.map(section => section.title)).toEqual(['Coding', 'Canceled'])
   expect(view.scopes).toEqual(['🏁 s — 0/2 (1 coding)', '🎯 m — 1/2 (1 coding) ← new tasks'])
   expect(ticketActions(tickets[1]!)).toEqual([])
+})
+
+test('a complete open milestone offers a release; 0/0, all canceled, live, closed and tracks do not', async () => {
+  const tasks = [
+    task({ slug: 'a', milestone: '0.3.0' }, 'done'),
+    task({ slug: 'b', milestone: '0.3.0' }, 'canceled'),
+    task({ slug: 'c', milestone: '0.4.0' }, 'canceled'),
+    task({ slug: 'd', milestone: '0.5.0' }, 'review'),
+    task({ slug: 'e', milestone: 'server' }, 'done'),
+    task({ slug: 'f', milestone: '0.2.0' }, 'done'),
+  ]
+  expect(localReleases(tasks, ['0.3.0', '0.4.0', '0.5.0', '0.6.0', 'server'], ['server'])).toEqual([
+    { line: '🎯 0.3.0 — 1/2 · ready to ship', action: { label: 'release', command: '/wa-release 0.3.0' } },
+  ])
+  expect(localView(tasks, ['0.3.0', '0.5.0'], [], '0.5.0').releases).toEqual([])
+  const { tickets } = toTickets(
+    [row({ number: 1, state: 'done', closed: true, milestone: '1.0' }), row({ number: 2, state: 'todo', milestone: '1.1' })],
+    [],
+    'wa/',
+  )
+  expect(
+    githubReleases(
+      tickets,
+      [
+        { title: '1.1', isOpen: true, tickets: 1, done: 0 },
+        { title: '1.0', isOpen: true, tickets: 1, done: 1 },
+        { title: '0.9', isOpen: true, tickets: 0, done: 0 },
+        { title: '0.8', isOpen: false, tickets: 2, done: 2 },
+      ],
+      [],
+    ).map(ready => ready.action.command),
+  ).toEqual(['/wa-release 1.0'])
 })
