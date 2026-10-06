@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Backlog pane: one emoji per state (📥 todo · 🔥 grilling · 📐 grilled · 🔨 in progress / coding · 👀 review · 👍 validated · 🎉 done · 🚫 canceled) on the board's sections, the tasks in flight tabs and the task details. `/wa-board` section headings carry the same emoji.
+
 ## [0.29.1] - 2026-10-06
 
 ### Fixed

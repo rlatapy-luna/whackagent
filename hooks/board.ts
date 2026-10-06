@@ -21,10 +21,10 @@ export type ViewRow = {
   summary: string
   actions: Action[]
 }
-export type ViewSection = { title: string; rows: ViewRow[]; hidden: number; isClosed: boolean }
+export type ViewSection = { icon: string; title: string; rows: ViewRow[]; hidden: number; isClosed: boolean }
 export type FocusLine = { mark: string; text: string; tone: Tone | 'plain' }
 export type FocusBlock = { title: string; lines: FocusLine[] }
-export type FocusView = { id: string; row: ViewRow | null; facts: string[]; blocks: FocusBlock[] }
+export type FocusView = { id: string; icon: string; row: ViewRow | null; facts: string[]; blocks: FocusBlock[] }
 
 export type View = { sections: ViewSection[]; legend: string; scopes: string[]; notes: string[]; milestone: string; tabs: string[]; filter: string }
 
@@ -57,6 +57,19 @@ const LOCAL_LABEL: Partial<Record<string, string>> = {
   review: 'in review',
   validated: 'validated',
 }
+export const STATE_ICON: Partial<Record<string, string>> = {
+  todo: '📥',
+  grilling: '🔥',
+  grilled: '📐',
+  'in-progress': '🔨',
+  coding: '🔨',
+  review: '👀',
+  validated: '👍',
+  done: '🎉',
+  canceled: '🚫',
+}
+const withIcon = (state: string) => `${STATE_ICON[state] ?? '·'} ${state}`
+
 const GITHUB_LABEL: Partial<Record<string, string>> = {
   coding: 'coding',
   review: 'in review',
@@ -394,7 +407,9 @@ function sections<T>(
     if (members.length === 0) return []
     const isClosed = closedStates.includes(state)
     const shown = isClosed ? members.slice(-CLOSED_SHOWN) : members
-    return [{ title: titles[state] ?? state, rows: shown.map(toRow), hidden: members.length - shown.length, isClosed }]
+    return [
+      { icon: STATE_ICON[state] ?? '·', title: titles[state] ?? state, rows: shown.map(toRow), hidden: members.length - shown.length, isClosed },
+    ]
   })
 }
 
@@ -633,7 +648,7 @@ function sprintBlock<T>(
     {
       title: `🏁 ${sprint} — ${done}/${rows.length}`,
       lines: rows.map(row =>
-        focusLine(row.isCurrent ? '→' : row.isDone ? '✓' : '·', `${row.id} ${row.title} · ${row.state}`, row.isDone ? 'muted' : 'plain'),
+        focusLine(row.isCurrent ? '→' : row.isDone ? '✓' : '·', `${row.id} ${row.title} · ${withIcon(row.state)}`, row.isDone ? 'muted' : 'plain'),
       ),
     },
   ]
@@ -644,9 +659,11 @@ const whereLine = (focus: TaskFocus, here: string) =>
 
 export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, here = ''): FocusView {
   const task = tasks.find(one => one.slug === focus.id)
-  if (!task) return { id: focus.id, row: null, facts: ['not in the backlog', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
+  if (!task) {
+    return { id: focus.id, icon: '·', row: null, facts: ['not in the backlog', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
+  }
   const facts = [
-    [`status: ${task.status}`, task.isGrilled ? 'grilled' : 'not grilled', task.milestone ? `milestone ${task.milestone}` : '']
+    [withIcon(task.status), task.isGrilled ? 'grilled' : 'not grilled', task.milestone ? `milestone ${task.milestone}` : '']
       .filter(Boolean)
       .join(' · '),
     ...whereLine(focus, here),
@@ -654,6 +671,7 @@ export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, he
   const members = tasks.filter(one => one.sprint !== '' && one.sprint === task.sprint)
   return {
     id: task.slug,
+    icon: STATE_ICON[task.status] ?? '·',
     row: localRow(task),
     facts,
     blocks: [
@@ -671,12 +689,12 @@ export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, he
 export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFocus, here = ''): FocusView {
   const ticket = tickets.find(one => `#${one.number}` === focus.id)
   if (!ticket) {
-    return { id: focus.id, row: null, facts: ['not on the board yet', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
+    return { id: focus.id, icon: '·', row: null, facts: ['not on the board yet', ...whereLine(focus, here)], blocks: fileBlocks(focus.file) }
   }
   const phase = focus.file?.phase ?? ''
   const openBlockers = focus.blockedBy.filter(blocker => blocker.isOpen).map(blocker => `#${blocker.number}`)
   const facts = [
-    [`state: ${ticket.state}`, phase ? `phase: ${phase}` : '', ticket.milestone ? `milestone ${ticket.milestone}` : '']
+    [withIcon(ticket.state), phase ? `phase: ${phase}` : '', ticket.milestone ? `milestone ${ticket.milestone}` : '']
       .filter(Boolean)
       .join(' · '),
     ...(ticket.pr ? [`PR #${ticket.pr.number} ${ticket.pr.isDraft ? 'draft' : 'ready'}${focus.prUrl ? ` — ${focus.prUrl}` : ''}`] : []),
@@ -686,6 +704,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
   const members = tickets.filter(one => one.sprint !== '' && one.sprint === ticket.sprint)
   return {
     id: focus.id,
+    icon: STATE_ICON[ticket.state] ?? '·',
     row: githubRow(ticket, phase),
     facts,
     blocks: [

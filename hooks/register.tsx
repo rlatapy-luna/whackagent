@@ -297,9 +297,9 @@ function viewOf(current: Board, milestone: string): View | string {
 }
 
 const tabLabel = (focus: FocusView) => {
-  if (!focus.id.startsWith('#') || !focus.row) return focus.id
+  if (!focus.id.startsWith('#') || !focus.row) return `${focus.icon} ${focus.id}`
   const title = focus.row.title
-  return `${focus.id} ${title.length > TAB_TITLE_LENGTH ? `${title.slice(0, TAB_TITLE_LENGTH - 1)}…` : title}`
+  return `${focus.icon} ${focus.id} ${title.length > TAB_TITLE_LENGTH ? `${title.slice(0, TAB_TITLE_LENGTH - 1)}…` : title}`
 }
 
 export const register: Register = (on, options) => {
@@ -425,7 +425,7 @@ export const register: Register = (on, options) => {
             {view.sections.length === 0 && <Text dimColor>Backlog empty.</Text>}
             {view.sections.map(section => (
               <Box key={section.title} flexDirection="column" marginBottom={1}>
-                <Text bold>{section.title}</Text>
+                <Text bold>{`${section.icon} ${section.title}`}</Text>
                 {section.rows.map(row => {
                   index += 1
                   return rowNode(row, `${index} · `, section.isClosed)

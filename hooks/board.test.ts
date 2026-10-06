@@ -179,7 +179,7 @@ test('github view orders by contract state', async () => {
     'wa/',
   )
   const view = githubView(tickets, drafts, [{ title: '0.5.0', isOpen: true, tickets: 3, done: 1 }], [])
-  expect(view.sections.map(section => section.title)).toEqual(['Todo', 'Grilled', 'Review', 'Done'])
+  expect(view.sections.map(section => `${section.icon} ${section.title}`)).toEqual(['📥 Todo', '📐 Grilled', '👀 Review', '🎉 Done'])
   expect(view.sections[2]?.rows[0]?.tags.map(tag => tag.text)).toEqual(['#3', '🧪 draft #9'])
   expect(view.sections[0]?.rows[0]?.tags.map(tag => tag.text)).toEqual(['#2', 'login', '⚠'])
   expect(view.scopes).toEqual(['🏁 login — 1/2 (1 todo)', '🎯 0.5.0 — 1/3 (1 todo, 1 in review) ← new tasks'])
@@ -320,7 +320,7 @@ test('github focus marks criteria from verification, lists sprint siblings and o
     ],
     prUrl: 'https://x/pull/40',
   })
-  expect(view.facts).toEqual(['state: review · phase: validated · milestone 0.4.1', 'PR #40 draft — https://x/pull/40', '⛔ blocked by #10', '🌳 /src/app-worktrees/177-ai-group-menu'])
+  expect(view.facts).toEqual(['👀 review · phase: validated · milestone 0.4.1', 'PR #40 draft — https://x/pull/40', '⛔ blocked by #10', '🌳 /src/app-worktrees/177-ai-group-menu'])
   expect(view.row?.actions.map(one => one.label)).toEqual(['close', 'feedback', 'autopilot'])
   expect(view.blocks.map(block => block.title)).toEqual([
     '🏁 menus — 1/2',
@@ -343,7 +343,7 @@ test('local focus without a task file section still shows the task', async () =>
     blockedBy: [],
     prUrl: '',
   }, 'a')
-  expect(view.facts).toEqual(['status: in-progress · grilled', '📍 checked out here'])
+  expect(view.facts).toEqual(['🔨 in-progress · grilled', '📍 checked out here'])
   expect(view.blocks.map(block => block.title)).toEqual(['🏁 s — 0/1'])
   expect(localFocusView([], { id: 'gone', worktree: '', file: null, blockedBy: [], prUrl: '' }).facts).toEqual(['not in the backlog'])
 })
