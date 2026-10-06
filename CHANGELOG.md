@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Every PR whackagent opens (ticket draft, `/wa-close` PR, sprint PR) carries at least one label picked from the repo's existing labels (best fit for the change: bug, feature, docs, area), on top of `pr.labels`. Labels are never created.
+
 ## [0.32.0] - 2026-10-06
 
 ### Added

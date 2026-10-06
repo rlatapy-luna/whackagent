@@ -184,6 +184,8 @@ pr:                            # HOW every PR whackagent open look — ticket dr
   title: "{title}"             # placeholders {title} {n} (issue number, GitHub) {slug}
                                # e.g. "[#{n}] {title}", "feat: {title}"
   labels: []                   # added at creation, e.g. [whackagent]. Label missing in repo → skipped.
+                               # On top, every PR gets ≥1 label picked from repo's own labels
+                               # (best fit: bug, feature, docs, area…) — never created.
   assignees: ["@me"]           # PR assignees at creation
   reviewers: []                # requested when PR goes ready, never on draft. Users or org/team.
                                # Empty → none requested (CODEOWNERS still apply).
