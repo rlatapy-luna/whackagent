@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-06
+
 ### Added
 
 - Backlog pane: a `▾ board` toggle in the header hides the board (an open-task count stays) to keep only the tasks in flight; `▸ board` shows it again.
