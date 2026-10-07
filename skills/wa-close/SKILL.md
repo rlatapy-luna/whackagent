@@ -1,6 +1,6 @@
 ---
 name: wa-close
-description: Close validated task — record done, commit, land branch (sprint merge, PR, or nothing per config), clean branch and worktree. Last step of task lifecycle. `/wa-close <sprint>` lands a complete sprint.
+description: Close validated task — record done, commit, land branch (sprint merge, PR marked ready for review, or nothing per config — PR never merged), clean branch and worktree. Last step of task lifecycle. `/wa-close <sprint>` lands a complete sprint.
 ---
 
 # /wa-close
@@ -26,7 +26,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 4. **Commit** — when `commit.auto_commit_after_validation`. `commit.author_name` / `commit.author_email` (empty → repo's git identity), **never as Claude**. Already clean → skip, say so.
    - Nothing committed and tree dirty → **stop before any branch move.** Uncommitted work plus merge = how work disappear.
    - `branch.worktree: true` → commit in task worktree: code + wiki. Local task file + `{backlog}` stay main-checkout bookkeeping, not in task commit (**wa-board → Worktrees**).
-5. **Land branch** — *Landing* below. Task in sprint → merge into sprint branch. Else → `close.strategy`.
+5. **Land branch** — *Landing* below. Task in sprint → into sprint branch (`close.strategy: pr` → PR onto it, else merge). Else → `close.strategy`.
 6. **Clean up** — *Cleanup* below. Worktree then branch, that order, `close.delete_branch` decide.
 7. **`status: done`**, reflect in `{backlog}` (move line under **Done**, keep `· <sprint>` suffix).
 8. **Sprint complete?** Last task of sprint just closed → *Sprint landing*.
@@ -65,10 +65,19 @@ after     : 🏁 login-refacto — 3/5
 ok? [y/n]
 ```
 
+`close.strategy: pr`, same task:
+
+```
+push      : wa/login-apple → origin
+pr        : draft #42 → ready for review, body refreshed, reviewers @team · base sprint/login-refacto
+merge     : none — PR merged on GitHub by a human
+branch    : wa/login-apple kept (PR open)
+```
+
 Rules:
 
 - **Always shown, always confirmed.** `strategy: nothing` and no commit → two lines and a yes, still worth it.
-- **`strategy: pr` = loud case.** PR visible to other people second it opens. Name target branch, title you use, and that it push. Never open one on implied yes carried from earlier close.
+- **`strategy: pr` = loud case.** PR visible to other people second it opens, ready PR pings reviewers. Name base branch, title you use, that it push, and what happens to PR: draft → ready, opened ready, or ready one refreshed. Never open or mark ready on implied yes carried from earlier close.
 - Anything you skip (no commit, no worktree, branch kept) → say it skipped, not omit line. Silence read as "it happened".
 - User say no → stop at step 3. Task stay `validated`, nothing touched.
 
@@ -77,6 +86,7 @@ Rules:
 **Task in sprint** (`sprint:` set, `branch.sprint_prefix` non-empty):
 
 1. Sprint branch = `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`). Absent → create from `branch.base` (track task: its trunk); happen when task coded before sprints existed.
+   - **`close.strategy: pr` → no merge.** *PR landing* below, base = sprint branch. Sprint branch missing on remote → push it first (plan block says so). Steps 2–4 skipped: task code reaches sprint branch when human merges PR.
 2. Merge task branch into it. **Not rebase, not squash** — sprint branch is working branch, history yours to rewrite later if want.
 3. **Conflict → stop, leave merge in progress**, name files, say task stay `validated` until resolved. Never `--abort` behind their back, never guess resolution: conflict between two tasks of one sprint = real design question.
 4. Task branch landed → `delete_branch: auto` delete it.
@@ -84,8 +94,19 @@ Rules:
 **Standalone task** (no sprint, or `sprint_prefix` empty) → `close.strategy`. Track task (**wa-board → Tracks**): `close.target` below reads its trunk.
 
 - **`nothing`** (default) — stop after commit. Branch stay exactly where it is. Say plainly (`branch wa/login-apple kept — PR is yours`) so nobody wait on PR that not coming.
-- **`pr`** — push branch, then `gh pr create --base <close.target>`: title, body, labels, assignees, reviewers per **wa-board → Pull requests** (opened ready → reviewers at creation). Print URL. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
+- **`pr`** — *PR landing* below, base = `close.target`.
 - **`merge`** — merge into `close.target` locally, **no push**. Target checked out elsewhere or dirty → say so, stop. Conflict → same rule as sprint merge: leave it, name files.
+
+**PR landing** — `close.strategy: pr`, task or sprint. End state: **PR open, ready for review, never merged.**
+
+1. **Push** `git push -u origin <branch>`. Rejected (remote moved) → stop, say so: never force.
+2. **Find PR** — `gh pr list --head <branch> --state open --json number,isDraft,baseRefName,url`.
+   - **Draft** (opened by hand, or earlier round) → refresh body (**wa-board → Pull requests**, *Refresh*), base differs → `gh pr edit <pr> --base <base>`, then `gh pr ready <pr>` + `pr.reviewers` requested. Draft = your test, ready = review.
+   - **Ready already** → refresh body only, base fixed same way.
+   - **None** → `gh pr create --base <base> --head <branch>`, **not** `--draft`: title, body, labels, assignees, reviewers at creation per **wa-board → Pull requests**.
+3. Status line in whackagent block: `Ready — validated. Review, then merge.` Print URL.
+4. **Never merge it** — no `gh pr merge`, no local merge of that branch into base. Merge = human's, on GitHub.
+5. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
 
 **`branch.worktree: true`** — merges run in a worktree, never switch main checkout. Target (sprint branch or `close.target`) checked out nowhere → task worktree, clean after commit: `git switch <target>`, merge task branch there. Target checked out in main checkout → merge there, only when clean; dirty → say so, stop. Conflict → merge left in progress **in that checkout**, name its path; cleanup skips worktree holding it.
 
@@ -99,7 +120,7 @@ Order matter — worktree holding branch block deleting it.
 
 1. **Worktree** — `{worktrees}/<slug>` (autopilot leftover, or `branch.worktree`) → `git worktree remove`. Dirty → **stop and ask**; uncommitted work in worktree still work.
 2. **Branch** — `close.delete_branch`:
-   - `auto` (default) → delete only when code live somewhere else: merged into sprint branch, or merged into `close.target`. `pr` and `nothing` keep branch.
+   - `auto` (default) → delete only when code live somewhere else: merged into sprint branch, or merged into `close.target`. `pr` (task or sprint) and `nothing` keep branch.
    - `always` → delete. **Unmerged → ask first**, say what would be lost.
    - `never` → keep, say so.
 3. **Local only.** Never delete remote branch, never `push --delete`, unless asked in that message.
@@ -109,7 +130,7 @@ Order matter — worktree holding branch block deleting it.
 `/wa-close <sprint>` — sprint whose tasks all closed but never landed: no at last task's close, tasks closed elsewhere, GitHub parent left open.
 
 1. **Complete?** Task left `todo` / `in-progress` / `review` / `validated` (GitHub: open sub-issue on board) → list what left, stop. None `done`, all canceled → nothing to ship: GitHub → offer closing parent as not planned (`gh issue close <parent> --reason "not planned"`, confirm first); local → say so, stop.
-2. **Anything to land?** Fetch. Sprint branch `<branch.sprint_prefix><sprint>` holds commits not in `close.target` (track sprint: its trunk) — `git rev-list --count <target>..<sprint branch>` > 0 → *Sprint landing* steps 2–4 below (GitHub: sprint PR body `Sprint #<parent>`; merge → hook closes parent). Branch absent, empty or already in target → nothing to land.
+2. **Anything to land?** Fetch. `close.strategy: pr` → task PRs still open onto sprint branch (`gh pr list --base <sprint branch> --state open`) → list them, say sprint PR waits until they merge, stop. Sprint branch `<branch.sprint_prefix><sprint>` holds commits not in `close.target` (track sprint: its trunk) — `git rev-list --count <target>..<sprint branch>` > 0 → *Sprint landing* steps 2–4 below (GitHub: sprint PR body `Sprint #<parent>`; merge → hook closes parent). Branch absent, empty or already in target → nothing to land.
 3. **Nothing to land** → GitHub: close parent — `gh issue close <parent> --comment "🏁 sprint landed — every sub-issue closed, nothing left on the sprint branch"`. Outward: confirm first. Local: say complete, nothing to do.
 4. **Report** one line: `🏁 <sprint> — <done>/<total> · <PR #n opened | parent #n closed | already landed>`.
 
@@ -120,6 +141,7 @@ Never touches a task: their states stay theirs.
 Last task of sprint reach `done` — no task of that sprint left in `todo`, `in-progress`, `review` or `validated`:
 
 1. Say it: `🏁 login-refacto — 5/5, last task closed.`
+   - `close.strategy: pr` → task PRs still open onto sprint branch (`gh pr list --base <sprint branch> --state open`) → sprint branch not whole yet: list them, say `/wa-close <sprint>` once they merge, stop here.
 2. **Propose** applying `close.strategy` to sprint branch, onto `close.target` (track sprint: its trunk) — same three behaviours as standalone task, recommendation first:
    ```
    → Recommended: PR sprint/login-refacto → main   (close.strategy: pr)
@@ -141,7 +163,8 @@ A sprint is never `done` as a thing — there's no sprint status to set. It's co
 ## Never
 
 - Never close a task the verifier never saw (`review` → `/wa-validate` first).
-- Never merge, push, open a PR or delete a branch without the confirmed plan block.
+- Never merge, push, open a PR, mark one ready or delete a branch without the confirmed plan block.
+- Never merge a PR, nor merge a `pr`-strategy branch locally. Only exception: sprint PR, when user explicitly asks (*Sprint landing*).
 - Never force-push, never rewrite a shared branch, never touch a branch that isn't this task's or its sprint's.
 - Never delete a branch whose work isn't somewhere else.
 - Never commit as Claude.

@@ -161,7 +161,9 @@ close:                         # WHERE work land when /wa-close finish a task. T
                                # or sprint branch itself once its last task close).
   strategy: nothing            # nothing — /wa-close stop after commit, branch left alone.
                                #   YOU open the PR. Safest, and default.
-                               # pr     — push branch + open PR onto target: (`gh pr create`).
+                               # pr     — push branch + PR onto target: ready for review —
+                               #   existing draft marked ready, else opened ready. Never merged.
+                               #   Sprint task: PR onto its sprint branch, no local merge.
                                #   Outward-facing: /wa-close ALWAYS confirm before, every time.
                                # merge  — merge branch into target: locally, no push.
   target: main                 # where pr/merge land. Ignored by `nothing`.

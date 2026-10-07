@@ -41,7 +41,7 @@ Add the marketplace, then install the plugin:
 | `/wa-code <task>` | Full pipeline: understand → code + test → review → verify → report |
 | `/wa-feedback [task] <notes>` | Applies your notes on what was built — micro-fix inline, bigger changes through the isolated pipeline |
 | `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
-| `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR, or nothing — `close.strategy`), delete branch + worktree, `done` |
+| `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR ready for review — never merged —, or nothing — `close.strategy`), delete branch + worktree, `done` |
 | `/wa-close <sprint>` | Lands a complete sprint later: sprint PR when its branch holds unlanded work, else closes the GitHub sprint parent (asks first) |
 | `/wa-release [milestone]` | Ships a milestone: checks its tasks landed, then walks you through the project's own documented release flow, confirming every outward step (finds the doc, or interviews you and writes it first) |
 | `/wa-autopilot [tasks\|sprint\|milestone]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel. A task you name runs from whatever state it's in (grills, codes, validates or refreshes what's left; never closes) |
@@ -91,7 +91,7 @@ Where it shows up:
 - **Prioritization** keeps a sprint's tasks contiguous in the backlog. The sprint moves as a block, and you order tasks inside it (dependencies first). Pulling one out of the block is allowed, and it says why.
 - **`/wa-autopilot login-refacto`** batches the sprint's `todo` tasks — leaving alone the ones already in review or validated, and echoing what it skipped.
 
-- **`/wa-close`** merges the task branch into the sprint branch, and notices when the sprint's last task closes — then it offers to land the sprint branch itself. The sprint branch lands with a merge commit, never squashed, so each ticket's history survives on the target.
+- **`/wa-close`** merges the task branch into the sprint branch (with `close.strategy: pr`, it opens a ready-for-review PR onto it instead), and notices when the sprint's last task closes — then it offers to land the sprint branch itself. The sprint branch lands with a merge commit, never squashed, so each ticket's history survives on the target.
 
 Sprints deliberately aren't a status and aren't a backlog section: a sprint cuts across statuses (some tasks done, some in review, some untouched), and status sections are what tells you what to do next. There's no sprint status to set either — a sprint is complete when its tasks are. `/wa-code`, `/wa-feedback`, `/wa-validate` and `/wa-close` stay per task — one task at a time is how you review and merge.
 
@@ -271,7 +271,7 @@ ok? [y/n]
 
 Where the work lands depends on one thing: whether the task is in a sprint.
 
-- **In a sprint** → merged into the sprint branch. Always, no config involved.
+- **In a sprint** → merged into the sprint branch, unless `close.strategy` is `pr`: then it gets a PR onto the sprint branch, like a standalone task gets one onto `target`.
 - **Standalone** → `close.strategy` in your config, asked at `/wa-setup`:
 
 ```yaml
@@ -281,7 +281,7 @@ close:
   delete_branch: auto # auto = only once the code lives elsewhere
 ```
 
-`nothing` is the default and stops after the commit — the branch stays, you open the PR yourself. `pr` pushes and runs `gh pr create` onto `target`, and asks every single time, because a PR is visible to other people the moment it opens. `merge` merges locally without pushing.
+`nothing` is the default and stops after the commit — the branch stays, you open the PR yourself. `pr` pushes and leaves a PR ready for review onto `target`: a draft PR already open for the branch is marked ready (body refreshed, reviewers requested), otherwise a PR is opened ready. It never merges the PR; that stays a human's call on GitHub. It asks every single time, because a PR is visible to other people the moment it opens. `merge` merges locally without pushing.
 
 A branch is only deleted once its code exists somewhere else: merged into its sprint branch, or merged into `target`. `pr` and `nothing` keep it — a PR needs its branch, and so do you. The task's worktree (an autopilot leftover, or any task under `branch.worktree`) gets removed with it, and if it's dirty the command stops and asks.
 
@@ -307,7 +307,7 @@ Updates the wiki. `/wa-close` runs it on every close, so the wiki lands in the s
 >
 > **Worktree per task.** Add `branch.worktree: true` (the third answer to the branch question at `/wa-setup`) and each task branch gets its own git worktree at `../<repo>-worktrees/<slug>` instead of being checked out in your repo. Your main checkout never switches branch, so several tasks can stay open side by side, and a dirty tree never blocks the next task. The folder is `paths.worktrees` and must sit outside the repo, so the nested checkout never gets indexed, searched or picked up by a build. The backlog and reports stay in the main checkout. The cost: each worktree builds from cold once, and you test from it (open your IDE, simulator or dev server there). `/wa-autopilot` uses the same folder.
 >
-> **Branch per sprint.** A task carrying a `sprint:` doesn't fork off `branch.base` — it forks off `sprint/<sprint>`, created from the base the first time a task of that sprint is coded (by `/wa-code` or by an `/wa-autopilot` wave). `/wa-close` merges each task back into it. That's the point: the third task of a login refacto starts from the first two instead of rediscovering them as a merge conflict. Nothing lands on a sprint branch before its task is reviewed and closed, so the base of the sprint stays code you approved. `branch.sprint_prefix: ""` turns it off.
+> **Branch per sprint.** A task carrying a `sprint:` doesn't fork off `branch.base` — it forks off `sprint/<sprint>`, created from the base the first time a task of that sprint is coded (by `/wa-code` or by an `/wa-autopilot` wave). `/wa-close` merges each task back into it (with `close.strategy: pr`, through a PR you merge). That's the point: the third task of a login refacto starts from the first two instead of rediscovering them as a merge conflict. Nothing lands on a sprint branch before its task is reviewed and closed, so the base of the sprint stays code you approved. `branch.sprint_prefix: ""` turns it off.
 
 ## Shared backlog on GitHub
 
