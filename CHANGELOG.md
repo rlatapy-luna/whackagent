@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-07
+
 ### Changed
 
 - Backlog pane, GitHub provider: the pane calls GitHub only when it opens and on `↻ refresh`, no more polling every 30 seconds or after `wa-backlog` / `gh` commands, so it no longer eats the API rate limit.
