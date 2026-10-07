@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-07
+
 ### Added
 
 - GitHub provider: `wa-backlog comment <n> --body-file <file>` (`-` reads stdin) posts multi-line comments such as the bricks list.
