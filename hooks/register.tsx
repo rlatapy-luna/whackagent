@@ -30,9 +30,6 @@ const PANE = 'wa-board'
 const TITLE = 'Backlog'
 const CONFIG = '.whackagent/config.md'
 const TICK_MS = 2000
-const GITHUB_POLL_MS = 30_000
-const BOARD_COMMAND = /wa-backlog|\bgh\s+(pr|issue)\b/
-const HOOKS_SETTLE_MS = 8000
 const TAB_TITLE_LENGTH = 18
 const GITHUB_MARK = '<svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"/></svg>'
 
@@ -44,7 +41,6 @@ const expandedStates = atom({ plugin: 'whackagent', key: 'expanded' } as const, 
 const openSprints = atom({ plugin: 'whackagent', key: 'openSprints' } as const, [] as string[])
 
 let lastSignature = ''
-let lastGithubFetch = 0
 let lastFocusStamp = ''
 let focusFiles = new Map<string, string>()
 let isRefreshing = false
@@ -209,9 +205,7 @@ async function refreshFocusFiles($: EngineInterface) {
 }
 
 async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, isForced: boolean) {
-  const now = await $.clock.now()
-  if (!isForced && now - lastGithubFetch < GITHUB_POLL_MS) return refreshFocusFiles($)
-  lastGithubFetch = now
+  if (!isForced) return refreshFocusFiles($)
   const script = `${$.plugin.root}/providers/github/wa-backlog`
   const [rows, milestones, pulls, refs, sprints] = await Promise.all([
     runJson($, ['python3', script, 'list', '--all', '--owners'], at.root, 'wa-backlog list'),
@@ -323,9 +317,11 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'wa-pane', description: 'Show the whackagent backlog in a live pane' })
     $.clock.every(TICK_MS, () => void refresh($))
-    void refresh($).then(current => {
-      if (options.auto_open !== false && current.kind !== 'no-config') void $.ui.open({ id: PANE, title: TITLE })
-    })
+    if (options.auto_open === true) {
+      void refresh($, true).then(current => {
+        if (current.kind !== 'no-config') void $.ui.open({ id: PANE, title: TITLE })
+      })
+    }
 
     return next(e)
   })
@@ -337,16 +333,10 @@ export const register: Register = (on, options) => {
     return { text: 'Backlog pane opened.' }
   })
 
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const ran = await next(e)
-    if (BOARD_COMMAND.test(e.command)) $.clock.after(HOOKS_SETTLE_MS, () => void refresh($, true))
-
-    return ran
-  }).catch(($, e, next) => next(e))
-
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Link } = $.ui.resolve(e)
     const current = await read($, board)
+    if (current.kind === 'loading') void refresh($, true)
     const view = viewOf(current, await read($, filter), await read($, expandedStates))
     const reload = () => void refresh($, true)
 

@@ -4,6 +4,11 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Backlog pane, GitHub provider: the pane calls GitHub only when it opens and on `↻ refresh`, no more polling every 30 seconds or after `wa-backlog` / `gh` commands, so it no longer eats the API rate limit.
+- Backlog pane no longer opens on its own at session start: run `/wa-pane`, or turn on **Open backlog pane at start** (`auto_open`) in `/config` to get it back.
+
 ## [0.37.0] - 2026-10-07
 
 ### Changed
