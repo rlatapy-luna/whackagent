@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-07
+
 ### Changed
 
 - **Breaking:** `/wa-close` with `close.strategy: pr` now leaves the task's PR ready for review and never merges it. A draft PR already open for the branch is marked ready (body refreshed, `pr.reviewers` requested); with no PR, one is opened ready. Sprint tasks get a PR onto their sprint branch instead of a local merge, and the sprint PR waits until those task PRs are merged.
