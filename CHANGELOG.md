@@ -8,6 +8,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 - The command a skill recommends on its last `→ next:` line (`/wa-validate 216`) is offered as the prompt suggestion: Tab puts it in the prompt, ready to edit or send. Every skill writes that command complete and in backticks, recommended one first.
 
+### Fixed
+
+- GitHub board hooks: merging a PR whose body says `Closes #n` no longer fails the board run with `422 Validation Failed` when GitHub closes the issue at the same moment as the hook. The ticket still moves to Done and gets its 🎉 comment and run report.
+
 ## [0.38.0] - 2026-10-07
 
 ### Changed

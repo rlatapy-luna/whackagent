@@ -126,10 +126,21 @@ jobs:
             const comment = (number, body) =>
               github.rest.issues.createComment({ owner, repo, issue_number: number, body });
 
+            // A merged PR's `Closes #n` closes the issue itself, racing this call: 422 then means already closed.
+            async function closeIssue(number) {
+              try {
+                await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
+              } catch (e) {
+                if (e.status !== 422) throw e;
+                const { data } = await github.rest.issues.get({ owner, repo, issue_number: number });
+                if (data.state !== "closed") throw e;
+              }
+            }
+
             // Sprint = parent issue labeled wa-sprint; sprint name = its title in kebab-case; tickets are its sub-issues.
             const sprintName = (title) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
             async function closeSprint(number, why) {
-              await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
+              await closeIssue(number);
               await comment(number, `🏁 **sprint landed** — ${why}`);
             }
 
@@ -292,9 +303,7 @@ jobs:
                 await setState(ticket, "done");
                 await release(number, "grilling");
                 await release(number, "coding");
-                if (ticket.issue.state === "open") {
-                  await github.rest.issues.update({ owner, repo, issue_number: number, state: "closed", state_reason: "completed" });
-                }
+                if (ticket.issue.state === "open") await closeIssue(number);
                 // run report: local file the skills copy into the PR body, posted only when there
                 const report = /<!-- wa-report -->([\s\S]*?)<!-- \/wa-report -->/.exec(pr.body ?? "")?.[1].trim();
                 await comment(number, `🎉 **done** — #${pr.number} merged into \`${pr.base.ref}\`${report ? `\n\n${report}` : ""}`);
