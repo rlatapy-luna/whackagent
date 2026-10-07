@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- The command a skill recommends on its last `→ next:` line (`/wa-validate 216`) is offered as the prompt suggestion: Tab puts it in the prompt, ready to edit or send. Every skill writes that command complete and in backticks, recommended one first.
+
 ## [0.38.0] - 2026-10-07
 
 ### Changed

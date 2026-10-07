@@ -43,7 +43,7 @@ Big spec → few tasks, each one coherent feature, ready to grill. **Cut, don't 
 3. **Propose**, one block, before writing anything — see *Proposal*.
 4. **Create on yes**, per task, steps 2–4. Existing task covering a block → append excerpt (local: its `## Context / Decisions`; GitHub: `gh issue comment`), never rewrite it.
 5. **Prioritize** once at end (step 5), sprint moves as block.
-6. **Show** list (wa-board format, fresh `#`). Next: `/wa-grill <#>` on top one — one task at a time.
+6. **Show** list (wa-board format, fresh `#`). Next: `/wa-grill <#>` on top one — one task at a time (**wa-board → Next line**).
 
 ### Cut rules
 

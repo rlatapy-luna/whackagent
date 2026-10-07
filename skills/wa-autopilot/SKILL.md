@@ -153,7 +153,7 @@ Print and save `{reports}/autopilot-<date>.md`:
 Question: reset by email or magic link?
 Rec: magic link, already in place for signup.
 
-→ next: test login-apple, then /wa-close login-apple
+→ next: test login-apple, then `/wa-close login-apple`
 ```
 
 Three parts, always this order:

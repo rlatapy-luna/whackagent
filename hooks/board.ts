@@ -448,6 +448,20 @@ function githubMilestoneScopes(
 
 // endregion
 
+// region Next command
+
+const COMMAND = /`(\/wa-[a-z]+[^`\n]*)`/
+const NEXT_LINE = /^\s*(\*\*)?→/
+
+export function nextCommand(answer: string): string {
+  const line = answer.split('\n').reverse().find(one => NEXT_LINE.test(one) && COMMAND.test(one))
+  const command = line?.match(COMMAND)?.[1]?.trim() ?? ''
+  const placeholder = command.search(/\s<[^>]*>/)
+  return placeholder < 0 ? command : `${command.slice(0, placeholder)} `
+}
+
+// endregion
+
 // region Row actions
 
 const action = (label: string, command: string): Action => ({ label, command })

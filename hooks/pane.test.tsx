@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const FILES: Record<string, string> = {
   '/p/.whackagent/config.md': '---\nbacklog:\n  provider: local\n---\n',
@@ -130,4 +130,33 @@ test('+N more under Done shows every task, show less folds it back', async ($, o
   await ui.press({ key: 'more-done' })
   expect(await ui.find({ type: 'Text', text: /Task t1/ })).toBeUndefined()
   await ui.unmount()
+})
+
+test('the next command an answer ends on becomes the prompt suggestion, over the engine guess', async ($, on) => {
+  const clock = mock.clock(on)
+  const shown: string[] = []
+  on('session.root', () => ({ value: '/p' }))
+  on('command.register', () => ({ value: { command: 'wa-pane' } }))
+  on('fs.read', ($, e) => (e.path === '/p/.whackagent/config.md' ? { value: FILES[e.path]! } : { deny: 'ENOENT' }))
+  on('fs.list', () => ({ value: [] }))
+  on('fs.stat', () => ({ deny: 'ENOENT' }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('session.start', () => ({ cwd: '/p' }))
+  on('turn.start', () => ({ turnId: 't2' }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+  on('prompt.suggest', ($, e) => {
+    shown.push(e.text)
+    return { isShown: true }
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  const answer = '🟡 #216 Login\n\n→ next: test it, then `/wa-validate 216` (or `/wa-feedback 216 <notes>`)'
+  await $.turn.complete({ answer, durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await clock.advance(1000)
+  expect(shown).toEqual(['/wa-validate 216'])
+  await $.prompt.suggest({ text: 'run the tests', origin: { kind: 'suggestion' } })
+  expect(shown).toEqual(['/wa-validate 216', '/wa-validate 216'])
+  await $.turn.start({ text: 'go', turnId: 't2' })
+  await $.prompt.suggest({ text: 'run the tests', origin: { kind: 'suggestion' } })
+  expect(shown.at(-1)).toBe('run the tests')
 })

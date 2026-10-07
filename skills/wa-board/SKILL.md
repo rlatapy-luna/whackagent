@@ -87,6 +87,10 @@ Canonical, every whackagent skill. Applies to **screen output and `{reports}`**.
 - **Task files are the exception** — `## Context / Decisions`, `## Acceptance criteria` in full simple sentences: verifier and user reread them months later, fragments there get misread.
 - Screen headings and labels follow `discussion_language`. Task file section headings stay English always — skills look them up by name.
 
+### Next line
+
+Run ending on suggested command → **last line** starts with `→`: `→ next:` (label per `discussion_language`, arrow always) + recommended command **in backticks, complete**: real slug or `#`, never `<slug>` (`` → next: test it, then `/wa-validate 216` ``). Recommended command = **first** backticked one on line; alternatives after, backticked too (`` (or `/wa-feedback 216 <notes>`) ``). Text only user can write stays `<placeholder>`, at end. Backlog pane offers that first command as prompt suggestion (Tab takes it) — order and backticks matter.
+
 ### Titles and summaries
 
 Title = **label**, not sentence. Names the thing + what is done to it. ≤ 5 words. Must read like a dev wrote it in a ticket.
@@ -233,4 +237,4 @@ Any skill taking task can take indexes instead of slugs: `/wa-code 3`, `/wa-auto
 
 ## Output
 
-List, then one bold **→ next:** line. No re-explain whole flow each time. Wording per **Voice**.
+List, then one bold **→ next:** line per **Next line**. No re-explain whole flow each time. Wording per **Voice**.

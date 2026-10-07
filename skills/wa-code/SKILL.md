@@ -146,7 +146,7 @@ Canonical end-of-task report — here, each delivered task of `/wa-autopilot`, e
 ✅ verified by agent: tap Apple → sheet, login OK → Home
 
 build ✅ · tests ✅ · run ✅ · review → /wa-validate
-→ next: test it, then /wa-feedback or /wa-validate login-apple
+→ next: test it, then `/wa-validate login-apple` (or `/wa-feedback login-apple <notes>`)
 ```
 
 - **Header** = size + title + sprint tag, as in wa-board list.

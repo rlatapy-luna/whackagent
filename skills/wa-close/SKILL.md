@@ -30,7 +30,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 6. **Clean up** — *Cleanup* below. Worktree then branch, that order, `close.delete_branch` decide.
 7. **`status: done`**, reflect in `{backlog}` (move line under **Done**, keep `· <sprint>` suffix).
 8. **Sprint complete?** Last task of sprint just closed → *Sprint landing*.
-9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch wa/<next-slug> ready · /wa-code <next-slug>`. Worktree mode → its worktree created instead, echo `→ worktree ../<repo>-worktrees/<next-slug> ready`.
+9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch wa/<next-slug> ready`, next line `/wa-code <next-slug>` (**wa-board → Next line**). Worktree mode → its worktree created instead, echo `→ worktree ../<repo>-worktrees/<next-slug> ready`.
 10. **Report** — after-state, four lines max: what landed where, what deleted, sprint progress, next command.
 
 ## GitHub provider

@@ -16,6 +16,7 @@ import {
   localFocusView,
   parseTaskFile,
   localView,
+  nextCommand,
   taskActions,
   ticketActions,
   joinPath,
@@ -518,4 +519,14 @@ test('a milestone ready to ship drops its progress line', async () => {
   const view = githubView(tickets, [], [{ title: '0.5.0', isOpen: true, tickets: 2, done: 1 }], [], ALL_TAB)
   expect(view.scopes).toEqual([])
   expect(view.ready.map(ready => ready.line)).toEqual(['🎯 0.5.0 — 1/1 · ready to ship'])
+})
+
+test('next command: first backticked /wa- command on the last → line, placeholders dropped', async () => {
+  expect(nextCommand('done\n→ next: test it, then `/wa-validate 216` (or `/wa-feedback 216 <notes>`)')).toBe('/wa-validate 216')
+  expect(nextCommand('→ suite : `/wa-feedback 216 <notes>`')).toBe('/wa-feedback 216 ')
+  expect(nextCommand('**→ next:** `/wa-code 12`\n\nbuild ✅')).toBe('/wa-code 12')
+  expect(nextCommand('→ next: `/wa-grill login`\nrun `/wa-board` first')).toBe('/wa-grill login')
+  expect(nextCommand('run `/wa-board` first')).toBe('')
+  expect(nextCommand('next: /wa-code 12 without backticks')).toBe('')
+  expect(nextCommand('')).toBe('')
 })

@@ -28,7 +28,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
    - `title` / `summary` wrong now → fix per **wa-board → Titles and summaries** (slug stays).
 4. **Too big?** Grill surfaced several features → propose split, one line (`⚠️ 3 features — split?`), only on yes: this task → **`split <id>`**, becomes root of sprint named after its title (kebab-case). Children through **wa-task → Spec** (cut rules, excerpt = decisions settled so far), all in that sprint. Task already in sprint → `split` exit 4: children join that sprint, this task `canceled`.
 5. **Place** — local: **wa-task → Prioritization pass**, default quiet run, focus = this task. GitHub: nothing — board order shared, never automatic.
-6. **Next**: `/wa-code <#>`.
+6. **Next**: `/wa-code <#>` (**wa-board → Next line**).
 
 **Quick win** — user flags trivial: no interview. Local → task stays `grilled: false` (`/wa-code` warns, proceeds on yes). GitHub → still claim, minimal spec (context one line, 1–3 acceptance criteria from title + summary), push: coding claim needs `grilled`, only pushed spec gets there.
 
