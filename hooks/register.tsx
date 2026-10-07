@@ -4,6 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Board, BoardTask, MilestoneCount, SprintParent, TaskFocus } from '../types'
 import type { FocusView, PullRequest, View, ViewRow, WaConfig, Worktree } from './board'
 import {
+  ALL_TAB,
   SIZE_ICON,
   STATUS_ORDER,
   activeGithubIds,
@@ -446,12 +447,12 @@ export const register: Register = (on, options) => {
           <Box flexDirection="column">
             {view.tabs.length > 0 && (
               <Box flexDirection="row" flexWrap="wrap" gap={1} marginBottom={1}>
-                {['', ...view.tabs].map(tab => (
+                {[...view.tabs, ''].map(tab => (
                   <Button
                     key={`tab-${tab}`}
                     label={`${tab === view.filter ? '● ' : ''}${tab || 'All'}`}
                     variant={tab === view.filter ? 'primary' : 'secondary'}
-                    onPress={() => void update($, filter, () => tab)}
+                    onPress={() => void update($, filter, () => tab || ALL_TAB)}
                   />
                 ))}
               </Box>

@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import {
+  ALL_TAB,
   activeGithubIds,
   githubSprintRows,
   localSprintRows,
@@ -182,7 +183,7 @@ test('github view orders by contract state', async () => {
     [{ number: 9, headRefName: 'wa/3-x', isDraft: true }],
     'wa/',
   )
-  const view = githubView(tickets, drafts, [{ title: '0.5.0', isOpen: true, tickets: 3, done: 1 }], [])
+  const view = githubView(tickets, drafts, [{ title: '0.5.0', isOpen: true, tickets: 3, done: 1 }], [], ALL_TAB)
   expect(view.sections.map(section => `${section.icon} ${section.title}`)).toEqual(['📥 Todo', '📐 Grilled', '👀 Review', '🎉 Done'])
   expect(view.sections[2]?.rows[0]?.tags.map(tag => tag.text)).toEqual(['#3', '🧪 draft #9'])
   expect(view.sections[2]?.rows[0]?.tags[1]?.href).toBeUndefined()
@@ -192,21 +193,25 @@ test('github view orders by contract state', async () => {
   expect(view.milestone).toBe('0.5.0')
 })
 
-test('milestone tab narrows tasks and scope line', async () => {
+test('lowest milestone tab is the default, All comes last', async () => {
   const tasks = [
     task({ slug: 'a', milestone: '0.3.0' }, 'review'),
     task({ slug: 'b', milestone: '0.2.0', sprint: 's1' }),
     task({ slug: 'c' }),
   ]
-  const all = localView(tasks, ['0.2.0', '0.3.0'], [])
-  expect(all.tabs).toEqual(['0.3.0', '0.2.0'])
+  const lowest = localView(tasks, ['0.2.0', '0.3.0'], [])
+  expect(lowest.tabs).toEqual(['0.2.0', '0.3.0'])
+  expect(lowest.filter).toBe('0.2.0')
+  expect(lowest.sections.flatMap(section => section.rows.map(row => row.key))).toEqual(['b'])
+  expect(lowest.scopes).toEqual(['🎯 0.2.0 — 0/1 (1 todo)'])
+  expect(localView(tasks, ['0.2.0', '0.3.0'], [], '0.3.0').sections.flatMap(section => section.rows.map(row => row.key))).toEqual(['a'])
+  expect(localView(tasks, ['0.2.0', '0.3.0'], [], 'gone').filter).toBe('0.2.0')
+  const all = localView(tasks, ['0.2.0', '0.3.0'], [], ALL_TAB)
   expect(all.filter).toBe('')
-  const scoped = localView(tasks, ['0.2.0', '0.3.0'], [], '0.2.0')
-  expect(scoped.sections.flatMap(section => section.rows.map(row => row.key))).toEqual(['b'])
-  expect(scoped.scopes).toEqual(['🎯 0.2.0 — 0/1 (1 todo)'])
-  expect(localView(tasks, ['0.2.0', '0.3.0'], [], 'gone').filter).toBe('')
+  expect(all.sections.flatMap(section => section.rows.map(row => row.key)).sort()).toEqual(['a', 'b', 'c'])
+  expect(localView([task({ slug: 'c' })], [], []).filter).toBe('')
   const dropped = [...tasks, task({ slug: 'x', milestone: '0.2.0' }, 'canceled')]
-  expect(localView(dropped, ['0.2.0', '0.3.0'], []).sections.map(section => section.title)).not.toContain('Canceled')
+  expect(localView(dropped, ['0.2.0', '0.3.0'], [], ALL_TAB).sections.map(section => section.title)).not.toContain('Canceled')
   expect(localView(dropped, ['0.2.0', '0.3.0'], [], '0.2.0').sections.map(section => section.title)).toContain('Canceled')
 })
 
@@ -414,7 +419,7 @@ test('github: closed as not planned is canceled, not done, wherever its column',
     [5, 'coding'],
   ])
   const milestones = [{ title: 'm', isOpen: true, tickets: 2, done: 1 }]
-  const view = githubView(tickets, [], milestones, [])
+  const view = githubView(tickets, [], milestones, [], ALL_TAB)
   expect(view.sections.map(section => `${section.icon} ${section.title}`)).toEqual(['🔨 Coding', '🎉 Done'])
   expect(githubView(tickets, [], milestones, [], 'm').sections.map(section => section.title)).toEqual(['Coding', 'Canceled'])
   expect(view.scopes).toEqual(['🎯 m — 1/2 (1 coding) ← new tasks'])
@@ -510,7 +515,7 @@ test('github: every open sprint parent is a row; all tickets closed offers close
 
 test('a milestone ready to ship drops its progress line', async () => {
   const { tickets } = toTickets([row({ number: 1, state: 'done', closed: true, milestone: '0.5.0' })], [], 'wa/')
-  const view = githubView(tickets, [], [{ title: '0.5.0', isOpen: true, tickets: 2, done: 1 }], [])
+  const view = githubView(tickets, [], [{ title: '0.5.0', isOpen: true, tickets: 2, done: 1 }], [], ALL_TAB)
   expect(view.scopes).toEqual([])
   expect(view.ready.map(ready => ready.line)).toEqual(['🎯 0.5.0 — 1/1 · ready to ship'])
 })

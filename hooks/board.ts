@@ -523,9 +523,11 @@ function sections<T>(
   })
 }
 
+export const ALL_TAB = '*'
+
 function scoped<T extends { milestone: string }>(items: readonly T[], milestoneScopes: readonly Scope[], filter: string) {
-  const tabs = milestoneScopes.map(scope => scope.name)
-  const active = tabs.includes(filter) ? filter : ''
+  const tabs = milestoneScopes.map(scope => scope.name).reverse()
+  const active = filter === ALL_TAB ? '' : tabs.includes(filter) ? filter : (tabs[0] ?? '')
   return {
     tabs,
     filter: active,

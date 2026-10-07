@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Backlog pane: milestone tabs run from the lowest version up, with **All** last, and the board opens on the lowest milestone instead of **All**.
+
 ## [0.36.0] - 2026-10-06
 
 ### Changed
