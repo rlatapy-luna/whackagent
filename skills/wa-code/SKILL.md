@@ -64,7 +64,7 @@ Line counts not decoration: subagents run hard read budget (no whole-file `Read`
 
 Then **decompose** into bricks, fix **file/folder layout up front** per architecture module (group by feature, proper nesting, never flat), **sketch tests** (units, edge cases — YAGNI, only what task needs).
 
-**Post bricks** — provider `comment` on ticket, after decomposition, before first dispatch. One line per brick, what it builds + key file:
+**Post bricks** — provider `comment` on ticket, after decomposition, before first dispatch (GitHub: multi-line text → `wa-backlog comment <n> --body-file <file>`, `-` = stdin). One line per brick, what it builds + key file:
 
 ```
 🧱 3 bricks

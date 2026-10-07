@@ -105,7 +105,7 @@ Rules that come with it:
 - **Linked** with `wa-backlog link-pr`: the PR gets the ticket's milestone and a Development link to the issue. (`Closes #<n>` alone only links PRs onto the default branch, and sprint or stacked PRs never are.)
 - **Body refreshed every round** from the task file: the marked block is rewritten (current summary, current criteria, `- [x]` only for criteria a round actually proved, a status line saying what's still owed), and template sections are touched only where the round changed what they say. Text a human added stays. A PR body describing superseded behavior is a lying PR.
 - **Reviewers** (`pr.reviewers`) are requested when the PR goes ready, at `/wa-close` or on an autopilot ready PR, never on a draft.
-- **Screenshots**, when the diff changes UI: uploaded with `gh image` (extension `drogers0/gh-image`) into a `## Screenshots` section. Images are never pushed to a branch.
+- **Screenshots**, when the diff changes UI: uploaded with `gh image` (extension `drogers0/gh-image`) into a `## Screenshots` section. When `gh image` can't get an upload token (common on org repos with SAML SSO), the agent uploads them through the browser instead, via a PR comment box it never posts, and hands the resulting links to `wa-backlog screenshots`. Images are never pushed to a branch.
 
 ## Command by command
 

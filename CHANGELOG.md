@@ -4,6 +4,15 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- GitHub provider: `wa-backlog comment <n> --body-file <file>` (`-` reads stdin) posts multi-line comments such as the bricks list.
+- GitHub provider: `wa-backlog screenshots` accepts `<caption>=<url>` for images already uploaded, and agents fall back to uploading through the browser when `gh image` can't get an upload token (org repos with SAML SSO). Images are still never pushed to a branch.
+
+### Fixed
+
+- `/wa-grill` with worktrees on the GitHub provider: the ticket branch is created with `gh issue develop --checkout --worktree`, since `--worktree` alone fails with `--worktree requires --checkout`.
+
 ## [0.39.0] - 2026-10-07
 
 ### Added
