@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 
 const FILES: Record<string, string> = {
   '/p/.whackagent/config.md': '---\nbacklog:\n  provider: local\n---\n',
@@ -159,4 +160,50 @@ test('the next command an answer ends on becomes the prompt suggestion, over the
   await $.turn.start({ text: 'go', turnId: 't2' })
   await $.prompt.suggest({ text: 'run the tests', origin: { kind: 'suggestion' } })
   expect(shown.at(-1)).toBe('run the tests')
+})
+
+const NAME_TOOL = 'mcp__whackagent__name_session'
+
+function nameSessionHooks(on: Parameters<TestBody>[1], registered: string[], renamed: string[]) {
+  on('session.root', () => ({ value: '/work/shop' }))
+  on('session.start', () => ({ cwd: '/work/shop' }))
+  on('command.register', () => ({ value: { command: 'wa-pane' } }))
+  on('tool.register', ($, e) => {
+    registered.push(e.name)
+    return { value: { tool: `mcp__whackagent__${e.name}` } }
+  })
+  on('command.run', ($, e) => {
+    renamed.push(`/${e.command} ${e.args}`)
+    return { text: '' }
+  })
+  on('fs.read', ($, e) => (e.path === '/work/shop/.whackagent/config.md' ? { value: GITHUB_CONFIG } : { deny: 'ENOENT' }))
+  on('fs.list', () => ({ value: [] }))
+  on('fs.stat', () => ({ deny: 'ENOENT' }))
+  on('process.run', ($, e) => {
+    const stdout = e.argv.includes('--git-common-dir') ? '/work/shop/.git\n' : ''
+    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+}
+
+test('name_session renames the session after its tasks, once per name', async ($, on) => {
+  const clock = mock.clock(on)
+  const registered: string[] = []
+  const renamed: string[] = []
+  nameSessionHooks(on, registered, renamed)
+
+  await $.session.start({ cwd: '/work/shop', surface: 'terminal', isInteractive: true })
+  expect(registered).toEqual(['name_session'])
+  const named = await $.tool.call({ tool: NAME_TOOL, tasks: [{ id: '#12', title: 'Login Apple' }] })
+  expect(named.result).toBe('Session named "shop · #12 Login Apple".')
+  await $.tool.call({ tool: NAME_TOOL, tasks: [{ id: '12', title: 'Login Apple' }] })
+  await clock.advance(10)
+  expect(renamed).toEqual(['/rename shop · #12 Login Apple'])
+})
+
+test('name_session is not offered when the option is off', { options: { rename_session: false } }, async ($, on) => {
+  const registered: string[] = []
+  nameSessionHooks(on, registered, [])
+
+  await $.session.start({ cwd: '/work/shop', surface: 'terminal', isInteractive: true })
+  expect(registered).toEqual([])
 })

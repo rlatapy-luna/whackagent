@@ -14,7 +14,7 @@ Two subagents: one `wa-implementer`, one `wa-verifier`. **Spawn each once, keep 
 
 Read `.whackagent/config.md` and `{tasks}/<slug>.md` first. `{…}` paths from config `paths:` block — see **wa-board → Paths**.
 
-Arg = slug **or** wa-board display index (`/wa-code 3`) — resolve per **wa-board → Task indexes**, echo `3 → sync-offline`.
+Arg = slug **or** wa-board display index (`/wa-code 3`) — resolve per **wa-board → Task indexes**, echo `3 → sync-offline`. Name session per **wa-board → Session name** (GitHub: once claimed, **0b**).
 
 **Grill gate (soft):** `grilled: false` → warn *"not grilled — quick win, or `/wa-grill <slug>` first?"* Proceed if user confirms.
 

@@ -61,6 +61,8 @@ In a project with `.whackagent/config.md`, a live pane beside the conversation s
 
 When a command ends on its `→ next:` line, the command it recommends (`/wa-validate 216`) is offered as the prompt's suggestion: press Tab to take it, edit, Enter. This works with the pane closed. `/wa-pane` opens it. To open it on its own at session start (when the terminal is at least 144 columns wide), turn on **Open backlog pane at start** (`auto_open`) in the plugin's settings in `/config`. The pane is built on Claude Code's function hooks, an early-access API: on a Claude Code build that can't load it, the skills keep working without it.
 
+Task commands (`/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`) rename the session after the task they work on, once they have resolved it: the project, the ticket number under the GitHub provider, and the task's short title, such as `shop · #12 Login Apple` (local: `shop · Login Apple`). Two tasks keep both titles; three or more (an autopilot batch) keep only the numbers. The rename goes through the same function hooks, so it works whether the pane is open or not. Turn it off with **Name session after its task** (`rename_session`) in the plugin's settings in `/config`.
+
 ### Referring to tasks
 
 `/wa-board` numbers every row (`#` column), continuously across sections. Anywhere a task is expected you can pass that number instead of the slug — single, list, or range:

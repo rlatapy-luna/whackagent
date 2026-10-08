@@ -14,7 +14,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 
 Given tasks, or every `todo` task if none (confirm list first if user present). Best on small well-scoped tasks — say so if one look large. Each task enters at its own state — **Entry state** below.
 
-**Args take slugs, display indexes, sprint name or milestone title** (resolution **wa-board → Milestones**), mixed, any order: `/wa-autopilot login-apple`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-autopilot 3 sync-offline`, `/wa-autopilot login-refacto`. Indexes = `#` from wa-board list — resolve per **wa-board → Task indexes**. Always **echo resolved list** (`2 → login-apple`). Bad index → stop, say which, no guess.
+**Args take slugs, display indexes, sprint name or milestone title** (resolution **wa-board → Milestones**), mixed, any order: `/wa-autopilot login-apple`, `/wa-autopilot 2,4,5`, `/wa-autopilot 2-5`, `/wa-autopilot 3 sync-offline`, `/wa-autopilot login-refacto`. Indexes = `#` from wa-board list — resolve per **wa-board → Task indexes**. Always **echo resolved list** (`2 → login-apple`). Name session per **wa-board → Session name**. Bad index → stop, say which, no guess.
 
 **Sprint name expands to its `todo` tasks**, backlog order — `in-progress`, `review`, `validated` already moving or waiting on user, don't touch. Resolve per **wa-board → Sprints**; echo expansion (`login-refacto → login-apple · login-layout · login-errors (3 todo, 2 already in review)`) so user see what left out. Sprint with no todo task → say so, stop. Sprint tasks usually touch same screen, so expect most land in **separate waves** — wave planner doing job, not failure.
 

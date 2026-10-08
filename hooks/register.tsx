@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Board, BoardTask, MilestoneCount, SprintParent, TaskFocus } from '../types'
-import type { FocusView, PullRequest, View, ViewRow, WaConfig, Worktree } from './board'
+import type { FocusView, NamedTask, PullRequest, View, ViewRow, WaConfig, Worktree } from './board'
 import {
   ALL_TAB,
   SIZE_ICON,
@@ -23,6 +23,7 @@ import {
   parseFields,
   parseTaskFile,
   parseWorktrees,
+  sessionName,
   toTask,
   toTickets,
 } from './board'
@@ -33,6 +34,8 @@ const CONFIG = '.whackagent/config.md'
 const TICK_MS = 2000
 const SUGGEST_DELAY_MS = 300
 const TAB_TITLE_LENGTH = 18
+const NAME_TOOL = 'name_session'
+const NAME_TOOL_CALL = 'mcp__whackagent__name_session'
 const GITHUB_MARK = '<svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"/></svg>'
 
 const board = atom({ plugin: 'whackagent', key: 'board' } as const, { kind: 'loading' } as Board)
@@ -47,6 +50,7 @@ let lastFocusStamp = ''
 let focusFiles = new Map<string, string>()
 let isRefreshing = false
 let suggested = ''
+let sessionTitle = ''
 
 type Checkout = { root: string; mainRoot: string; branch: string; worktrees: Worktree[] }
 
@@ -328,6 +332,32 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'wa-pane', description: 'Show the whackagent backlog in a live pane' })
     $.clock.every(TICK_MS, () => void refresh($))
+    if (options.rename_session !== false && (await hasConfig($))) {
+      await $.tool.register({
+        name: NAME_TOOL,
+        description:
+          'Names this session after the whackagent task(s) it works on: project, ticket number, short title. Call once the task is resolved.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tasks: {
+              type: 'array',
+              description: 'Every task this run works on, in order.',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', description: 'GitHub issue number (#12), or the local task slug.' },
+                  title: { type: 'string', description: 'The task\'s short title.' },
+                },
+                required: ['id', 'title'],
+              },
+            },
+          },
+          required: ['tasks'],
+        },
+        isDeferred: false,
+      })
+    }
     if (options.auto_open === true) {
       void refresh($, true).then(current => {
         if (current.kind !== 'no-config') void $.ui.open({ id: PANE, title: TITLE })
@@ -343,6 +373,18 @@ export const register: Register = (on, options) => {
 
     return { text: 'Backlog pane opened.' }
   })
+
+  on('tool.call', { tool: NAME_TOOL_CALL }, async ($, e) => {
+    const tasks = Array.isArray(e.tasks) ? (e.tasks as NamedTask[]) : []
+    const { mainRoot } = await checkout($, await $.session.root())
+    const name = sessionName(mainRoot.split('/').pop() ?? '', tasks)
+    if (name && name !== sessionTitle) {
+      sessionTitle = name
+      $.clock.after(0, () => void $.command.run({ command: 'rename', args: name }))
+    }
+
+    return { result: name ? `Session named "${name}".` : 'No task given: session name unchanged.' }
+  }).catch(() => ({ result: 'Session name unchanged.' }))
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)

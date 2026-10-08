@@ -25,6 +25,7 @@ import {
   parseBacklog,
   parseConfig,
   parseFields,
+  sessionName,
   toTask,
 } from './board'
 
@@ -529,4 +530,19 @@ test('next command: first backticked /wa- command on the last → line, placehol
   expect(nextCommand('run `/wa-board` first')).toBe('')
   expect(nextCommand('next: /wa-code 12 without backticks')).toBe('')
   expect(nextCommand('')).toBe('')
+})
+
+test('session name: project, ticket numbers and short titles; titles dropped past two tasks', async () => {
+  expect(sessionName('shop', [{ id: '#12', title: 'Login Apple' }])).toBe('shop · #12 Login Apple')
+  expect(sessionName('shop', [{ id: '12', title: 'Login Apple' }, { id: '#14', title: 'Export CSV' }])).toBe(
+    'shop · #12 Login Apple · #14 Export CSV',
+  )
+  expect(sessionName('shop', [{ id: 'login-apple', title: 'Login Apple' }])).toBe('shop · Login Apple')
+  expect(sessionName('shop', [{ id: '#1', title: '' }, { id: '#2', title: '' }, { id: '#3', title: '' }])).toBe('shop · #1 · #2 · #3')
+  expect(sessionName('shop', [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }, { id: '#3', title: 'C' }])).toBe('shop · A · B · #3')
+  expect(sessionName('shop', [{ id: 'sync', title: 'Offline queue with conflict resolution' }])).toBe(
+    'shop · Offline queue with conflict r…',
+  )
+  expect(sessionName('shop', [{ id: 'sync', title: '' }])).toBe('shop · sync')
+  expect(sessionName('shop', [])).toBe('')
 })

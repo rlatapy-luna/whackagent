@@ -11,7 +11,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 
 ## Do
 
-0. **Resolve task.** Slug, display index or `#n` per **wa-board → Task indexes**, echo `3 → sync-offline`. No arg → top `todo` not grilled (GitHub: top unclaimed `todo`). Free text instead of task → that's a new task: run **`/wa-task`** with it, then grill the task it created (user asked for grill).
+0. **Resolve task.** Slug, display index or `#n` per **wa-board → Task indexes**, echo `3 → sync-offline`. No arg → top `todo` not grilled (GitHub: top unclaimed `todo`). Free text instead of task → that's a new task: run **`/wa-task`** with it, then grill the task it created (user asked for grill). Name session per **wa-board → Session name**.
    - Already `grilled: true` → say so; re-grill only on yes (recommend: no — unless scope changed since).
    - Past `todo` (coding started) → stop: changes now go through `/wa-feedback`.
 1. **Read** `.whackagent/config.md`, `{wiki}/index.md`, task file (GitHub: issue body via `wa-backlog get <n>`). `{…}` paths per **wa-board → Paths**. `## Context / Decisions` holds what `/wa-task` left: user idea, or **spec excerpt** with `Open for grill` points.

@@ -15,7 +15,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 
 ## Do
 
-1. **Resolve task.** Slug or display index, per **wa-board → Task indexes**; echo what resolved. No arg → most recent `validated`. Arg names sprint, no task (**wa-board → Sprints**, *Resolving a name*; GitHub: open `wa-sprint` parent, kebab title) → *Sprint arg* below instead. Read `.whackagent/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **wa-board → Paths**.
+1. **Resolve task.** Slug or display index, per **wa-board → Task indexes**; echo what resolved. No arg → most recent `validated`. Name session per **wa-board → Session name**. Arg names sprint, no task (**wa-board → Sprints**, *Resolving a name*; GitHub: open `wa-sprint` parent, kebab title) → *Sprint arg* below instead. Read `.whackagent/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **wa-board → Paths**.
    - `status: validated` → normal path, continue.
    - `status: review` → **never reviewed.** Say so, send to `/wa-validate <slug>`, stop. Closing here close unreviewed code.
    - `status: in-progress` → not coded. Stop.

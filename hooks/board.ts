@@ -462,6 +462,30 @@ export function nextCommand(answer: string): string {
 
 // endregion
 
+// region Session name
+
+export type NamedTask = { id: string; title: string }
+
+const NAME_TITLE_LENGTH = 30
+const NAME_TITLES_UP_TO = 2
+
+const shortTitle = (title: string) =>
+  title.length > NAME_TITLE_LENGTH ? `${title.slice(0, NAME_TITLE_LENGTH - 1).trimEnd()}…` : title
+
+export function sessionName(project: string, tasks: readonly NamedTask[]): string {
+  const withTitles = tasks.length <= NAME_TITLES_UP_TO
+  const labels = tasks.flatMap(task => {
+    const id = task.id.trim().replace(/^(\d+)$/, '#$1')
+    const number = id.startsWith('#') ? id : ''
+    const title = shortTitle(task.title.trim())
+    const label = (withTitles ? [number, title].filter(Boolean).join(' ') : number || title) || id
+    return label ? [label] : []
+  })
+  return labels.length === 0 ? '' : [project, ...labels].join(' · ')
+}
+
+// endregion
+
 // region Row actions
 
 const action = (label: string, command: string): Action => ({ label, command })

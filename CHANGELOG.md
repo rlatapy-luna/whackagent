@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Task commands (`/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`) rename the Claude Code session after the task they work on: project, ticket number and short title, such as `shop · #12 Login Apple`. Turn it off with **Name session after its task** (`rename_session`) in the plugin's settings in `/config`.
+
 ## [0.41.0] - 2026-10-07
 
 ### Changed

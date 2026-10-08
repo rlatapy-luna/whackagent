@@ -235,6 +235,10 @@ Any skill taking task can take indexes instead of slugs: `/wa-code 3`, `/wa-auto
 - Index out of range or pointing at section that make no sense for command → say so, stop, don't guess neighbour.
 - Ambiguous input (slug that look like number) → treat as slug if task file match, else index.
 
+## Session name
+
+Task commands (`/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`) name session after task worked on. Once task(s) resolved, before work: tool `mcp__whackagent__name_session` listed → call it once, `tasks` = every task of run, backlog order: `id` = `#12` (GitHub) or slug (local), `title` = task title (short, per **Titles and summaries**). Pane renames session `<project> · #12 Login Apple`. Sprint arg → its tickets. Tool absent (option off, host without pane) → skip silently. Never mention it in report.
+
 ## Output
 
 List, then one bold **→ next:** line per **Next line**. No re-explain whole flow each time. Wording per **Voice**.

@@ -13,6 +13,12 @@
       "title": "Open backlog pane at start",
       "description": "Open the live backlog pane when a session starts in a whackagent project. /wa-pane opens it either way.",
       "default": false
+    },
+    "rename_session": {
+      "type": "boolean",
+      "title": "Name session after its task",
+      "description": "When a task command (/wa-grill, /wa-code, /wa-feedback, /wa-validate, /wa-close, /wa-autopilot) starts on a task, rename the session to the project, ticket number and short task title.",
+      "default": true
     }
   },
   "keywords": ["workflow", "backlog", "wiki", "orchestrator", "swift", "kotlin", "android", "ios", "typescript", "autopilot", "code-review", "yagni"],
