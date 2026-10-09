@@ -166,6 +166,8 @@ close:                         # WHERE work land when /wa-close finish a task. T
                                #   Sprint task: PR onto its sprint branch, no local merge.
                                #   Outward-facing: /wa-close ALWAYS confirm before, every time.
                                # merge  — merge branch into target: locally, no push.
+                               # GitHub provider: ticket PR already ready (/wa-validate), so
+                               #   /wa-close offers merging it on GitHub (squash) — your yes, every time.
   target: main                 # where pr/merge land. Ignored by `nothing`.
   delete_branch: auto          # auto   — delete only once code live elsewhere (merged into sprint
                                #   branch, or merged into target). `pr` and `nothing` keep it:
@@ -188,7 +190,7 @@ pr:                            # HOW every PR whackagent open look — ticket dr
   labels: []                   # added at creation, e.g. [whackagent]. Label missing in repo → skipped.
                                # On top, every PR gets ≥1 label picked from repo's own labels
                                # (best fit: bug, feature, docs, area…) — never created.
-  assignees: ["@me"]           # PR assignees at creation
+  assignees: ["@me"]           # PR assignees at creation, on top of @me (always self-assigned)
   reviewers: []                # requested when PR goes ready, never on draft. Users or org/team.
                                # Empty → none requested (CODEOWNERS still apply).
   doc: ""                      # PR rules keys can't say (changelog line, size limit) — `path` or

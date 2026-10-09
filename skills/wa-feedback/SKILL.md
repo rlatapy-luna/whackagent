@@ -84,7 +84,7 @@ Ticket sits in `review` between rounds (**wa-board → Backlog provider**, *Agen
 - **PR already ready** (not draft) → `gh pr ready --undo` before first commit: code moving after validation, nobody merges it meanwhile. Board stays `review`.
 - **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) with `commit.author_*`, push to PR, then **refresh PR body** (**wa-board → Backlog provider**, *PR body refresh*) — criteria triage moved, new behavior, status line `Draft — feedback round <n> not reviewed yet`. UI changed → refresh screenshots (**wa-board → Backlog provider**, *Screenshots*). Hook keeps `review`, drops claim, comments on ticket and PR with line permalink to new `## Feedback` round (`### Round <n>` block) — task file stays source, no `gh issue comment` / `gh pr comment` here, would double it. Next: your retest.
 
-Never mark ready, never merge — `/wa-close` job.
+Never mark ready, never merge — `/wa-validate` marks ready, `/wa-close` merges on user's yes.
 
 ## Asking
 

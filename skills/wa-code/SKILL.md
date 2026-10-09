@@ -159,7 +159,7 @@ build ✅ · tests ✅ · run ✅ · review → /wa-validate
 
 ## 5. Closing — not yours
 
-Commit, branch landing and `status: done` belong to **`/wa-close`**. Nothing in this file commits or moves branch after step 0 — **except GitHub provider** step 0b.7: delivery commit + push + draft PR, so ticket leaves `coding`. Landing (ready PR, merge) still `/wa-close`.
+Commit, branch landing and `status: done` belong to **`/wa-close`**. Nothing in this file commits or moves branch after step 0 — **except GitHub provider** step 0b.7: delivery commit + push + draft PR, so ticket leaves `coding`. Ready PR = `/wa-validate`; merge = human, or `/wa-close` on their yes.
 
 ## Asking
 

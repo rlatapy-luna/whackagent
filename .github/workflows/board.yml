@@ -21,7 +21,8 @@
 #   sprint branch PR merged                → sprint parent issue closed (sprint landed)
 #   PR closed unmerged                     → grilled
 #   schedule / manual run                  → report-only check: board vs repository, one comment per problem on the
-#                                            ticket (resolved in place once fixed) + job summary; never moves cards
+#                                            ticket (resolved in place once fixed) + job summary; never moves cards.
+#                                            Includes claims held with no push for WA_STALE_AFTER_HOURS (default 24)
 # `coding` = an agent holds the ticket and works on it. Every round ends with a push or a release,
 # so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
 # Settings are the caller repository's variables (`vars`), written by `wa-backlog provision`. Projects v2
@@ -52,6 +53,7 @@ jobs:
           WA_TASKS_PATH: ${{ vars.WA_TASKS_PATH }}
           WA_BRANCH_PREFIX: ${{ vars.WA_BRANCH_PREFIX }}
           WA_SPRINT_PREFIX: ${{ vars.WA_SPRINT_PREFIX }}
+          WA_STALE_AFTER_HOURS: ${{ vars.WA_STALE_AFTER_HOURS }}
         with:
           script: |
             const env = process.env;
@@ -282,12 +284,29 @@ jobs:
                 ({ hasNextPage: more, endCursor: after } = page.pageInfo);
               }
               const held = {};
+              const claimRefs = {};
               for (const ref of await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: "wa-claims/" })) {
                 const [, , n, phase] = ref.ref.split("/");
                 (held[n] ??= []).push(phase);
+                claimRefs[`${n}/${phase}`] = ref.object.sha;
               }
-              const branches = new Set((await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: `heads/${prefix}` }))
-                .map((ref) => issueFromBranch(ref.ref.replace("refs/heads/", ""))));
+              const branches = new Map((await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: `heads/${prefix}` }))
+                .map((ref) => [issueFromBranch(ref.ref.replace("refs/heads/", "")), ref.object.sha]));
+              // A claim held with no push for WA_STALE_AFTER_HOURS: a round left open (local commits only, a branch
+              // pushed with no PR, a worker gone). Same rule as `wa-backlog claims`: last activity = claim or branch head.
+              const staleHours = Number(env.WA_STALE_AFTER_HOURS || 24);
+              async function stale(n, phase) {
+                const { data: claim } = await github.rest.git.getCommit({ owner, repo, commit_sha: claimRefs[`${n}/${phase}`] });
+                let latest = Date.parse(claim.committer.date);
+                if (branches.has(n)) {
+                  const { data: head } = await github.rest.git.getCommit({ owner, repo, commit_sha: branches.get(n) });
+                  latest = Math.max(latest, Date.parse(head.committer.date));
+                }
+                const hours = Math.floor((Date.now() - latest) / 3600000);
+                if (hours < staleHours) return null;
+                const agent = /^agent: (.+)$/m.exec(claim.message)?.[1] ?? "?";
+                return { agent, hours };
+              }
               // PRs linked by branch name only (opened before link-pr existed) still count as open
               const openByBranch = new Set((await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 }))
                 .map((pr) => issueFromBranch(pr.head.ref)));
@@ -312,6 +331,10 @@ jobs:
                   const claims = held[n] ?? [];
                   if (["grilling", "coding"].includes(state) && !claims.includes(state))
                     problems["lock-no-claim"] = `card in \`${state}\` but nobody holds a ${state} claim: claim it before working, or a human runs \`release ${n} ${state} --reset-to <state>\``;
+                  for (const phase of claims) {
+                    const old = await stale(n, phase);
+                    if (old) problems[`stale-${phase}`] = `${phase} claim held by ${old.agent} with no push for ${old.hours} h: its holder ends the round (PR or release); only a human clears it for them (\`release ${n} ${phase} --reset-to <state> --reason "stale: …"\`)`;
+                  }
                   if (state === "done") problems["done-open"] = `card in \`done\` but the issue is still open`;
                   if (state !== "done" && merged && !open) problems["merged-not-done"] = `a linked PR is merged but the card sits in \`${state}\``;
                   if (state === "review" && !open) problems["review-no-pr"] = `card in \`review\` but no open PR links this ticket`;

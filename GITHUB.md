@@ -20,6 +20,8 @@ The board is constrained; the way each developer works behind it is not. One dev
 - `/wa-setup` installs it in one PR together with everything it relies on: a copy of the board CLI at `.github/board/wa-backlog` (so an agent without the plugin runs the same commands), a short pointer block in `AGENTS.md`, `CLAUDE.md`, and the Copilot and Cursor instruction files when present (so every agent reads `BOARD.md` before touching an issue), and three board sections appended to the PR template (`## Ticket`, `## Acceptance criteria`, `## Status`).
 - A spec can live in the issue body: a non-empty `## Acceptance criteria` section, written in one edit, moves the ticket to `grilled`. whackagent's task file on the ticket branch still counts too.
 - A PR belongs to the one issue it links (Development link or `Closes #n`), whatever its branch is called, so cloud agents that name their own branches still move the board.
+- Each loop may stop wherever its developer likes: local commits, a pushed branch, a draft PR or a ready PR. The board follows: until a PR opens, the ticket stays in `coding` under its claim (nobody else can test that work yet); a draft or ready PR moves it to `review`. A claim left with no push for `WA_STALE_AFTER_HOURS` (default 24) gets a comment on the ticket.
+- Merging is a human's decision: on GitHub, or by asking their agent to merge that PR (squash, checks green, never an admin override).
 - Breaking the contract is **reported, never repaired**: a scheduled run of the board workflow comments on any ticket whose card disagrees with the repository, and a push to a ticket PR without a claim gets a comment on the PR.
 - Every board file carries the same `board-contract` version stamp. The CLI warns when the project's `BOARD.md` and the script disagree; `/wa-setup backlog` refreshes them all in one PR.
 
@@ -82,18 +84,17 @@ Two things to keep in mind:
 - **`coding` never waits for a human.** It means "an agent is working right now". Every round ends with a push, the push moves the ticket to `review`, and the lock goes away. Nothing sits in `coding` overnight.
 - **`review` has two flavors**, told apart by the PR: a **draft** PR means *your turn to test*, a **ready** PR means *your turn to merge*.
 
-The finer whackagent lifecycle (`in-progress` → `review` → `validated`) still exists, but in the task file's `phase:` field, pushed with each round. Board `review` = PR open; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed, waiting for your retest. `wa-backlog list` and `get` read it back from the ticket branch (`phase` on `review` rows), so the dashboard and the pane know which turn is yours.
+The finer whackagent lifecycle (`in-progress` → `review` → `validated`) still exists, but in the task file's `phase:` field, pushed with each round. Board `review` = PR open; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed. `wa-backlog list` and `get` read it back from the ticket branch (`phase` on `review` rows), so the dashboard and the pane know which turn is yours.
 
 ### Who's on turn
 
 | Board | Phase | PR | You | Next |
 | --- | --- | --- | --- | --- |
 | `coding` | `in-progress` | | nothing, an agent is working | wait |
-| `review` | `review` | draft | test it | `/wa-feedback` with notes, or `/wa-validate` |
-| `review` | `validated` | draft | retest it | `/wa-close`, which marks the PR ready |
-| `review` | `validated` | ready | merge it on GitHub | the hook sets `done` |
+| `review` | `review` | draft | test it | `/wa-feedback` with notes, or `/wa-validate`, which marks the PR ready when clean |
+| `review` | `validated` | ready | test, then merge | merge on GitHub, or `/wa-close`, which merges on your yes; the hook sets `done` |
 
-A ticket reaches a ready PR one of two ways: attended, through `/wa-close`; or straight from `/wa-autopilot` when the verifier came back clean (wiki already synced, no `/wa-close` needed). The local provider uses the same split: `status: in-progress` is `coding`, `status: review` and `validated` are `review`.
+A ticket reaches a ready PR one of two ways, both with the wiki synced: attended, through a clean `/wa-validate`; or straight from `/wa-autopilot` when the verifier came back clean. Findings left open keep the PR draft. The local provider uses the same split: `status: in-progress` is `coding`, `status: review` and `validated` are `review`.
 
 ## Claims (locks)
 
@@ -125,10 +126,11 @@ Rules that come with it:
 
 ### The PR
 
-- **Opened as a draft**, base = the branch the ticket forked from (sprint branch, else `close.target`). Title, labels, assignees and the PR template come from the `pr:` config block (see the README's *Pull requests*). On top of `pr.labels`, the PR always gets at least one of the repo's own labels that fits the change (bug, feature, docs, area); labels are never created. whackagent's part of the body (summary, `Closes #<n>`, the acceptance criteria as a checklist and a status line such as `Draft — verifier not run yet. Test, then /wa-feedback · /wa-validate · /wa-close.`) sits in a marked block after the filled template.
+- **Opened as a draft**, base = the branch the ticket forked from (sprint branch, else `close.target`). Title, labels, assignees and the PR template come from the `pr:` config block (see the README's *Pull requests*). On top of `pr.labels`, the PR always gets at least one of the repo's own labels that fits the change (bug, feature, docs, area); labels are never created. whackagent's part of the body (summary, `Closes #<n>`, the acceptance criteria as a checklist and a status line such as `Draft — verifier not run yet. Test, then /wa-feedback · /wa-validate.`) sits in a marked block after the filled template.
 - **Linked** with `wa-backlog link-pr`: the PR gets the ticket's milestone and a Development link to the issue. (`Closes #<n>` alone only links PRs onto the default branch, and sprint or stacked PRs never are.)
 - **Body refreshed every round** from the task file: the marked block is rewritten (current summary, current criteria, `- [x]` only for criteria a round actually proved, a status line saying what's still owed), and template sections are touched only where the round changed what they say. Text a human added stays. A PR body describing superseded behavior is a lying PR.
-- **Reviewers** (`pr.reviewers`) are requested when the PR goes ready, at `/wa-close` or on an autopilot ready PR, never on a draft.
+- **Assignees**: the PR is always assigned to you (`@me`), plus anyone in `pr.assignees`.
+- **Reviewers** (`pr.reviewers`) are requested when the PR goes ready, at `/wa-validate` or on an autopilot ready PR, never on a draft.
 - **Screenshots**, when the diff changes UI: uploaded with `gh image` (extension `drogers0/gh-image`) into a `## Screenshots` section. When `gh image` can't get an upload token (common on org repos with SAML SSO), the agent uploads them through the browser instead, via a PR comment box it never posts, and hands the resulting links to `wa-backlog screenshots`. Images are never pushed to a branch.
 
 ## Command by command
@@ -169,25 +171,30 @@ Claims `coding` from `review`. Its input is your notes **plus the PR's review co
 
 ### `/wa-validate #12`
 
-Claims `coding` from `review`, runs the project tools and the verifier over the ticket's whole diff, autofixes, then commits the task file (`phase: validated`, `## Review`) and the fixes, pushes, and refreshes the PR body. The ticket waits for your retest in `review`. `validated` is internal to whackagent: the board never shows it.
+Claims `coding` from `review`, runs the project tools and the verifier over the ticket's whole diff, and autofixes. When the verdict is clean, the same round gets the PR ready to merge:
+
+1. Syncs the wiki and commits it with the task file (`phase: validated`, `## Review`) and the fixes, so docs ride in the same PR.
+2. When the PR base moved, rebases the ticket's own commits onto it, then rebuilds and reruns the tests.
+3. Pushes (with lease after a rebase), refreshes the body, and runs `gh pr ready`, requesting `pr.reviewers`. When autofix changed code since your test, the status line names the files to retest.
+
+Findings left open → the round still pushes, but the PR stays draft and the status line lists them. Either way the hook moves the ticket back to `review` and drops the claim. `validated` is internal to whackagent: the board never shows it.
 
 ### `/wa-close #12`
 
-The last round, always shown as a plan and confirmed before it runs:
+Merges the ready PR for you, so you don't have to open GitHub. Merging there yourself is just as good: the hook sets `done` either way. A draft PR is sent back to `/wa-validate`.
 
-1. Claims `coding`, syncs the wiki, commits on the ticket branch, so docs ride in the same PR.
-2. Rebases the ticket's own commits onto the PR base, then rebuilds and reruns the tests.
-3. Force-pushes with lease, refreshes the body, links the PR, and runs `gh pr ready`: draft becomes ready, meaning *your turn to merge*.
-4. The hook keeps `review` and drops the claim. When the round had nothing to push (the usual case: the phase was already `validated` and the base didn't move), no push event fires, so the agent releases the claim itself, back to `review`.
-
-**Merging is yours** (or your project's merge policy). The hook then sets `done` and closes the issue. The branch is kept until then, because the PR needs it.
+1. Checks the PR can merge: checks green (or waits for pending ones), required reviews in, base not another ticket's open branch. A conflicting PR adds a rebase of the ticket's own commits to the plan. Criteria still unchecked in the body are named.
+2. Shows the plan (squash merge, base, branch and worktree cleanup) and waits for your yes, every time.
+3. Claims `coding` so no other round pushes meanwhile, then runs `gh pr merge --squash` (a merge commit for a track landing). Never `--admin`: when GitHub refuses, the claim is released back to `review` with the reason.
+4. The hook sets `done`, closes the issue and drops the claim. Locally, the worktree and branch go away.
+5. When that was the sprint's last ticket, it offers the sprint PR, and merging it (merge commit), as a second yes.
 
 ### `/wa-autopilot`
 
 Several autopilots, on several machines, can run on one board at once; claims keep them apart.
 
 - Scope = unclaimed `grilled` tickets in board order, or a sprint, a milestone or a list of tickets.
-- A ticket you name (`/wa-autopilot 12`) runs from whatever state it's in and does only what's left: a `todo` ticket is grilled unattended first, a draft PR in review is validated, a validated one is refreshed (rebase + checks, never marked ready for you), a ready PR is kept mergeable. Sprint and milestone batches still take only `grilled` tickets.
+- A ticket you name (`/wa-autopilot 12`) runs from whatever state it's in and does only what's left: a `todo` ticket is grilled unattended first, a draft PR in review is validated, a validated draft is refreshed (rebase + checks) and marked ready, a ready PR is kept mergeable. Sprint and milestone batches still take only `grilled` tickets.
 - Each ticket is claimed just before its wave starts, not the whole batch up front, so later tickets stay free for other agents. A ticket someone else holds is skipped.
 - Open PRs are checked before planning: a ticket touching the same files as an open PR gets a merge-conflict warning in the plan.
 - Each ticket gets a worktree on its existing branch, and its bricks comment right after its claim.

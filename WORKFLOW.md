@@ -1,13 +1,28 @@
-# Workflow — ticket state machine
+# Workflow
 
-How a whackagent ticket moves from idea to merged code, who moves it at each step, and what the board shows while it waits.
+Ticket from idea to merged code. Who moves it, what board shows, what you do next.
 
-There are two levels:
+- **Board state** — six contract states, GitHub Project `Status` column (`backlog.provider: github`). Rules: project's `BOARD.md`.
+- **Sub-phase** — whackagent only. `phase:` in task file on ticket branch (`in-progress` → `review` → `validated`). Board never shows it.
 
-- **Board state**: the six contract states (`providers/CONTRACT.md`), shown as the `Status` column of the GitHub Project when `backlog.provider: github`.
-- **Coding sub-phase**: `phase:` in the task file on the ticket branch (`in-progress` → `review` → `validated`). It tracks how far the whackagent loop has gone. The board never shows it.
+Matches board contract 2.0, hooks `hooks-v2`, caller template version 16.
 
-This page matches the hooks template `providers/github/whackagent-board.yml` at template version 11.
+## Big picture
+
+```mermaid
+flowchart TD
+    I["Issue<br/>board: todo"] -->|"/wa-grill<br/>or criteria in issue body"| S["Spec<br/>board: grilled"]
+    S -->|"/wa-code"| D["Draft PR<br/>board: review"]
+    S -->|"/wa-autopilot<br/>verifier clean"| R
+    D --> T{"you test"}
+    T -->|"notes<br/>/wa-feedback"| D
+    T -->|"ok<br/>/wa-validate, verifier clean"| R["Ready PR<br/>board: review"]
+    R --> U{"you test"}
+    U -->|"notes<br/>/wa-feedback, back to draft"| D
+    U -->|"ok<br/>merge on GitHub<br/>or /wa-close"| M["Merged<br/>board: done"]
+```
+
+One rule: **workers take tickets, repository moves them.** Agents only claim and release. Every other state comes from a repository event, applied by the hooks.
 
 ## Board states
 
@@ -18,13 +33,15 @@ stateDiagram-v2
     [*] --> todo: issue opened (hook)<br/>or wa-backlog create
 
     todo --> grilling: claim grilling<br/>/wa-grill
-    grilling --> grilled: spec pushed on wa/n-slug<br/>with acceptance criteria (hook)
-    grilling --> todo: release --reset-to todo<br/>(grill abandoned)
+    grilled --> grilling: claim grilling<br/>(re-grill, scope changed)
+    grilling --> grilled: spec found (hook)<br/>issue body criteria or task file pushed
+    todo --> grilled: criteria written in issue body (hook)
+    grilling --> todo: release (grill abandoned)
 
     grilled --> coding: claim coding<br/>/wa-code, /wa-autopilot
-    coding --> review: PR opened, draft or not (hook)<br/>or round pushed to the PR (hook)
-    coding --> grilled: release --reset-to grilled<br/>(blocked, no PR yet)
-    coding --> review: release --reset-to review<br/>(round aborted, PR open)
+    coding --> review: PR opened, draft or ready (hook)<br/>or round pushed to PR (hook)
+    coding --> grilled: release (blocked, no PR)
+    coding --> review: release (round aborted, PR open)
 
     review --> coding: claim coding<br/>/wa-feedback, /wa-validate, /wa-close
     review --> done: PR merged (hook)
@@ -33,44 +50,103 @@ stateDiagram-v2
     done --> [*]
 ```
 
-| State | Meaning | Who is on turn | Entered by |
+| State | Meaning | On turn | Entered by |
 | --- | --- | --- | --- |
-| `todo` | Ticket exists, not specified yet | Human, to start `/wa-grill` | Issue opened (hook), or `wa-backlog create` |
-| `grilling` | **Locked.** One agent is grilling the ticket with the user | Agent and human together | Agent `claim <n> grilling` |
-| `grilled` | Spec written, ready to code | Anyone, to pick it up | Hook: branch `wa/<n>-<slug>` pushed with `{tasks}/<n>-*.md` holding non-empty acceptance criteria |
-| `coding` | **Locked and transient.** One agent is working one round right now | Agent | Agent `claim <n> coding` |
-| `review` | PR open. Draft means the human tests it; ready means the human merges it | Human | Hook: PR opened, or a round pushed to the PR while a coding claim is held |
-| `done` | Change landed | Nobody | Hook: PR merged. The issue is closed |
+| `todo` | ticket exists, no spec | human: `/wa-grill` | hook: issue opened · `wa-backlog create` |
+| `grilling` | **locked** — one agent writes spec with you | agent + you | `claim <n> grilling` |
+| `grilled` | spec written, ready to code | anyone | hook: `## Acceptance criteria` in issue body, or task file pushed on `wa/<n>-<slug>` |
+| `coding` | **locked** — one agent holds ticket, works on it | agent | `claim <n> coding` |
+| `review` | PR open. Draft = you test. Ready = you merge | human | hook: PR opened, or claimed round pushed to it |
+| `done` | change landed, issue closed | nobody | hook: PR merged |
 
-### Two rules the diagram encodes
+Two rules:
 
-1. **Agents write only `grilling` and `coding`**, always through an atomic `claim`, and only undo them through `release`. `grilled`, `review` and `done` come from repository events, handled by the hooks. An agent never sets them, even when a hook is slow.
-2. **`coding` never waits on a human.** Every agent round ends with a push. The first delivery opens a draft PR, and later rounds push to it. The hook then moves the ticket to `review` and drops the claim. A ticket waiting for your test is in `review`, never in `coding`.
+1. **Agents write only `grilling`, `coding`** — atomic `claim`, undone by `release`. Never `grilled` / `review` / `done`, even when hook slow.
+2. **Round ends with PR or release.** Ticket waiting for human sits in `review`, never `coding`.
+
+## Who's on turn
+
+| Board | Sub-phase | PR | You do | Next |
+| --- | --- | --- | --- | --- |
+| `coding` | `in-progress` | — | nothing, agent works | wait |
+| `review` | `review` | draft | test | `/wa-feedback <n> <notes>` or `/wa-validate <n>` |
+| `review` | `validated` | ready | test, merge | GitHub merge button, or `/wa-close <n>` |
+
+Same word, two levels. Board `review` = PR open, human on turn. `phase: review` = coded, verifier not run.
+
+## Any work loop
+
+Board constrained, loop free. Dev may use whackagent, Codex, Cursor, other skill, plain git. Loop may stop wherever dev likes:
+
+```mermaid
+flowchart LR
+    C["claim coding"] --> L["local commits"]
+    L --> P["branch pushed<br/>no PR"]
+    P --> DR["draft PR"]
+    L --> DR
+    DR --> RD["ready PR"]
+    L --> RD
+    subgraph coding ["board: coding, claim held"]
+        L
+        P
+    end
+    subgraph review ["board: review, claim dropped"]
+        DR
+        RD
+    end
+```
+
+| Loop stops at | Board | Note |
+| --- | --- | --- |
+| local commits | `coding`, claim held | nobody else can test it yet |
+| branch pushed, no PR | `coding`, claim held | push alone moves nothing |
+| draft PR | `review` | you test |
+| ready PR | `review` | you merge |
+
+- Claim held, no push for `WA_STALE_AFTER_HOURS` (default 24) → board check comments on ticket. Only human clears stale lock.
+- PR → ticket = the one issue it links (Development link or `Closes #n`), branch name `wa/<n>-…` as fallback. Any branch name works.
+- **Human decides every merge.** GitHub button, or agent asked to merge that PR: ready, checks green, reviews in, squash, never `--admin`.
+
+## whackagent loop
+
+| Command | Claims | Git | PR after |
+| --- | --- | --- | --- |
+| `/wa-grill <n>` | `grilling` | spec → issue body or task file on ticket branch | — |
+| `/wa-code <n>` | `coding` | commit + push, end of round | **draft**, self-assigned |
+| `/wa-feedback <n> <notes>` | `coding` | ready PR → back to draft first, commit + push | draft |
+| `/wa-validate <n>` | `coding` | verifier + autofix. Clean → wiki sync, rebase if base moved, commit + push | **ready**, reviewers requested. Findings open → stays draft |
+| `/wa-autopilot` | `coding` per ticket | same as code + validate, unattended | ready (clean) · draft (findings) |
+| `/wa-close <n>` | `coding` (while merging) | checks → plan → your yes → `gh pr merge --squash` | merged → `done` |
+| `/wa-close <sprint>` | — | sprint PR, then merge (merge commit) on second yes | merged → sprint parent closed |
+
+- Every PR assigned to `@me`, plus `pr.assignees`.
+- Ticket PRs squash. Sprint, track, sync PRs merge commit, never squash.
+- `/wa-close` refuses: draft PR (→ `/wa-validate`), failing checks, missing required review, stacked on unmerged ticket. GitHub refuses merge → claim released to `review`, reason said.
 
 ## One agent round
 
-Every command that touches a ticket branch after grilling (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`) runs the same round:
+Every command touching ticket branch after grilling runs same round:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant A as Agent (skill)
+    participant A as Agent
     participant C as Claim ref<br/>refs/wa-claims/n/coding
-    participant G as GitHub (branch + PR)
-    participant H as Board hook<br/>whackagent-board.yml
+    participant G as GitHub<br/>branch + PR
+    participant H as Board hook
     participant B as Project board
 
     A->>C: wa-backlog claim n coding
-    C-->>A: exit 0 (won) · 3 (taken) · 4 (wrong state)
+    C-->>A: exit 0 won · 3 taken · 4 wrong state
     A->>B: Status → coding
-    Note over A: plan, code, verify, test, review…<br/>no push mid-round
+    Note over A: plan, code, verify, test<br/>no push mid-round
     A->>G: commit (task file phase included) + push
     alt first delivery
-        A->>G: gh pr create --draft --assignee @me
-        A->>G: wa-backlog link-pr (milestone + Development)
-        G->>H: pull_request: opened
+        A->>G: gh pr create --draft, assignee @me
+        A->>G: wa-backlog link-pr (milestone + Development link)
+        G->>H: pull_request opened
     else later round
-        G->>H: pull_request: synchronize
+        G->>H: pull_request synchronize
     end
     H->>B: Status → review
     H->>C: delete claim
@@ -78,76 +154,116 @@ sequenceDiagram
     Note over A,G: CONFLICTING → rebase ticket range,<br/>rebuild, push --force-with-lease, check again
 ```
 
-- **Claim first.** Exit 3 means someone else is mid-round: the agent names the owner and stops, never retries or steals. Exit 4 means wrong state, for example `todo` when coding needs `grilled`.
-- **No push mid-round.** A push to an open PR fires `synchronize`, which ends the round and drops the claim while the agent is still working.
-- **The PR is self-assigned when created** (`--assignee @me`). The hooks never touch assignees.
-- **A conflicting PR fires nothing.** GitHub runs no `pull_request` workflow when the PR's merge ref conflicts, so a push to a conflicting PR leaves the ticket in `coding` with the claim held. The round-end check catches this and rebases.
-- **Draft ↔ ready moves nothing.** `ready_for_review` only posts a comment, and `converted_to_draft` does nothing. `/wa-close` marks the draft ready; `/wa-feedback` on a ready PR converts it back to draft first, so nobody merges code that is moving again.
+- **Claim first.** Exit 3 → someone mid-round: name owner, stop, never steal. Exit 4 → wrong state.
+- **No push mid-round.** Push to open PR = `synchronize` = round over, claim dropped.
+- **Conflicting PR fires nothing.** GitHub runs no `pull_request` workflow on conflict: ticket stuck in `coding` until rebase.
+- **Draft ↔ ready moves nothing.** `ready_for_review` comments only. Clean `/wa-validate` marks ready. `/wa-feedback` on ready PR flips it back to draft first.
+- **Nothing to push** → `release <n> coding --reset-to review` (PR open) or `--reset-to grilled` (no PR).
 
-## Coding sub-phase (task file)
+## Merge
 
-Inside the loop, the task file's `phase:` tracks what has been proven. It is committed and pushed with each round, so it always matches the PR.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as You
+    participant A as /wa-close
+    participant G as GitHub PR
+    participant H as Board hook
+    participant B as Project board
+
+    U->>A: /wa-close n
+    A->>G: gh pr view (ready, checks, reviews, base)
+    alt draft, checks red, review missing, stacked
+        A-->>U: say why, stop
+    else mergeable
+        A-->>U: plan block, ok?
+        U->>A: yes
+        A->>B: claim coding (no round pushes meanwhile)
+        A->>G: gh pr merge --squash
+        G->>H: pull_request closed, merged
+        H->>B: Status → done, issue closed, claim dropped
+        A->>A: remove local worktree + branch
+    end
+```
+
+Merging on GitHub yourself = same end. Hook sets `done` either way.
+
+## Coding sub-phase
+
+Task file `phase:`, committed and pushed each round — always matches PR.
 
 ```mermaid
 stateDiagram-v2
     direction LR
 
     [*] --> in_progress: /wa-code claims
-    in_progress --> phase_review: /wa-code delivers<br/>(draft PR opened)
-    in_progress --> validated: /wa-autopilot delivers<br/>(runtime check + verifier clean, draft PR)
+    in_progress --> phase_review: /wa-code delivers<br/>draft PR
+    in_progress --> validated: /wa-autopilot delivers<br/>verifier clean, ready PR
     phase_review --> phase_review: /wa-feedback round
-    phase_review --> validated: /wa-validate<br/>(verifier clean)
-    validated --> phase_review: /wa-feedback<br/>(review now stale)
-    validated --> closed: /wa-close<br/>(wiki synced, rebased, PR ready)
-    closed --> [*]: PR merged → board done
+    phase_review --> validated: /wa-validate clean<br/>wiki synced, rebased, PR ready
+    validated --> phase_review: /wa-feedback<br/>review stale, PR back to draft
+    validated --> [*]: PR merged, board done
 
     state "in-progress" as in_progress
     state "review" as phase_review
     state "validated" as validated
-    state "closed (PR ready)" as closed
 ```
-
-| Phase | Board state | Next command |
-| --- | --- | --- |
-| `in-progress` | `coding` | wait for the agent |
-| `review` | `review`, draft PR | test it, then `/wa-feedback <n> <notes>` or `/wa-validate <n>` |
-| `validated` | `review`, draft PR | retest, then `/wa-close <n>` |
-| after `/wa-close` | `review`, ready PR | merge the PR on GitHub |
-
-The same word appears at two levels. Board `review` means a PR is open and a human is on turn. `phase: review` means the code is delivered but the verifier has not judged it yet. `/wa-validate` runs the verifier once, over the whole ticket diff, when you say the feature matches the spec.
 
 ## Hook events
 
 | Event | Condition | Result |
 | --- | --- | --- |
-| `issues: opened` | no `wa-ignore` or `wa-sprint` label | added to the board as `todo` |
-| `push` to `wa/**` | spec file with `issue: <n>` and non-empty acceptance criteria, state `todo` or `grilling` | `grilled`, grilling claim deleted |
-| `pull_request: opened` / `reopened` | head `wa/<n>-…`, same repo, not `done`, draft or not | `review`, coding claim deleted |
-| `pull_request: synchronize` | coding claim exists | `review`, coding claim deleted (round over) |
-| `pull_request: ready_for_review` / `converted_to_draft` | none | nothing moves, claim untouched |
-| `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted. When the ticket's sprint has no branch and this was its last open sub-issue, the sprint parent issue closes too |
-| `pull_request: closed`, merged | head is the sprint branch | the sprint parent issue closes: the sprint landed |
-| `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |
+| `issues: opened` | no `wa-ignore` / `wa-sprint` label | card added, `todo` |
+| `issues: edited` | body holds non-empty `## Acceptance criteria`, card `todo` / `grilling` | `grilled`, grilling claim dropped |
+| `push` to `wa/**` | task file `issue: <n>` with non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped |
+| `pull_request: opened` / `reopened` | links one ticket, same repo, not `done` | `review`, coding claim dropped |
+| `pull_request: edited` | link found late, card `todo` / `grilled` | `review` |
+| `pull_request: synchronize` | coding claim held | `review`, claim dropped, new `## Feedback` round linked |
+| `pull_request: synchronize` | no claim (not GitHub's own merge) | comment on PR, board untouched |
+| `pull_request: ready_for_review` / `converted_to_draft` | — | nothing moves |
+| `pull_request: closed`, merged | ticket PR | `done`, issue closed, claims dropped. Sprint without branch, last ticket → sprint parent closed |
+| `pull_request: closed`, merged | head = sprint branch | sprint parent closed |
+| `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim dropped |
+| `schedule` (`:17`, `:47`) / manual | — | board check, report only |
 
-The workflow runs from the default branch for `issues` events and from the PR's merge ref for `pull_request` events. Both the default branch and the PR base (a sprint branch, for example) must therefore carry the current hooks. Older hooks are detected from the `template version:` header: versions 3 to 5 keep a draft PR in `coding`, and versions below 3 treat any opened PR as ready.
+Card in column outside six states → hooks hands off. Except coding claim held → card taken back (GitHub built-in "Pull request linked to issue" workflow moves it; switch that off).
+
+## Board check
+
+Twice an hour. **Reports, never moves cards.** One comment per problem, flipped to resolved once fixed.
+
+On ticket:
+
+- `grilling` / `coding` card, no claim held
+- claim held, no push for `WA_STALE_AFTER_HOURS`
+- `review` card, no open PR
+- linked PR open, card `todo` / `grilled`
+- linked PR merged, card not `done`
+- `grilled` card, no spec
+- criteria in issue body, card `todo`
+- `done` card, issue open
+- closed issue in lock column
+
+On PR, as it happens: push without coding claim · PR linking several tickets.
 
 ## Local provider
 
-Without GitHub (`backlog.provider: local`), there is one agent and one checkout, and the task file's `status:` carries the whole lifecycle:
+No GitHub (`backlog.provider: local`): one agent, one checkout. Task file `status:` carries everything.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> todo: /wa-task
     todo --> in_progress: /wa-code
-    in_progress --> review: coded, waiting for your test
+    in_progress --> review: coded, you test
     review --> review: /wa-feedback
     review --> validated: /wa-validate (verifier)
     validated --> review: /wa-feedback
-    validated --> done: /wa-close (commit, land branch)
+    validated --> done: /wa-close (commit, land per close.strategy)
     todo --> canceled
     review --> canceled
     state "in-progress" as in_progress
 ```
 
-Only `/wa-close` commits in attended runs, and `/wa-autopilot` commits on its own task branches only.
+- Only `/wa-close` commits in attended runs. `/wa-autopilot` commits on its own task branches only.
+- `close.strategy`: `nothing` (commit, branch kept) · `pr` (PR left ready, never merged) · `merge` (local merge, no push).

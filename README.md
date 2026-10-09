@@ -40,8 +40,8 @@ Add the marketplace, then install the plugin:
 | `/wa-grill [task]` | Grills one task until it's clear (grill-me, includes architecture), writes its acceptance criteria |
 | `/wa-code <task>` | Full pipeline: understand → code + test → review → verify → report |
 | `/wa-feedback [task] <notes>` | Applies your notes on what was built — micro-fix inline, bigger changes through the isolated pipeline |
-| `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
-| `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR ready for review — never merged —, or nothing — `close.strategy`), delete branch + worktree, `done` |
+| `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close; touches git only under the GitHub provider, where a clean verdict marks the ticket PR ready |
+| `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR ready for review, or nothing — `close.strategy`), delete branch + worktree, `done`. GitHub provider: merges the ready ticket PR on your yes |
 | `/wa-close <sprint>` | Lands a complete sprint later: sprint PR when its branch holds unlanded work, else closes the GitHub sprint parent (asks first) |
 | `/wa-release [milestone]` | Ships a milestone: checks its tasks landed, then walks you through the project's own documented release flow, confirming every outward step (finds the doc, or interviews you and writes it first) |
 | `/wa-autopilot [tasks\|sprint\|milestone]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel. A task you name runs from whatever state it's in (grills, codes, validates or refreshes what's left; never closes) |
@@ -283,7 +283,7 @@ close:
   delete_branch: auto # auto = only once the code lives elsewhere
 ```
 
-`nothing` is the default and stops after the commit — the branch stays, you open the PR yourself. `pr` pushes and leaves a PR ready for review onto `target`: a draft PR already open for the branch is marked ready (body refreshed, reviewers requested), otherwise a PR is opened ready. It never merges the PR; that stays a human's call on GitHub. It asks every single time, because a PR is visible to other people the moment it opens. `merge` merges locally without pushing.
+`nothing` is the default and stops after the commit — the branch stays, you open the PR yourself. `pr` pushes and leaves a PR ready for review onto `target`: a draft PR already open for the branch is marked ready (body refreshed, reviewers requested), otherwise a PR is opened ready. It never merges the PR; that stays a human's call on GitHub. It asks every single time, because a PR is visible to other people the moment it opens. `merge` merges locally without pushing. Under the GitHub backlog provider, `close.strategy` doesn't apply to tickets: `/wa-validate` marks the PR ready and `/wa-close` offers to merge it.
 
 A branch is only deleted once its code exists somewhere else: merged into its sprint branch, or merged into `target`. `pr` and `nothing` keep it — a PR needs its branch, and so do you. The task's worktree (an autopilot leftover, or any task under `branch.worktree`) gets removed with it, and if it's dirty the command stops and asks.
 
@@ -325,7 +325,7 @@ Every ticket goes through six states. Agents only ever *take* a ticket; the rest
 | `grilling` | an agent claims it with `/wa-grill #12`, a lock, so no other agent grills it |
 | `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
 | `coding` | an agent claims it for one round (`/wa-code 12`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`), a lock held only while the agent works |
-| `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; `/wa-close` marks it ready = your turn to merge |
+| `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; a clean `/wa-validate` marks it ready = your turn to merge (on GitHub, or `/wa-close`) |
 | `done` | the hooks workflow, when the PR is merged. The issue is closed. |
 
 A closed-unmerged PR sends the ticket back to `grilled`.
@@ -336,6 +336,7 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 - **Milestones are the repo's GitHub milestones** (see [Milestones](#milestones)). You create them on GitHub; "highest" is the open one with the highest title in version order. The hooks never touch a milestone, and the script never creates one; it closes one only when `/wa-release` asks, on your yes.
 - **Order is yours.** New tickets land at the bottom. Agents reorder only when you run `/wa-task` with no argument, and apply the new order on your yes.
 - **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR (a small caller of whackagent's reusable workflow, so hook fixes reach every project with each release, no new PR), and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). It can migrate an existing local backlog.
+- **Workflow at a glance:** [WORKFLOW.md](WORKFLOW.md), short notes and diagrams: board states, whose turn it is, any work loop, the whackagent loop, merge, hook events.
 - **Full walkthrough:** [GITHUB.md](GITHUB.md) explains what every command does on GitHub, the agent round, PRs, sprints, stacking and the gotchas.
 - **Another tracker** (Jira, Linear, Trello, Notion) means a new folder under `providers/` implementing the same contract (`providers/CONTRACT.md`); the skills don't change.
 

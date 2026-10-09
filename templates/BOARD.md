@@ -43,7 +43,7 @@ You never move a card on the board. You only *claim* a ticket (a lock) before wo
 
 Allowed claims: `grilling` from `todo` (first spec) or `grilled` (re-spec, when scope changed). `coding` from `grilled` (first round) or `review` (any later round). Anything else is refused.
 
-In `review`, the PR tells who acts: **draft** = humans test it, **ready** = humans merge it.
+In `review`, the PR tells who acts: **draft** = humans test it, **ready** = a human decides the merge.
 
 Column names may differ on the Project; the board CLI always reports the six names above.
 
@@ -94,6 +94,7 @@ A winning claim assigns your account to the issue. Leave that assignment alone.
 - **Fork point** = the sprint branch `<sprint-prefix><sprint>` when the ticket is in a sprint, else `<base>` (or its track branch, when its milestone is a track).
 - **One round = claim → work → commit → push.** Push **once, at the end** of the round: a push to a branch with an open PR ends the round and drops your claim.
 - **First round** opens a **draft PR** (`gh pr create --draft`), then `<board-cli> link-pr <n> <pr>`. Later rounds push to the same PR and refresh its body.
+- **A round ends only with a PR or a release.** Local commits, or a branch pushed without a PR, keep your claim and the card in `coding`: nobody else can test or review that work yet. Stopping for longer than <stale-hours> h → open the draft PR, or release.
 - **Nothing to push** at the end of a round → `release <n> coding --reset-to review` (PR open) or `--reset-to grilled` (no PR yet). Never leave a claim behind.
 - **After each push**, check `gh pr view <pr> --json mergeable` (retry while `UNKNOWN`). `CONFLICTING` → GitHub runs no workflow on a conflicting PR, so your push moved nothing and your claim is still held: rebase your ticket's own commits onto the PR base, re-run the tests, `git push --force-with-lease`, check again.
 - **Feedback on a ready PR** → `gh pr ready --undo` before your first commit, so nobody merges code that is moving.
@@ -104,7 +105,14 @@ A winning claim assigns your account to the issue. Leave that assignment alone.
 
 ### 5. Merge
 
-**Humans merge.** Never merge a ticket PR, never merge its branch locally. The workflow sets `done` and closes the issue on merge.
+**A human decides every merge**: on GitHub, or by asking their agent to merge that PR in that session. An agent merges no PR its user did not name. When it merges:
+
+- Claim `coding` first (from `review`), so no other round pushes while you merge. Exit `3` → stop.
+- Merge only a **ready** PR whose checks are green, whose required reviews are in, and whose base is not another ticket's open branch (stacked: the PR below merges first).
+- Use the merge style below: `gh pr merge <pr> --squash` for a ticket. Never `--admin`, never bypass branch protection.
+- GitHub refuses (checks, reviews, conflict) → `release <n> coding --reset-to review --reason "…"` and say why.
+
+Never merge a ticket branch locally. The workflow sets `done`, drops the claim and closes the issue on merge.
 
 ## Pull requests
 
@@ -143,13 +151,13 @@ A winning claim assigns your account to the issue. Leave that assignment alone.
 ## Locks
 
 - Claims never expire: a spec interview may wait two days for an answer.
-- `claims` flags a lock `stale` after <stale-hours> h with no push. **Only a human clears a stale lock** (`release <n> <phase> --reset-to <state> --reason "stale: …"`). Never release a lock you don't hold to take its ticket.
+- `claims` flags a lock `stale` after <stale-hours> h with no push, and the check reports it on the ticket. **Only a human clears a stale lock** (`release <n> <phase> --reset-to <state> --reason "stale: …"`). Never release a lock you don't hold to take its ticket.
 
 ## Checks
 
 The board workflow **reports** what breaks this contract, once per problem, as a comment on the ticket or PR. It never moves cards: fixing is up to the worker or a human. It reports:
 
-- on a ticket, twice an hour: a card in `grilling` or `coding` with no claim held; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no spec; acceptance criteria in the issue body while the card sits in `todo`; a card in `done` on an open issue; a closed issue in a lock column. The comment turns to resolved once the problem is gone.
+- on a ticket, twice an hour: a card in `grilling` or `coding` with no claim held; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no spec; acceptance criteria in the issue body while the card sits in `todo`; a card in `done` on an open issue; a closed issue in a lock column; a claim held with no push for <stale-hours> h. The comment turns to resolved once the problem is gone.
 - on a PR, as it happens: a push while the ticket holds no `coding` claim; a PR linking several tickets.
 
 Read those comments when you take a ticket, and fix what they name.
@@ -158,7 +166,7 @@ Read those comments when you take a ticket, and fix what they name.
 
 - Move a card, or set a state, yourself.
 - Work on a ticket you have not claimed, or one claimed by someone else, or reserved for another account.
-- Merge a ticket PR.
+- Merge a PR your user did not ask you to merge, merge with an admin override, or merge a ticket branch locally.
 - Push in the middle of a round to a branch with an open PR.
 - Create, rename or close milestones; create labels.
 - Force-push without `--force-with-lease`, or force-push a branch that is not your ticket's.

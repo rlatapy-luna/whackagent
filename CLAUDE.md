@@ -14,6 +14,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `providers/`: backlog providers. `CONTRACT.md` defines the verbs and the six states (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`) every skill uses. `local.md` maps the default file-based backlog onto it; `github/` holds the `wa-backlog` script, the `whackagent-board.yml` hooks workflow and its README.
 - `.github/workflows/board.yml`: the board hooks logic, a reusable workflow every project calls through the `hooks-v2` tag (`hooks-v1` is frozen for callers below template version 16). `providers/github/whackagent-board.yml` is the caller `/wa-setup` installs; keep its triggers and permissions in sync with what `board.yml` needs.
 - `README.md`: public doc on GitHub. No agent reads it.
+- `WORKFLOW.md`: public workflow cheat sheet, telegraphic notes plus mermaid diagrams (board states, turns, landing cases, commands, hook events). No agent reads it; keep it in sync with `BOARD.md`, the hooks and the skills' GitHub provider sections.
 - `GITHUB.md`: public walkthrough of the GitHub provider across the whole workflow. No agent reads it; keep it in sync when a skill's GitHub provider section changes.
 - `CHANGELOG.md`: public release notes, Keep a Changelog format, newest first. No agent reads it.
 
@@ -27,8 +28,8 @@ Two levels, both defined in `providers/CONTRACT.md`:
 Who sets what:
 
 - `/wa-code` sets `review`: coded, waiting for the user to test.
-- `/wa-validate` sets `validated`: the user approved the spec and the verifier ran.
-- `/wa-close` sets `done` (local) or marks the PR ready (GitHub, where the merge hook sets `done`).
+- `/wa-validate` sets `validated`: the user approved the spec and the verifier ran. Under GitHub, a clean verdict also marks the ticket PR ready (wiki synced, rebased).
+- `/wa-close` sets `done` (local), or merges the ready PR on the user's yes (GitHub, where the merge hook sets `done`).
 
 The word `review` names both a board state and a sub-phase. Say which one when editing.
 

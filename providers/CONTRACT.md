@@ -33,11 +33,10 @@ Whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task 
 | Board | Sub-phase | PR (GitHub) | Human does | Next |
 |---|---|---|---|---|
 | `coding` | `in-progress` | — | nothing: agent works | wait |
-| `review` | `review` | draft | test | `/wa-feedback` (notes) or `/wa-validate` |
-| `review` | `validated` | draft | retest | `/wa-close` → PR ready |
-| `review` | `validated` | ready | merge (GitHub UI) | hook → `done` |
+| `review` | `review` | draft | test | `/wa-feedback` (notes) or `/wa-validate` → clean: PR ready |
+| `review` | `validated` | ready | test, merge | GitHub UI, or `/wa-close` (merges on yes) → hook → `done` |
 
-Two GitHub landing paths, same end: attended `/wa-close` marks draft ready; `/wa-autopilot` with verifier clean opens it ready (wiki synced), no `/wa-close`. Local: `/wa-close` lands per `close.strategy`, sets `done`.
+Two GitHub paths to ready PR, same end: clean `/wa-validate` (attended) or clean `/wa-autopilot` delivery — wiki synced, rebased. Findings open → PR stays draft. Local: `/wa-close` lands per `close.strategy`, sets `done`.
 
 ## Verbs
 

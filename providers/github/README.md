@@ -44,14 +44,14 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 | PR → ticket | every `pull_request` row | the one issue PR links (`closingIssuesReferences`: Development link or `Closes #n`), else head `wa/<n>-…`. Sprint parents never. Several linked → reported on PR, board untouched. `opened` waits ~1 min for `link-pr` before calling PR ticketless |
 | `pull_request: opened/reopened` | ticket found, same repo, not `done` — **draft or not** | `review`, coding claim deleted |
 | `pull_request: edited` | ticket found late, card in `todo`/`grilled` | `review`, coding claim deleted. Never from `coding` (round live) |
-| `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges |
+| `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges (GitHub UI or `/wa-close`) |
 | `pull_request: synchronize` | coding claim exists | `review`, claim deleted (agent round over); `## Feedback` rounds new since previous head linked (line permalink, embedded snippet) on ticket and PR |
 | `pull_request: synchronize` | no coding claim, not `done`, head not a GitHub web merge | reported on PR (push without claim), board untouched |
 | `pull_request: closed`, merged | any base | `done`, issue closed, claims deleted. Sprint without branch + last sub-issue closed → sprint parent closed |
 | `pull_request: closed`, merged, head `<WA_SPRINT_PREFIX><name>` | — | sprint parent `<name>` closed (sprint landed) |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim deleted |
 
-**`coding` is transient.** Held only while an agent works: every agent round (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`) claims from `grilled`/`review` and ends with a push — first delivery opens the draft PR (`opened`), later rounds push to it (`synchronize`). Either way hook releases claim, ticket waits for humans in `review`. Draft vs ready tells who looks next: draft = test it, ready = merge it.
+**`coding` is transient.** Held only while an agent works: every agent round (`/wa-code`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`) claims from `grilled`/`review` and ends with a push — first delivery opens the draft PR (`opened`), later rounds push to it (`synchronize`). Either way hook releases claim, ticket waits for humans in `review`. Draft vs ready tells who looks next: draft = test it, ready = merge it (`/wa-validate` clean marks ready; `/wa-close` merges on user's yes). Loop stopped before PR (local commits, branch pushed without PR) → ticket stays `coding` under claim; scheduled check comments after `WA_STALE_AFTER_HOURS`.
 
 **Conflicting PR = no hook.** GitHub skips `pull_request` workflows when PR merge ref conflicts: push to conflicting PR moves nothing, claim stays. Round end checks `mergeable`, rebases ticket range when `CONFLICTING`.
 

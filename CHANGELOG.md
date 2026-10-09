@@ -7,12 +7,14 @@ All notable changes to whackagent are listed here, newest first. The format foll
 ### Added
 
 - GitHub provider: `/wa-grill` can re-grill a `grilled` ticket, on your yes. `claim grilling` now also starts from `grilled`, the spec is rewritten on the same branch, and the hook moves the ticket back to `grilled`. A re-grill and a `/wa-code` claiming the same ticket at once never both win.
-- `wa-backlog list` and `get` report the task file's `phase` for tickets in review, so `/wa-board` and the backlog pane offer `/wa-close` on a validated draft instead of `/wa-validate`.
+- `wa-backlog list` and `get` report the task file's `phase` for tickets in review, so `/wa-board` and the backlog pane know whose turn it is.
 - GitHub provider: a `BOARD.md` board contract, so devs using other agents or work loops (Codex, Cursor, other skills, plain git) share the board safely. `/wa-setup backlog` installs it in one PR with a copy of the board CLI (`.github/board/wa-backlog`), pointer blocks in `AGENTS.md`, `CLAUDE.md` and the Copilot and Cursor instruction files, and `## Ticket`, `## Acceptance criteria` and `## Status` sections appended to the PR template.
 - GitHub provider: a spec written in the issue body (non-empty `## Acceptance criteria`) moves the ticket to `grilled`. `/wa-code` and `/wa-autopilot` pick such a ticket up: they create its linked branch and copy the spec into the task file.
 - GitHub provider: a PR moves the board through the issue it links (Development link or `Closes #n`), whatever its branch is called.
 - GitHub provider: a report-only board check runs twice an hour and comments on tickets whose card disagrees with the repository (lock without claim, review without PR, merged but not done, …), and on PRs pushed without a claim or linking several tickets. It never moves cards.
 - `wa-backlog` warns when the project's `BOARD.md` carries another contract version than the script.
+- GitHub provider: `/wa-close` on a ticket merges its ready PR for you, on your yes every time: squash (a merge commit for a track landing), only with green checks, required reviews in and a landed base, never with an admin override. When that was the sprint's last ticket, it also offers the sprint PR and merging it. The backlog pane offers it as **merge** on ready PRs.
+- GitHub provider: the board check also reports a claim held with no push for `WA_STALE_AFTER_HOURS` (default 24), such as a work loop that stopped at local commits or at a branch pushed without a PR.
 - GitHub provider: `/wa-setup` flags GitHub's built-in Project workflow "Pull request linked to issue", which moves cards out of the board's states, and asks you to switch it off. While it stays on, the hooks take a card back from its column whenever a `coding` claim is held.
 
 ### Changed
@@ -22,10 +24,12 @@ All notable changes to whackagent are listed here, newest first. The format foll
 - Local provider: `status: review` and `validated` now count as the contract's `review` state (a human is on turn), and only `in-progress` counts as `coding`, the same split as the GitHub provider. The provider contract gains a *Who's on turn* table.
 - The `wa-verifier` subagent always runs on Opus. It used to follow the main conversation's model, so `/wa-validate`, `/wa-review` and `/wa-feedback` could review on a weaker model than `/wa-code` did, or than the Sonnet implementer it judges.
 - `/wa-feedback` runs on Opus, like `/wa-code`: it triages your notes and writes micro-fixes itself, in the main thread.
+- **Breaking:** GitHub provider: a clean `/wa-validate` now gets the ticket PR ready to merge: it syncs the wiki, rebases when the base moved, marks the PR ready and requests `pr.reviewers`. `/wa-close` no longer does this. Findings left open keep the PR draft.
+- PRs whackagent opens are always assigned to you; `pr.assignees` only adds people.
+- `BOARD.md`: an agent may merge a PR when its user asks it to (ready, checks green, reviews in, never an admin override). Agents still never merge on their own.
 
 ### Fixed
 
-- GitHub provider: `/wa-close` no longer leaves the ticket in `coding` when the close round has nothing new to push. It releases its claim back to `review`.
 - `/wa-release` on the local provider with `close.strategy: pr` no longer counts tasks whose PR is still open as landed.
 - `/wa-close` no longer contradicts itself on force pushes: `--force-with-lease` on the task's own branch after the ticket-range rebase is allowed, a plain force push never is.
 
