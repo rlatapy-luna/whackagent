@@ -514,13 +514,14 @@ export const taskActions = (task: BoardTask): Action[] =>
   isLive(task) ? [...stepActions(task), action('autopilot', `/wa-autopilot ${task.slug}`)] : []
 
 // Draft PR → test it, then feedback or validate (a clean /wa-validate marks it ready, even when `phase` already
-// says validated). Ready PR → test it, then merge: /wa-close merges on the user's yes.
+// says validated). Ready PR → test it, then merge: /wa-close merges on the user's yes. A ready PR whose task file
+// still says `review` (marked ready by hand) goes through /wa-validate first; no phase = another work loop's PR.
 function ticketStepActions(ticket: GithubTicket): Action[] {
   const { number } = ticket
   if (ticket.state === 'todo') return [action('grill', `/wa-grill ${number}`)]
   if (ticket.state === 'grilled') return [action('code', `/wa-code ${number}`)]
   if (ticket.state !== 'review') return []
-  return ticket.pr?.isDraft === false
+  return ticket.pr?.isDraft === false && ticket.phase !== 'review'
     ? [action('merge', `/wa-close ${number}`), action('feedback', `/wa-feedback ${number} `)]
     : [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
 }

@@ -103,7 +103,7 @@ What grill starts from — `/wa-grill` reads it instead of re-asking what spec a
 
 - **Create** → `wa-backlog create --title … --summary … [--size] [--sprint] [--milestone] --note "<idea or spec excerpt>"` (note = issue body) instead of steps 3–4, then `wa-backlog depend <n> --on <x>` per dependency. Ticket lands `todo`, bottom of board, milestone per **wa-board → Milestones** (track: `--milestone <track>` on user's yes). **No claim, no branch, no task file** — `/wa-grill` makes them; `ported-from:` / `lands:` go in `--note`, grill copies them to task file.
 - **Prioritization (step 5) under GitHub:** **not automatic.** Board order shared with humans and other agents — new ticket lands bottom of `todo`, full stop. Only explicit `/wa-task` (no arg): re-read `wa-backlog list` just before writing, show proposed order, apply with `wa-backlog move` **only on user yes**. Cancel = close issue `not planned` with reason comment, on yes.
-- **`/wa-task release <n>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <n> <phase> --reset-to <todo|grilled> --reason "stale: <age>, no push"` (`grilling` → `todo`, `coding` → `grilled`). Never on own initiative, never to take ticket another live agent holds.
+- **`/wa-task release <n>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <n> <phase> --reset-to <todo|grilled|review> --reason "stale: <age>, no push"` (`coding` → `review` when PR open, else `grilled`; `grilling` → `grilled` when spec already exists — issue body criteria or task file on branch —, else `todo`). Never on own initiative, never to take ticket another live agent holds.
 
 ## Sprints
 

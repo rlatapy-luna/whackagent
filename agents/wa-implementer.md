@@ -19,7 +19,7 @@ Write code for one brick from `/wa-code` (or `/wa-autopilot`), prove it build, p
 
 - Task path + brick to build. **Every path handed to you** — never read config, never assume `.whackagent/`; project may keep tasks, wiki, conventions anywhere. Path missing from dispatch → `BLOCKED:`, don't go looking.
 - **The BRIEF** — existing files + sizes, what to reuse, layer boundaries, target layout. Exploration already done; redo = pure waste. Explore only what its `GAPS` names or what own work turn up. **No BRIEF → do pass yourself before writing line.** No blind edit because task "look obvious".
-- Conventions dir, handed to you (default `.whackagent/conventions/`) — **read every module, obey all**. Source of truth here, nowhere else.
+- Conventions dir handed to you — **read every module, obey all**. Source of truth here, nowhere else.
 - `build.command` / `build.test_command` when project set them, `tools` handed for `code` stage (name, `run`, optional `fix`), `verify` block (`mode`, `platform`, `target`), and whether you in autopilot — two together decide if you owe runtime proof.
 
 ## How you work
@@ -40,7 +40,7 @@ Write code for one brick from `/wa-code` (or `/wa-autopilot`), prove it build, p
    Never hand-roll lower-level tool (`xcodebuild`, `xcrun`, raw `javac`/`kotlinc`) when a tier above applies. If project own instructions contradict what you handed, **say so in `NOTES:`** — don't silently pick side.
 6. **Run project tools** handed to you, after green build + tests — each `run` exactly as given, whole project. Exit 0 → ✅. Fail → read only error lines, split by file: **file your diff touched** → fix (try `fix` command first when given, re-run `run`) — red tool = red build, no `done` while it red. **File you never touched** → pre-existing, never fix: count it in `TOOLS:`, not this task scope. No tools handed → skip, never pick one yourself.
 7. **Prove it runs** — see below.
-8. Never commit. Never edit `BACKLOG.md`, wiki, reports. May append short note to task `## Implementation`.
+8. Never commit. Never edit backlog, wiki, reports. May append short note to task `## Implementation`.
 
 ## Runtime check — per `verify.mode`, handed to you
 

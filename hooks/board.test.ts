@@ -234,16 +234,22 @@ test('row actions follow the task state', async () => {
   expect(labels(taskActions(task({ slug: 'a' }, 'in-progress')))).toEqual(['code', 'autopilot'])
   expect(taskActions(task({ slug: 'a' }, 'canceled'))).toEqual([])
   expect(taskActions(task({ slug: 'a' }, 'done'))).toEqual([])
-  const [free, claimed, ready, validated] = toTickets(
+  const [free, claimed, ready, validated, readyUnreviewed] = toTickets(
     [
       row({ number: 7, state: 'review' }),
       row({ number: 8, state: 'grilled', claims: [{ agent: 'x' }] }),
       row({ number: 9, state: 'review' }),
       row({ number: 10, state: 'review', phase: 'validated' }),
+      row({ number: 11, state: 'review', phase: 'review' }),
     ],
-    [{ number: 30, headRefName: 'wa/9-x', isDraft: false }],
+    [
+      { number: 30, headRefName: 'wa/9-x', isDraft: false },
+      { number: 31, headRefName: 'wa/11-y', isDraft: false },
+    ],
     'wa/',
   ).tickets
+  expect(validated!.phase).toBe('validated')
+  expect(labels(ticketActions(readyUnreviewed!))).toEqual(['feedback', 'validate', 'autopilot'])
   expect(labels(ticketActions(free!))).toEqual(['feedback', 'validate', 'autopilot'])
   expect(labels(ticketActions(validated!))).toEqual(['feedback', 'validate', 'autopilot'])
   expect(ticketActions(claimed!)).toEqual([])
@@ -345,6 +351,13 @@ test('github focus marks criteria from verification, lists sprint siblings and o
   expect(view.facts).toEqual(['👀 review · phase: validated · milestone 0.4.1', '⛔ blocked by #10', '🌳 /src/app-worktrees/177-ai-group-menu'])
   expect(view.pr).toEqual({ number: 40, isDraft: true, url: 'https://x/pull/40' })
   expect(view.row?.actions.map(one => one.label)).toEqual(['feedback', 'validate', 'autopilot'])
+  // no task file checked out here: the phase comes from the board row
+  const remote = githubFocusView(
+    toTickets([row({ number: 177, state: 'review', phase: 'validated' })], [{ number: 40, headRefName: 'wa/177-x', isDraft: false }], 'wa/').tickets,
+    { id: '#177', worktree: '', file: null, blockedBy: [], prUrl: '' },
+  )
+  expect(remote.facts[0]).toBe('👀 review · phase: validated')
+  expect(remote.row?.actions.map(one => one.label)).toEqual(['merge', 'feedback', 'autopilot'])
   expect(view.blocks.map(block => block.title)).toEqual([
     '🏁 menus — 1/2',
     'Acceptance criteria (3)',

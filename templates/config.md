@@ -1,8 +1,6 @@
 ---
 # whackagent config — written by /wa-setup, edit freely.
 discussion_language: en        # language Claude talk to you in
-code_language: en              # identifiers, comments, log messages, commits
-ui_strings_language: en        # user-facing strings
 primary_language: generic      # swift | kotlin | typescript | generic  (picks convention pack;
                                # any other language → generic)
 project_kind: app              # app | web | server | cli | package  (picks architecture module)
@@ -34,7 +32,9 @@ backlog:
                                #   local  — {backlog} + task files, one agent (default).
                                #   github — GitHub Project + issues, many agents/worktrees.
                                #     Settings in repo variables (wa-backlog provision), not here.
-                               #     Forces branch.per_task: true, close.strategy: pr.
+                               #     Forces branch.per_task: true, branch.base = close.target
+                               #     (named branch). Ignores close.strategy for tickets:
+                               #     /wa-validate marks PR ready, /wa-close merges it on your yes.
   milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
                                # only — github read them from repo milestones. New task join LAST
                                # entry, so new work never grow current or past scope. You own list:
@@ -139,6 +139,7 @@ branch:
                                #   open side by side. Cost: cold build per worktree, open IDE there.
   prefix: "wa/"                # branch name: <prefix><slug> → wa/login-apple
   base: current                # fork point: current | main | <branch name>
+                               # GitHub provider: named branch, same as close.target
   sprint_prefix: "sprint/"     # task carrying `sprint:` branch off SPRINT branch, not base:
                                #   sprint/login-refacto ← created from base: on first task of sprint
                                #   wa/login-apple       ← forked from it, merged back by /wa-close
@@ -166,8 +167,8 @@ close:                         # WHERE work land when /wa-close finish a task. T
                                #   Sprint task: PR onto its sprint branch, no local merge.
                                #   Outward-facing: /wa-close ALWAYS confirm before, every time.
                                # merge  — merge branch into target: locally, no push.
-                               # GitHub provider: ticket PR already ready (/wa-validate), so
-                               #   /wa-close offers merging it on GitHub (squash) — your yes, every time.
+                               # GitHub provider: ignored for tickets — /wa-validate marks PR ready,
+                               #   /wa-close merges it on GitHub (squash) on your yes, every time.
   target: main                 # where pr/merge land. Ignored by `nothing`.
   delete_branch: auto          # auto   — delete only once code live elsewhere (merged into sprint
                                #   branch, or merged into target). `pr` and `nothing` keep it:
@@ -196,11 +197,6 @@ pr:                            # HOW every PR whackagent open look — ticket dr
   doc: ""                      # PR rules keys can't say (changelog line, size limit) — `path` or
                                # `path#Heading` (CONTRIBUTING.md#Pull requests). Empty → none.
 
-autopilot:
-  on_blocker: skip-and-log     # never invent; freeze task, move on
-                               # autopilot ALWAYS branch per task, whatever branch.per_task say
-
-yagni: strict
 compress_wiki: true            # caveman-compress config + wiki pages to save re-read tokens
                                # (at /wa-setup and after every /wa-wiki update; .original backups removed)
 ---

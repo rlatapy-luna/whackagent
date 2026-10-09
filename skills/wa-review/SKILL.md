@@ -13,7 +13,7 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 
 - **`/wa-review`** → current working diff (git diff vs HEAD / staged).
 - **`/wa-review <path>`** → that file or directory.
-- **`/wa-review <branch>`** → diff of that branch vs base.
+- **`/wa-review <branch>`** → diff of that branch vs base. GitHub provider ticket branch → ticket range (`git diff $start^ <branch>`, **wa-board → Backlog provider**, *Squash merge*), never `<base>..HEAD`.
 - **`/wa-review --all`** → whole project source.
 
 ## Conventions
