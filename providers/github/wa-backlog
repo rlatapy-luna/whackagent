@@ -9,6 +9,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 """
 
 import argparse
+import base64
 import re
 import concurrent.futures
 import hashlib
@@ -20,6 +21,7 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 STATES = ["todo", "grilling", "grilled", "coding", "review", "done"]
 DEFAULT_STATE_NAMES = {
@@ -48,8 +50,9 @@ STATE_DESCRIPTIONS = {
 }
 SIZES = ["quickwin", "medium", "large"]
 SIZE_COLORS = {"quickwin": "GREEN", "medium": "YELLOW", "large": "RED"}
-# Phase claimed → states the ticket may be in when the claim is taken.
-CLAIM_FROM = {"grilling": {"todo"}, "coding": {"grilled", "review"}}
+# Phase claimed → states the ticket may be in when the claim is taken. `grilled` → `grilling` = re-grill:
+# the spec is rewritten on the same branch, and the push hook moves it back to `grilled`.
+CLAIM_FROM = {"grilling": {"todo", "grilled"}, "coding": {"grilled", "review"}}
 CLAIM_NAMESPACE = "wa-claims"
 IGNORE_LABEL = "wa-ignore"
 # Sprint = parent issue labeled wa-sprint, sprint name = its title in kebab-case; its tickets are its
@@ -417,6 +420,20 @@ def remote_branch(config, number):
     return names[0] if names else None
 
 
+def task_phase(config, branch):
+    """`phase:` of the task file on a ticket branch (`in-progress`, `review`, `validated`); None when
+    the branch or file is missing or the field is empty. Branch `wa/12-login` holds `{tasks}/12-login.md`."""
+    if not branch:
+        return None
+    path = f"{config['tasks_path'].rstrip('/')}/{branch.removeprefix(config['branch_prefix'])}.md"
+    code, data = rest("GET", f"repos/{config['repo']}/contents/{path}?ref={quote(branch, safe='')}", check=False)
+    if code != 0 or not data or "content" not in data:
+        return None
+    text = base64.b64decode(data["content"]).decode("utf-8", "replace")
+    match = re.search(r"^phase:[ \t]*([\w-]*)", text, re.M)
+    return (match.group(1) or None) if match else None
+
+
 # ---------------------------------------------------------------- operations
 
 
@@ -448,6 +465,12 @@ def op_list(args):
         if args.milestone and ticket["milestone"] != args.milestone:
             continue
         rows.append(ticket)
+    # review = humans on turn; the task file's phase says which turn (test, retest, merge)
+    review = [t for t in rows if t.get("state") == "review"]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        phases = pool.map(lambda t: task_phase(config, remote_branch(config, t["number"])), review)
+        for ticket, phase in zip(review, phases):
+            ticket["phase"] = phase
     if args.owners:
         claimed = [c for t in rows for c in t.get("claims", [])]
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
@@ -463,6 +486,7 @@ def op_get(args):
     config = load()
     ticket = find(config, args.number)
     ticket["branch"] = remote_branch(config, args.number)
+    ticket["phase"] = task_phase(config, ticket["branch"])
     ticket["blocked_by"] = blocked_by(config, args.number)
     emit(ticket)
 
@@ -524,6 +548,13 @@ def op_claim(args):
             raise Failure(f"could not create claim ref {ref}: {(data or {}).get('message', 'unknown error')}")
         existing = rest("GET", f"repos/{config['repo']}/git/ref/{ref.removeprefix('refs/')}")
         taken(config, args.number, phase, existing["object"]["sha"])
+    if ticket["state"] == "grilled":
+        # Both phases claim from `grilled` (re-grill, code) on two refs, so the ref alone isn't the lock.
+        # Checked after creating ours: of two racers, the later checker always sees the other one.
+        other = next((c for c in claims(config, args.number) if c["phase"] != phase), None)
+        if other:
+            rest("DELETE", f"repos/{config['repo']}/git/{ref}", check=False)
+            taken(config, args.number, other["phase"], other["sha"])
     set_state_raw(config, ticket, phase)
     if assigning:
         code, data = rest("POST", f"repos/{config['repo']}/issues/{args.number}/assignees", {"assignees": [login]}, check=False)

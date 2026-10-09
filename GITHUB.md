@@ -46,6 +46,8 @@ stateDiagram-v2
     todo --> grilling: claim grilling (agent)
     grilling --> grilled: spec pushed (hook)
     grilling --> todo: release (abort)
+    grilled --> grilling: claim grilling (re-grill)
+    grilling --> grilled: release (re-grill abort)
     grilled --> coding: claim coding (agent)
     coding --> review: PR opened / pushed (hook)
     coding --> grilled: release (abort, no PR)
@@ -69,7 +71,18 @@ Two things to keep in mind:
 - **`coding` never waits for a human.** It means "an agent is working right now". Every round ends with a push, the push moves the ticket to `review`, and the lock goes away. Nothing sits in `coding` overnight.
 - **`review` has two flavors**, told apart by the PR: a **draft** PR means *your turn to test*, a **ready** PR means *your turn to merge*.
 
-The finer whackagent lifecycle (`in-progress` → `review` → `validated`) still exists, but in the task file's `phase:` field, pushed with each round. Board `review` = PR open; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed, waiting for your retest.
+The finer whackagent lifecycle (`in-progress` → `review` → `validated`) still exists, but in the task file's `phase:` field, pushed with each round. Board `review` = PR open; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed, waiting for your retest. `wa-backlog list` and `get` read it back from the ticket branch (`phase` on `review` rows), so the dashboard and the pane know which turn is yours.
+
+### Who's on turn
+
+| Board | Phase | PR | You | Next |
+| --- | --- | --- | --- | --- |
+| `coding` | `in-progress` | | nothing, an agent is working | wait |
+| `review` | `review` | draft | test it | `/wa-feedback` with notes, or `/wa-validate` |
+| `review` | `validated` | draft | retest it | `/wa-close`, which marks the PR ready |
+| `review` | `validated` | ready | merge it on GitHub | the hook sets `done` |
+
+A ticket reaches a ready PR one of two ways: attended, through `/wa-close`; or straight from `/wa-autopilot` when the verifier came back clean (wiki already synced, no `/wa-close` needed). The local provider uses the same split: `status: in-progress` is `coding`, `status: review` and `validated` are `review`.
 
 ## Claims (locks)
 
@@ -77,7 +90,7 @@ Before an agent grills or codes a ticket, it runs `wa-backlog claim <n> grilling
 
 - The lock is a git ref, `refs/wa-claims/<n>/<phase>`, pointing at a parentless commit (on a one-file `CLAIM` tree) whose message names the agent (`agent: <host>:<worktree>`, overridable with `WA_AGENT`) and the time.
 - GitHub refuses to create a ref that already exists, server-side. When N agents claim the same ticket at the same moment, exactly one wins (tested with six).
-- Exit codes are part of the flow: **0** = won, **3** = taken (the script prints who holds it), **4** = wrong state (`grilling` needs `todo`; `coding` needs `grilled` or `review`; closed issues and columns outside the six states are never claimable). A loser never retries and never steals; it moves on to the next ticket or tells you who holds it.
+- Exit codes are part of the flow: **0** = won, **3** = taken (the script prints who holds it), **4** = wrong state (`grilling` needs `todo`, or `grilled` for a re-grill; `coding` needs `grilled` or `review`; closed issues and columns outside the six states are never claimable). A loser never retries and never steals; it moves on to the next ticket or tells you who holds it.
 - **Assign yourself to reserve a ticket.** A ticket assigned to another GitHub account than the one `gh` runs as is `reserved`: `claim` refuses it with exit 3, naming the assignee. Unassigned tickets and tickets assigned to you stay claimable. So a dev who wants a ticket for themselves (or for their own agents) assigns it on GitHub, and nobody else's agent will take it. Claiming does the same thing for you: the winning `claim` assigns the account it runs as, so a ticket your agent grilled stays yours through coding and review, and the hooks never unassign it. An aborted claim (`release`) removes the assignment only if that claim made it; one you made by hand stays. Agents never unassign anyone else. `/wa-board` shows reserved tickets with `👤 @login` and never suggests them; `/wa-autopilot` skips them.
 - Each claim and release leaves a trail comment on the issue (`🔒 coding — host:path · time`, `🔓 coding released, back to grilled — reason`).
 
@@ -133,7 +146,7 @@ Prioritization is **never automatic** under GitHub, because the board order is s
 4. Commits the task file (`task: grill #12 <slug>`) and pushes, once, at the end.
 5. The hook sees the spec on the branch and moves the ticket to `grilled`, dropping the grilling lock.
 
-Abort → `release --reset-to todo`, and the empty remote branch is deleted. A split → the parent is released and becomes the sprint root (`split`: label `wa-sprint`, off the board, number, history and milestone kept; sprint name = its title in kebab-case), and the children become new tickets in its milestone, as its sub-issues. A parent already in a sprint can't become one: its children join that sprint and it is closed with a comment linking them.
+Abort → `release --reset-to todo`, and the empty remote branch is deleted. **Re-grill** (a `grilled` ticket whose scope changed, on your yes) claims `grilling` from `grilled`, checks out the existing branch, rewrites the spec and pushes it; the hook moves the ticket back to `grilled`. Aborting a re-grill releases back to `grilled` and keeps the branch. A re-grill and a `/wa-code` claiming the same ticket at once never both win. A split → the parent is released and becomes the sprint root (`split`: label `wa-sprint`, off the board, number, history and milestone kept; sprint name = its title in kebab-case), and the children become new tickets in its milestone, as its sub-issues. A parent already in a sprint can't become one: its children join that sprint and it is closed with a comment linking them.
 
 ### `/wa-code #12`
 
@@ -154,7 +167,7 @@ The last round, always shown as a plan and confirmed before it runs:
 1. Claims `coding`, syncs the wiki, commits on the ticket branch, so docs ride in the same PR.
 2. Rebases the ticket's own commits onto the PR base, then rebuilds and reruns the tests.
 3. Force-pushes with lease, refreshes the body, links the PR, and runs `gh pr ready`: draft becomes ready, meaning *your turn to merge*.
-4. The hook keeps `review` and drops the claim.
+4. The hook keeps `review` and drops the claim. When the round had nothing to push (the usual case: the phase was already `validated` and the base didn't move), no push event fires, so the agent releases the claim itself, back to `review`.
 
 **Merging is yours** (or your project's merge policy). The hook then sets `done` and closes the issue. The branch is kept until then, because the PR needs it.
 
@@ -209,6 +222,6 @@ Sprint PRs are the exception: a sprint branch lands with a **merge commit, never
 - **Custom `branch.prefix`** → edit the workflow's `branches:` filter to match.
 - **`list` lags 1–3 minutes** behind new tickets (GitHub indexing). `get` and `claim` read the issue directly and are always current.
 - **A late hook is waited for, never helped.** If a state doesn't move, the agent re-reads once, then points you at the Actions run. It never sets the state itself.
-- **Hooks version gate.** Before its first push, an agent reads the workflow's `template version` on the PR base. Versions 3–5 keep the claim through the draft until `/wa-close` (a holder on the same host counts as yours); below 3, no draft PRs at all. Either way it tells you to upgrade with `/wa-setup backlog`.
+- **Hooks version gate.** Before a round that pushes code, an agent reads the workflow's `template version` on the PR base. Below 14 (a full copy of the logic rather than the small caller), or no workflow at all, it stops before claiming and tells you to upgrade with `/wa-setup backlog`: older hooks don't end agent rounds, so the ticket would stay in `coding`.
 - **Extra columns** (`Blocked`, `In Progress`) are kept as they are and ignored: tickets there are never claimed.
 - **Organization Projects** work with the same PAT scopes. A GitHub App path, not tied to one person's token, isn't built yet.

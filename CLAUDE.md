@@ -19,11 +19,18 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 
 ## Task lifecycle
 
-`todo → in-progress → review → validated → done` (or `canceled`).
+Two levels, both defined in `providers/CONTRACT.md`:
+
+- **Board states** (provider contract, what a tracker shows): `todo → grilling → grilled → coding ⇄ review → done`. `coding` means an agent is working right now; `review` means a human is on turn. Under the GitHub provider, agents only claim `grilling` and `coding`; the hooks set the rest.
+- **Task sub-phase** (local `status:`, GitHub task file `phase:`): `in-progress → review → validated`. `in-progress` sits inside board `coding`; `review` and `validated` sit inside board `review`. The table in CONTRACT.md → *Who's on turn* says who acts at each step.
+
+Who sets what:
 
 - `/wa-code` sets `review`: coded, waiting for the user to test.
 - `/wa-validate` sets `validated`: the user approved the spec and the verifier ran.
-- `/wa-close` sets `done`: commits and lands the branch.
+- `/wa-close` sets `done` (local) or marks the PR ready (GitHub, where the merge hook sets `done`).
+
+The word `review` names both a board state and a sub-phase. Say which one when editing.
 
 Keep each step's ownership intact when editing. For example, only `/wa-close` commits task work in attended runs (`/wa-autopilot` commits on its own task branch only; `/wa-release` commits, tags and pushes only what the project's release doc says, each outward step confirmed), and the orchestrator skills never write code themselves.
 

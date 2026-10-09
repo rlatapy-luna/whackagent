@@ -287,6 +287,7 @@ export function toTickets(
       claimedBy: claims.length > 0 ? (text(claims[0]?.agent).split(/[/\\]/).pop() ?? '') || '?' : '',
       reservedBy: row.reserved === true ? (assignees[0] ?? '?') : '',
       isMine: assignees.length > 0 && row.reserved !== true,
+      phase: text(row.phase),
       pr: pull ? { number: pull.number, isDraft: pull.isDraft, url: pull.url ?? '' } : null,
     })
   }
@@ -523,7 +524,7 @@ function ticketStepActions(ticket: GithubTicket, phase: string): Action[] {
     : [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
 }
 
-export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
+export function ticketActions(ticket: GithubTicket, phase = ticket.phase): Action[] {
   if (ticket.reservedBy !== '' || ticket.claimedBy !== '' || !isOpenTicket(ticket)) return []
   return [...ticketStepActions(ticket, phase), action('autopilot', `/wa-autopilot ${ticket.number}`)]
 }
@@ -586,7 +587,7 @@ const localRow = (task: BoardTask): ViewRow => ({
   actions: taskActions(task),
 })
 
-const githubRow = (ticket: GithubTicket, phase = ''): ViewRow => ({
+const githubRow = (ticket: GithubTicket, phase = ticket.phase): ViewRow => ({
   key: String(ticket.number),
   size: ticket.size,
   title: ticket.title,
@@ -865,7 +866,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
       blocks: fileBlocks(focus.file),
     }
   }
-  const phase = focus.file?.phase ?? ''
+  const phase = focus.file?.phase || ticket.phase
   const openBlockers = focus.blockedBy.filter(blocker => blocker.isOpen).map(blocker => `#${blocker.number}`)
   const facts = [
     [withIcon(ticket.state), phase ? `phase: ${phase}` : '', ticket.milestone ? `milestone ${ticket.milestone}` : '']

@@ -4,10 +4,23 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- GitHub provider: `/wa-grill` can re-grill a `grilled` ticket, on your yes. `claim grilling` now also starts from `grilled`, the spec is rewritten on the same branch, and the hook moves the ticket back to `grilled`. A re-grill and a `/wa-code` claiming the same ticket at once never both win.
+- `wa-backlog list` and `get` report the task file's `phase` for tickets in review, so `/wa-board` and the backlog pane offer `/wa-close` on a validated draft instead of `/wa-validate`.
+
 ### Changed
 
+- **Breaking:** under the GitHub provider, agent rounds stop with an upgrade message when the project's board workflow is older than template version 14 (a full copy of the logic instead of the small caller). Run `/wa-setup backlog` to install the caller. The partial support for template versions below 6 is gone.
+- Local provider: `status: review` and `validated` now count as the contract's `review` state (a human is on turn), and only `in-progress` counts as `coding`, the same split as the GitHub provider. The provider contract gains a *Who's on turn* table.
 - The `wa-verifier` subagent always runs on Opus. It used to follow the main conversation's model, so `/wa-validate`, `/wa-review` and `/wa-feedback` could review on a weaker model than `/wa-code` did, or than the Sonnet implementer it judges.
 - `/wa-feedback` runs on Opus, like `/wa-code`: it triages your notes and writes micro-fixes itself, in the main thread.
+
+### Fixed
+
+- GitHub provider: `/wa-close` no longer leaves the ticket in `coding` when the close round has nothing new to push. It releases its claim back to `review`.
+- `/wa-release` on the local provider with `close.strategy: pr` no longer counts tasks whose PR is still open as landed.
+- `/wa-close` no longer contradicts itself on force pushes: `--force-with-lease` on the task's own branch after the ticket-range rebase is allowed, a plain force push never is.
 
 ## [0.42.0] - 2026-10-08
 

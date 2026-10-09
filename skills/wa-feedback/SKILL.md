@@ -79,7 +79,7 @@ Rules = `/wa-code` → *Resuming, rounds 2+*, in full — delta only, anti-stale
 
 Ticket sits in `review` between rounds (**wa-board → Backlog provider**, *Agent round*). One round here:
 
-- **Claim first** — `wa-backlog claim <n> coding` (exit 3 → someone mid-round, say who, stop; legacy hooks: same-host holder counts as yours). Check out ticket branch, rebase not needed yet.
+- **Claim first** — `wa-backlog claim <n> coding` (exit 3 → someone mid-round, say who, stop). Check out ticket branch, rebase not needed yet.
 - **Input** = user notes **plus PR review threads** (`gh pr view <pr> --comments`, `gh api repos/{repo}/pulls/<pr>/comments`) — quote reviewer words as feedback items, triage same way.
 - **PR already ready** (not draft) → `gh pr ready --undo` before first commit: code moving after validation, nobody merges it meanwhile. Board stays `review`.
 - **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) with `commit.author_*`, push to PR, then **refresh PR body** (**wa-board → Backlog provider**, *PR body refresh*) — criteria triage moved, new behavior, status line `Draft — feedback round <n> not reviewed yet`. UI changed → refresh screenshots (**wa-board → Backlog provider**, *Screenshots*). Hook keeps `review`, drops claim, comments on ticket and PR with line permalink to new `## Feedback` round (`### Round <n>` block) — task file stays source, no `gh issue comment` / `gh pr comment` here, would double it. Next: your retest.

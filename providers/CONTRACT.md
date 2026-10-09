@@ -16,7 +16,7 @@ Shared lifecycle, provider-neutral names. Provider maps them onto its own column
 | State | Meaning | Entered by |
 |---|---|---|
 | `todo` | ticket exists, not grilled | creation (agent or human on tracker UI) |
-| `grilling` | **locked** — one agent grilling it | agent `claim <id> grilling` |
+| `grilling` | **locked** — one agent grilling it (first grill, or re-grill) | agent `claim <id> grilling` |
 | `grilled` | spec written, ready to code | **data**: ticket branch holds spec with acceptance criteria (hook) |
 | `coding` | **locked, transient** — one agent working a round (code, feedback, validate, close) | agent `claim <id> coding` |
 | `review` | change proposed (PR open, draft or not) — humans on turn: test (draft) or merge (ready) | **data**: PR opened, or agent round pushed to it (hook) |
@@ -26,7 +26,18 @@ Agents only ever write `grilling` / `coding` (through `claim`) and resets throug
 
 `coding` never waits on human. Agent round = claim → work → commit → push; push opens draft PR or updates it, hook moves ticket to `review` and drops claim. Round aborted without push → `release <id> coding --reset-to review` when PR open, else `--reset-to grilled`.
 
-Whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task file frontmatter `phase:`, pushed with each round — coding lock guarantee single writer per round, board stay coarse. Same word, two levels: board `review` = PR open, humans on turn; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed, waiting user retest then `/wa-close`.
+Whackagent sub-phase (`in-progress` → `review` → `validated`) lives in task file frontmatter `phase:` (local: `status:`), pushed with each round — coding lock guarantee single writer per round, board stay coarse. Same word, two levels: board `review` = humans on turn; `phase: review` = coded, verifier not run yet; `phase: validated` = verifier passed.
+
+### Who's on turn
+
+| Board | Sub-phase | PR (GitHub) | Human does | Next |
+|---|---|---|---|---|
+| `coding` | `in-progress` | — | nothing: agent works | wait |
+| `review` | `review` | draft | test | `/wa-feedback` (notes) or `/wa-validate` |
+| `review` | `validated` | draft | retest | `/wa-close` → PR ready |
+| `review` | `validated` | ready | merge (GitHub UI) | hook → `done` |
+
+Two GitHub landing paths, same end: attended `/wa-close` marks draft ready; `/wa-autopilot` with verifier clean opens it ready (wiki synced), no `/wa-close`. Local: `/wa-close` lands per `close.strategy`, sets `done`.
 
 ## Verbs
 
@@ -34,8 +45,8 @@ All print JSON on stdout, messages on stderr.
 
 | Verb | Does | Output / exit |
 |---|---|---|
-| `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,closed,not_planned,assignees,reserved,claims,url}]` (`not_planned`: closed as not planned = canceled); draft rows `{draft:true,title}` only when unfiltered |
-| `get <id>` | one ticket + its branch + its blockers | object, `branch` null before grilling pushed, `blocked_by: [{number,state}]` |
+| `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,closed,not_planned,assignees,reserved,claims,url}]` (`not_planned`: closed as not planned = canceled), `review` rows add `phase` (sub-phase, *Who's on turn*; null unknown); draft rows `{draft:true,title}` only when unfiltered |
+| `get <id>` | one ticket + its branch + its sub-phase + its blockers | object, `branch` null before grilling pushed, `phase` null without task file, `blocked_by: [{number,state}]` |
 | `create --title --summary [--size] [--sprint] [--milestone m] [--note]` | new ticket in `todo`, bottom of board; milestone per *Milestones* below | `{number,url,state,milestone}` |
 | `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, assign current account (trackers with assignees), trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |
 | `release <id> <phase> [--reset-to s] [--reason r]` | drop lock, undo assignment that claim made, optional state reset, trail comment | object |
@@ -55,7 +66,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 
 
 ## Claim rules
 
-- `grilling` claimable from `todo`. `coding` claimable from `grilled` or `review` (fix round on open PR). Closed ticket, or ticket in column outside the six states (`state: null`, `column: "Blocked"`) → exit 4, never touched.
+- `grilling` claimable from `todo`, or from `grilled` (re-grill: spec rewritten on same branch, push hook moves it back). `coding` claimable from `grilled` or `review` (fix round on open PR). Both claimed on one `grilled` ticket at once → never both win. Closed ticket, or ticket in column outside the six states (`state: null`, `column: "Blocked"`) → exit 4, never touched.
 - **Assigned to another account → reserved.** Tracker with assignees: ticket assigned to someone other than current account → exit 3, owner = assignee(s), `assigned: true`. Unassigned or assigned to current account → normal rules. `list` / `get` rows carry `assignees` + `reserved`. Tracker without assignees (local) → never reserved.
 - **Winning claim assigns current account** when not already assignee — ticket then reserved against other accounts for rest of its life (hooks never unassign). `release` removes that assignment only when its claim made it; assignment a human made stays.
 - Lost claim (exit 3) → never retry same ticket, never steal. Next ticket, or report owner to user.

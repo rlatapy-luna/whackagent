@@ -234,16 +234,18 @@ test('row actions follow the task state', async () => {
   expect(labels(taskActions(task({ slug: 'a' }, 'in-progress')))).toEqual(['code', 'autopilot'])
   expect(taskActions(task({ slug: 'a' }, 'canceled'))).toEqual([])
   expect(taskActions(task({ slug: 'a' }, 'done'))).toEqual([])
-  const [free, claimed, ready] = toTickets(
+  const [free, claimed, ready, validated] = toTickets(
     [
       row({ number: 7, state: 'review' }),
       row({ number: 8, state: 'grilled', claims: [{ agent: 'x' }] }),
       row({ number: 9, state: 'review' }),
+      row({ number: 10, state: 'review', phase: 'validated' }),
     ],
     [{ number: 30, headRefName: 'wa/9-x', isDraft: false }],
     'wa/',
   ).tickets
   expect(labels(ticketActions(free!))).toEqual(['feedback', 'validate', 'autopilot'])
+  expect(labels(ticketActions(validated!))).toEqual(['close', 'feedback', 'autopilot'])
   expect(ticketActions(claimed!)).toEqual([])
   expect(labels(ticketActions({ ...claimed!, claimedBy: '' }))).toEqual(['code', 'autopilot'])
   expect(labels(ticketActions(ready!))).toEqual(['feedback', 'autopilot'])

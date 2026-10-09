@@ -22,7 +22,9 @@ Where sit: tasks → `/wa-close` each → *milestone complete* → **`/wa-releas
      - move leftovers to next open milestone (`set-field <id> milestone <next>`) — recommended when all `todo`/grilled: scope cut, release keeps its date;
      - stop, finish them first — recommended when any in review/validated/coding: one step from done;
      - ship anyway, they stay in milestone — only on explicit word.
-   - **Done but not landed** — task of a sprint merged into sprint branch only, never onto `close.target` (local: sprint branch exists and `git diff <target>...<sprint>` non-empty; GitHub: no merged PR from sprint branch). Code not on release branch → **blocker**: say sprint, point to `/wa-close` sprint landing, stop.
+   - **Done but not landed** — code not on release branch → **blocker**: name each, say how it lands, stop.
+     - Task of a sprint merged into sprint branch only, never onto `close.target` (local: sprint branch exists and `git diff <target>...<sprint>` non-empty; GitHub: no merged PR from sprint branch) → `/wa-close <sprint>`.
+     - Local `close.strategy: pr` → `done` = PR opened, not merged (**providers/local.md**). One `gh pr list --state open --json number,headRefName,url`: done task whose branch (`<branch.prefix><slug>`, or sprint branch) still has open PR → merge it first. `gh` missing → say readiness unproven for PRs, ask (recommend: stop, check PRs by hand).
    - All landed → `✅ 0.2.0 — 7 tasks landed`.
 3. **Find release flow** — *Release doc* below. Never proceed without one.
 4. **Plan block**, one yes before anything runs — *Plan block* below.
