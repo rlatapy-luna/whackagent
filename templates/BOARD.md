@@ -58,7 +58,7 @@ Column names may differ on the Project; the board CLI always reports the six nam
 | create a ticket | `<board-cli> create --title "…" --summary "…" [--size …] [--sprint …] [--note "…"]` |
 | take a ticket | `<board-cli> claim <n> grilling\|coding` |
 | give it back | `<board-cli> release <n> <phase> --reset-to <state> --reason "…"` |
-| link your PR to it | `<board-cli> link-pr <n> <pr>` |
+| repair a PR's link to its ticket (the workflow links it on its own) | `<board-cli> link-pr <n> <pr>` |
 | record a dependency | `<board-cli> depend <n> --on <x>[,<y>]` |
 | set size, sprint, milestone | `<board-cli> set-field <n> size\|sprint\|milestone <value>` |
 | leave a note on the ticket | `<board-cli> comment <n> "…"` |
@@ -93,7 +93,7 @@ A winning claim assigns your account to the issue. Leave that assignment alone.
 - **Branch.** Reuse the ticket's branch when it has one (`get <n>` → `branch`). Otherwise create it linked to the issue: `gh issue develop <n> --name <branch-prefix><n>-<slug> --base <fork point>`. Another branch name is fine if your PR links the ticket.
 - **Fork point** = the sprint branch `<sprint-prefix><sprint>` when the ticket is in a sprint, else `<base>` (or its track branch, when its milestone is a track).
 - **One round = claim → work → commit → push.** Push **once, at the end** of the round: a push to a branch with an open PR ends the round and drops your claim.
-- **First round** opens a **draft PR** (`gh pr create --draft`), then `<board-cli> link-pr <n> <pr>`. Later rounds push to the same PR and refresh its body.
+- **First round** opens a **draft PR** (`gh pr create --draft`) whose body says `Closes #<n>`. Later rounds push to the same PR and refresh its body.
 - **A round ends only with a PR or a release.** Local commits, or a branch pushed without a PR, keep your claim and the card in `coding`: nobody else can test or review that work yet. Stopping for longer than <stale-hours> h → open the draft PR, or release.
 - **Nothing to push** at the end of a round → `release <n> coding --reset-to review` (PR open) or `--reset-to grilled` (no PR yet). Never leave a claim behind.
 - **After each push**, check `gh pr view <pr> --json mergeable` (retry while `UNKNOWN`). `CONFLICTING` → GitHub runs no workflow on a conflicting PR, so your push moved nothing and your claim is still held: rebase your ticket's own commits onto the PR base, re-run the tests, `git push --force-with-lease`, check again.
@@ -116,13 +116,13 @@ Never merge a ticket branch locally. The workflow sets `done`, drops the claim a
 
 ## Pull requests
 
-- **One PR links exactly one ticket**: the Development link (`link-pr`) and `Closes #<n>` in the body.
+- **One PR links exactly one ticket**: `Closes #<n>` in the body. The workflow adds the Development link from it, whatever the PR's base branch (GitHub links it on its own only for PRs onto the default branch).
 - **The body follows the repository's PR template**, including its board sections:
   - `## Ticket`: `Closes #<n>`.
   - `## Acceptance criteria`: the ticket's current criteria as a checklist. Check `- [x]` only what a round proved; leave the rest `- [ ]` with a one-line reason.
   - `## Status`: one line saying what is owed next (`Draft — test it`, `Ready — review, then merge`).
 - **Refresh the body on every round that pushes**: a PR body describing superseded behavior misleads its reviewer. Keep text a human added.
-- **Milestone** = the ticket's (`link-pr` sets it). **Labels**: pick from the repository's own; never create labels.
+- **No milestone on PRs**: the linked ticket carries it. **Labels**: pick from the repository's own; never create labels.
 
 ## Merge style
 

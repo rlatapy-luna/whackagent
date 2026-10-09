@@ -26,6 +26,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 - `/wa-feedback` runs on Opus, like `/wa-code`: it triages your notes and writes micro-fixes itself, in the main thread.
 - **Breaking:** GitHub provider: a clean `/wa-validate` now gets the ticket PR ready to merge: it syncs the wiki, rebases when the base moved, marks the PR ready and requests `pr.reviewers`. `/wa-close` no longer does this. Findings left open keep the PR draft.
 - PRs whackagent opens are always assigned to you; `pr.assignees` only adds people.
+- GitHub provider: the hooks link every ticket PR to its issue (Development), whatever its base branch. They find the issue from `Closes #n` in the body, or from the `wa/<n>-…` branch. Agents no longer run `wa-backlog link-pr` after opening a PR; it stays as a repair command. PRs no longer get the ticket's milestone: the linked issue carries it.
 - `BOARD.md`: an agent may merge a PR when its user asks it to (ready, checks green, reviews in, never an admin override). Agents still never merge on their own.
 
 ### Fixed

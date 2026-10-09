@@ -30,7 +30,7 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | reservation | issue **assignees**. Assigned to another account than the `gh` one → `reserved: true`, `claim` exit 3 with `assigned: true`. Unassigned or assigned to you → claimable. Winning `claim` assigns the `gh` account (trailer `assigned: <login>` in claim commit); `release` removes it only when that trailer says claim made it. Hooks never touch assignees |
 | excluded | label `wa-ignore` |
 | dependencies | issue **Relationships** (blocked by) — `depend`, read back in `get` → `blocked_by` |
-| ticket PR | milestone = ticket milestone, issue linked in PR **Development** — `link-pr <n> <pr>` right after `gh pr create` (`Closes #<n>` alone links only when base = default branch) |
+| ticket PR | issue linked in PR **Development** by hooks, any base (GitHub alone links `Closes #<n>` only when base = default branch). No PR milestone: ticket carries it. `link-pr <n> <pr>` = manual repair |
 | PR screenshots | GitHub user-attachments via `gh image` (extension `drogers0/gh-image`), never a branch — `screenshots <pr> <files>` uploads and rewrites the body's `## Screenshots` section (UI changes only); `<caption>=<url>` = image already uploaded (browser fallback when `gh image` has no upload token) |
 
 Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: no number, no branch, no `Closes #`. `/wa-board` lists them to convert.
@@ -41,7 +41,7 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 |---|---|---|
 | `issues: opened/edited` | no `wa-ignore` / `wa-sprint`; edited = body changed | add to Project, `todo`. Body holds non-empty `## Acceptance criteria`, state `todo`/`grilling` → `grilled`, grilling claim deleted |
 | `push` to `wa/**` | branch `wa/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
-| PR → ticket | every `pull_request` row | the one issue PR links (`closingIssuesReferences`: Development link or `Closes #n`), else head `wa/<n>-…`. Sprint parents never. Several linked → reported on PR, board untouched. `opened` waits ~1 min for `link-pr` before calling PR ticketless |
+| PR → ticket | every `pull_request` row | the one issue PR links (`closingIssuesReferences`), else the one `Closes #n` in body, else head `wa/<n>-…`; open PR found by body or branch → Development link added. Sprint parents, `wa-ignore` never. Several → reported on PR, board untouched |
 | `pull_request: opened/reopened` | ticket found, same repo, not `done` — **draft or not** | `review`, coding claim deleted |
 | `pull_request: edited` | ticket found late, card in `todo`/`grilled` | `review`, coding claim deleted. Never from `coding` (round live) |
 | `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges (GitHub UI or `/wa-close`) |

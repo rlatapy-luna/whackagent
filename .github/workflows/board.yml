@@ -8,7 +8,9 @@
 #   issue opened / body edited             → todo; grilled when the body holds a non-empty `## Acceptance criteria`
 #                                            and the ticket is todo/grilling (releases the grilling claim)
 #   push to wa/<n>-<slug> holding its spec → grilled (releases the grilling claim)
-#   PR → ticket                            = the one issue the PR links (closingIssuesReferences), else branch wa/<n>-…
+#   PR → ticket                            = the one issue the PR links (closingIssuesReferences), else the one
+#                                            `Closes #n` in its body, else branch wa/<n>-…; an open PR found the
+#                                            second or third way gets the Development link (any base branch)
 #   PR opened / reopened, draft or not      → review (releases the coding claim)
 #   PR edited, link found late              → review, when the card still sits in todo/grilled
 #   draft marked ready / back to draft      → nothing moves (already review)
@@ -242,28 +244,62 @@ jobs:
             const event = context.eventName;
             const payload = context.payload;
 
-            // PR → ticket: the one issue it links (Development link or `Closes #n`), else its wa/<n>-… branch.
-            // Sprint parents and ignored issues are not tickets. `link-pr` runs right after `gh pr create`,
-            // so a fresh PR with neither waits a little for its link before counting as ticketless.
-            async function ticketOf(pr, wait) {
+            // PR → ticket: the one issue it links (Development link), else the one `Closes #n` its body names, else its
+            // wa/<n>-… branch. Sprint parents and ignored issues are not tickets. GitHub turns `Closes #n` into a link
+            // only on PRs onto the default branch: an open PR whose ticket came from its body or branch gets the
+            // Development link here, so no worker links by hand.
+            const NOT_TICKET = ["wa-ignore", SPRINT_LABEL];
+            let linkedNow = false;
+            async function ticketOf(pr) {
+              const data = await github.graphql(
+                `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){
+                  id closingIssuesReferences(first:10){nodes{number labels(first:20){nodes{name}}}}}}}`,
+                { o: owner, r: repo, n: pr.number });
+              const node = data.repository.pullRequest;
+              const linked = node.closingIssuesReferences.nodes
+                .filter((i) => !i.labels.nodes.some((l) => NOT_TICKET.includes(l.name)))
+                .map((i) => i.number);
               const named = issueFromBranch(pr.head.ref);
-              for (let attempt = 0; ; attempt++) {
-                const data = await github.graphql(
-                  `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){
-                    closingIssuesReferences(first:10){nodes{number labels(first:20){nodes{name}}}}}}}`,
-                  { o: owner, r: repo, n: pr.number });
-                const linked = data.repository.pullRequest.closingIssuesReferences.nodes
-                  .filter((i) => !i.labels.nodes.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name)))
-                  .map((i) => i.number);
-                if (linked.length === 1) return linked[0];
-                if (named && (!linked.length || linked.includes(named))) return named;
-                if (linked.length > 1) {
-                  await report(pr.number, "several-tickets",
-                    `#${pr.number} links ${linked.map((n) => `#${n}`).join(", ")}: a PR links exactly one ticket`);
-                  return null;
+              const several = async (numbers) => {
+                await report(pr.number, "several-tickets",
+                  `#${pr.number} links ${numbers.map((n) => `#${n}`).join(", ")}: a PR links exactly one ticket`);
+                return null;
+              };
+              if (linked.length === 1) return linked[0];
+              if (linked.length > 1) return named && linked.includes(named) ? named : several(linked);
+              const written = [...new Set([...(pr.body ?? "").matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)\b/gi)]
+                .map((m) => Number(m[1])))];
+              if (written.length > 1) return several(written);
+              const number = written[0] ?? named;
+              if (!number) return null;
+              const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: number }).catch((e) => {
+                if (e.status === 404) return { data: null };
+                throw e;
+              });
+              if (!issue || issue.pull_request || issue.labels.some((l) => NOT_TICKET.includes(l.name))) return null;
+              if (pr.state === "open") {
+                const mutation = `mutation($i:ID!,$p:[ID!]!){addCloseIssueReferences(input:{issueId:$i,pullRequestIds:$p}){clientMutationId}}`;
+                await github.graphql(mutation, { i: issue.node_id, p: [node.id] })
+                  .catch(() => projects.graphql(mutation, { i: issue.node_id, p: [node.id] }));
+                linkedNow = true;
+                core.info(`#${pr.number} linked to #${number} (Development)`);
+              }
+              return number;
+            }
+
+            // A link this run added fires GitHub's built-in Project workflow "Pull request linked to issue" a few
+            // seconds later: it moves the card to its own column once the claim is gone. Watch the card a little and
+            // take it back once.
+            async function holdAgainstBuiltIn(number, state) {
+              if (!linkedNow) return;
+              for (let i = 0; i < 6; i++) {
+                await new Promise((done) => setTimeout(done, 5000));
+                const now = await item(number);
+                if (now.column && !now.state) {
+                  await setState(now, state);
+                  core.info(`#${number} taken back from ${now.column}: built-in Project workflow, switch it off`);
+                  return;
                 }
-                if (!wait || attempt >= 5) return null;
-                await new Promise((done) => setTimeout(done, 10000));
               }
             }
 
@@ -307,7 +343,7 @@ jobs:
                 const agent = /^agent: (.+)$/m.exec(claim.message)?.[1] ?? "?";
                 return { agent, hours };
               }
-              // PRs linked by branch name only (opened before link-pr existed) still count as open
+              // PRs known by branch name only (opened before the hooks linked them) still count as open
               const openByBranch = new Set((await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 }))
                 .map((pr) => issueFromBranch(pr.head.ref)));
               const found = [];
@@ -402,7 +438,7 @@ jobs:
             if (event === "pull_request") {
               const pr = payload.pull_request;
               if (pr.head.repo?.full_name !== pr.base.repo.full_name) return;
-              const number = await ticketOf(pr, ["opened", "reopened"].includes(payload.action));
+              const number = await ticketOf(pr);
               if (!number) {
                 // sprint branch landed → its parent issue closes
                 if (!sprintPrefix || !pr.head.ref.startsWith(sprintPrefix) || payload.action !== "closed" || !pr.merged) return;
@@ -434,6 +470,7 @@ jobs:
                 await release(number, "coding");
                 const kind = pr.draft ? "draft " : "";
                 await comment(number, `🔀 **review** — ${kind}#${pr.number} → \`${pr.base.ref}\``);
+                await holdAgainstBuiltIn(number, "review");
                 return;
               }
 
@@ -444,6 +481,7 @@ jobs:
                 await setState(ticket, "review");
                 await release(number, "coding");
                 await comment(number, `🔀 **review** — ${pr.draft ? "draft " : ""}#${pr.number} → \`${pr.base.ref}\``);
+                await holdAgainstBuiltIn(number, "review");
                 return;
               }
 

@@ -142,9 +142,9 @@ sequenceDiagram
     Note over A: plan, code, verify, test<br/>no push mid-round
     A->>G: commit (task file phase included) + push
     alt first delivery
-        A->>G: gh pr create --draft, assignee @me
-        A->>G: wa-backlog link-pr (milestone + Development link)
+        A->>G: gh pr create --draft, assignee @me, body Closes n
         G->>H: pull_request opened
+        H->>G: Development link (any base branch)
     else later round
         G->>H: pull_request synchronize
     end
