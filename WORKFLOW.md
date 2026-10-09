@@ -3,7 +3,7 @@
 Ticket from idea to merged code. Who moves it, what board shows, what you do next.
 
 - **Board state** — six contract states, GitHub Project `Status` column (`backlog.provider: github`). Rules: project's `BOARD.md`.
-- **Sub-phase** — whackagent only. `phase:` in task file on ticket branch (`in-progress` → `review` → `validated`). Board never shows it.
+- **Task phase (whackagent only)** — `phase:` field of whackagent's task file `{tasks}/<n>-<slug>.md`, committed on ticket branch: `in-progress` → `review` → `validated`. Says how far whackagent loop got inside one board state (verifier run or not). Board never shows it. Dev without whackagent: no task file, no phase — PR draft / ready tells same story.
 
 Matches board contract 2.0, hooks `hooks-v2`, caller template version 16.
 
@@ -66,7 +66,7 @@ Two rules:
 
 ## Who's on turn
 
-| Board | Sub-phase | PR | You do | Next |
+| Board | Task phase | PR | You do | Next |
 | --- | --- | --- | --- | --- |
 | `coding` | `in-progress` | — | nothing, agent works | wait |
 | `review` | `review` | draft | test | `/wa-feedback <n> <notes>` or `/wa-validate <n>` |
@@ -188,7 +188,7 @@ sequenceDiagram
 
 Merging on GitHub yourself = same end. Hook sets `done` either way.
 
-## Coding sub-phase
+## Task phase (whackagent only)
 
 Task file `phase:`, committed and pushed each round — always matches PR.
 
