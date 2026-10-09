@@ -10,9 +10,9 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-release`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
 - `conventions/`: rule modules that `/wa-setup` copies into the target project. Swift and Kotlin are multi-module packs with the same file names; TypeScript and generic (fallback for every other language) are one file each.
-- `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`). Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
+- `templates/`: files `/wa-setup` and `/wa-task` scaffold in the target project (`config.md`, `task.md`, `BACKLOG.md`, `wiki-index.md`), plus the board contract the GitHub provider installs (`BOARD.md`, `board-pointer.md`, `pr-board-sections.md`). `BOARD.md` is the single source of the board rules: any agent or tool in the project reads it, so it is written in short full sentences rather than caveman style, and names no whackagent command. Changing a rule means changing it there first, then `providers/CONTRACT.md`, `board.yml` and the skills that follow it, and bumping `board-contract` in every board file plus `CONTRACT_VERSION` in `wa-backlog`. Skills reach them through `${CLAUDE_PLUGIN_ROOT}/templates/`.
 - `providers/`: backlog providers. `CONTRACT.md` defines the verbs and the six states (`todo`, `grilling`, `grilled`, `coding`, `review`, `done`) every skill uses. `local.md` maps the default file-based backlog onto it; `github/` holds the `wa-backlog` script, the `whackagent-board.yml` hooks workflow and its README.
-- `.github/workflows/board.yml`: the board hooks logic, a reusable workflow every project calls through the `hooks-v1` tag. `providers/github/whackagent-board.yml` is the caller `/wa-setup` installs; keep its triggers and permissions in sync with what `board.yml` needs.
+- `.github/workflows/board.yml`: the board hooks logic, a reusable workflow every project calls through the `hooks-v2` tag (`hooks-v1` is frozen for callers below template version 16). `providers/github/whackagent-board.yml` is the caller `/wa-setup` installs; keep its triggers and permissions in sync with what `board.yml` needs.
 - `README.md`: public doc on GitHub. No agent reads it.
 - `GITHUB.md`: public walkthrough of the GitHub provider across the whole workflow. No agent reads it; keep it in sync when a skill's GitHub provider section changes.
 - `CHANGELOG.md`: public release notes, Keep a Changelog format, newest first. No agent reads it.
@@ -68,7 +68,7 @@ Always update `CHANGELOG.md` in the same commit as any change a plugin user woul
 
 Bump the version in all three places, `plugin.json` and both fields of `marketplace.json`, in one `chore: release X.Y.Z` commit. The same commit renames `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD` and adds a fresh empty `## [Unreleased]` above it.
 
-After pushing the release commit, move the hooks tag onto it (`git tag -f hooks-v1 && git push -f origin hooks-v1`): every project's caller runs `board.yml` from that tag, so this is what ships hook changes. Test `board.yml` on the playground first. A change callers must follow (new trigger, permission or secret) gets a new tag `hooks-v2` plus a caller template version bump, never a move of `hooks-v1`.
+After pushing the release commit, move the hooks tag onto it (`git tag -f hooks-v2 && git push -f origin hooks-v2`): every project's caller runs `board.yml` from that tag, so this is what ships hook changes. Test `board.yml` on the playground first. A change callers must follow (new trigger, permission or secret) gets a new tag `hooks-v3` plus a caller template version bump, never a move of `hooks-v2`. `hooks-v1` stays where it is, for callers below template version 16.
 
 ## Commits
 

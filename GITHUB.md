@@ -12,6 +12,17 @@ For the script-level details (every verb, every field mapping, setup internals),
 
 An agent never writes "this is grilled", "this is in review" or "this is done" on the board. It only *claims* a ticket (a lock) before working on it. Every other state change comes from something that really happened in the repo — a spec pushed, a PR opened, a PR merged — and is applied by a GitHub Actions workflow. So the board always says what the code says, not what an agent believes.
 
+## One board, any work loop
+
+The board is constrained; the way each developer works behind it is not. One dev may run whackagent's skills, another Codex or Cursor, another a different Claude skill or plain git. They all share the board through one file installed in the project: **`BOARD.md`**.
+
+- `BOARD.md` is the contract: the states, what moves each one, how to claim and release, what a PR must carry, the merge style, sprints, milestones and dependencies. It is written for any agent and any human, names no whackagent command, and wins over any skill's own habits.
+- `/wa-setup` installs it in one PR together with everything it relies on: a copy of the board CLI at `.github/board/wa-backlog` (so an agent without the plugin runs the same commands), a short pointer block in `AGENTS.md`, `CLAUDE.md`, and the Copilot and Cursor instruction files when present (so every agent reads `BOARD.md` before touching an issue), and three board sections appended to the PR template (`## Ticket`, `## Acceptance criteria`, `## Status`).
+- A spec can live in the issue body: a non-empty `## Acceptance criteria` section, written in one edit, moves the ticket to `grilled`. whackagent's task file on the ticket branch still counts too.
+- A PR belongs to the one issue it links (Development link or `Closes #n`), whatever its branch is called, so cloud agents that name their own branches still move the board.
+- Breaking the contract is **reported, never repaired**: a scheduled run of the board workflow comments on any ticket whose card disagrees with the repository, and a push to a ticket PR without a claim gets a comment on the PR.
+- Every board file carries the same `board-contract` version stamp. The CLI warns when the project's `BOARD.md` and the script disagree; `/wa-setup backlog` refreshes them all in one PR.
+
 ## What lives where
 
 | Thing | Where on GitHub |
@@ -35,7 +46,7 @@ There is no local mirror and no `BACKLOG.md`. The task file carries only whackag
 The machinery is three pieces:
 
 - **`wa-backlog`** (`providers/github/wa-backlog`): a Python script (stdlib + `gh`) that implements every contract verb. Skills call it for every backlog read or write.
-- **`whackagent-board.yml`**: the hooks workflow, installed in the project's `.github/workflows/`. It reacts to issue, push and PR events and moves the board. The project file is a small caller: the logic is the reusable workflow `rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v1`, and each whackagent release moves that tag, so every project runs the new logic without a PR. The caller only changes when its triggers, permissions or secret do.
+- **`whackagent-board.yml`**: the hooks workflow, installed in the project's `.github/workflows/`. It reacts to issue, push and PR events and moves the board, and twice an hour runs a report-only check of the board against the repository. The project file is a small caller: the logic is the reusable workflow `rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v2`, and each whackagent release moves that tag, so every project runs the new logic without a PR. The caller only changes when its triggers, permissions or secret do.
 - **Repo variables** (`WA_PROJECT_NUMBER`, `WA_STATES`, `WA_BRANCH_PREFIX`, …) shared by the script and the workflow, plus the **`WA_PROJECT_TOKEN`** secret, a classic PAT with `project` + `repo` scopes. The secret is needed because the default Actions token can't write to Projects v2.
 
 ## The six states
@@ -204,10 +215,10 @@ Same flow as with files. Readiness comes from `wa-backlog list --milestone`, and
 
 PRs are assumed to land squashed. After a parent or stacked ticket is squash-merged, the base no longer contains that ticket's original commits, so `git merge-base` and a plain `git rebase <base>` replay already-landed work and conflict on every commit.
 
-So the agents never diff or rebase from `<base>..HEAD`. They use the **ticket range**: the ticket's own commits, starting at its grill commit (`task: grill #<n> …`).
+So the agents never diff or rebase from `<base>..HEAD`. They use the **ticket range**: the ticket's own commits, starting at its first task commit: the grill commit (`task: grill #<n> …`), or, when the spec was written in the issue body, the commit that copied it into a task file (`task: spec #<n> …`).
 
 ```
-start=$(git log --format=%H --grep="^task: grill #12 " wa/12-login-apple | tail -1)
+start=$(git log --format=%H -E --grep="^task: (grill|spec) #12 " wa/12-login-apple | tail -1)
 git diff $start^ wa/12-login-apple           # what the ticket changed
 git rebase --onto origin/<base> $start^      # move it onto a new base
 ```
@@ -224,4 +235,5 @@ Sprint PRs are the exception: a sprint branch lands with a **merge commit, never
 - **A late hook is waited for, never helped.** If a state doesn't move, the agent re-reads once, then points you at the Actions run. It never sets the state itself.
 - **Hooks version gate.** Before a round that pushes code, an agent reads the workflow's `template version` on the PR base. Below 14 (a full copy of the logic rather than the small caller), or no workflow at all, it stops before claiming and tells you to upgrade with `/wa-setup backlog`: older hooks don't end agent rounds, so the ticket would stay in `coding`.
 - **Extra columns** (`Blocked`, `In Progress`) are kept as they are and ignored: tickets there are never claimed.
+- **GitHub's built-in Project workflow "Pull request linked to issue"** moves a card to its own column the moment a PR links the issue. `/wa-setup` asks you to switch it off (Project → ⋯ → Workflows). Left on, the hooks still take the card back while a `coding` claim is held.
 - **Organization Projects** work with the same PAT scopes. A GitHub App path, not tied to one person's token, isn't built yet.

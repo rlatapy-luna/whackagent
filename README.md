@@ -315,6 +315,8 @@ Updates the wiki. `/wa-close` runs it on every close, so the wiki lands in the s
 
 By default the backlog is files in your repo, for one agent at a time. Set `backlog.provider: github` (asked at `/wa-setup`) and it moves to a **GitHub Project**, so several agents in different worktrees, or on different machines, share one board without taking the same ticket.
 
+The board doesn't require whackagent behind it. `/wa-setup` installs a **`BOARD.md`** contract in the project, plus pointers to it in `AGENTS.md`, `CLAUDE.md` and the Copilot and Cursor instruction files, a copy of the board CLI, and board sections in the PR template. Any dev, using any agent or work loop, follows that one file and the board stays right. See [GITHUB.md → One board, any work loop](GITHUB.md#one-board-any-work-loop).
+
 Every ticket goes through six states. Agents only ever *take* a ticket; the rest is moved by what happens in the repo:
 
 | State | Who moves it there |

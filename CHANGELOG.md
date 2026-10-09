@@ -8,9 +8,16 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 - GitHub provider: `/wa-grill` can re-grill a `grilled` ticket, on your yes. `claim grilling` now also starts from `grilled`, the spec is rewritten on the same branch, and the hook moves the ticket back to `grilled`. A re-grill and a `/wa-code` claiming the same ticket at once never both win.
 - `wa-backlog list` and `get` report the task file's `phase` for tickets in review, so `/wa-board` and the backlog pane offer `/wa-close` on a validated draft instead of `/wa-validate`.
+- GitHub provider: a `BOARD.md` board contract, so devs using other agents or work loops (Codex, Cursor, other skills, plain git) share the board safely. `/wa-setup backlog` installs it in one PR with a copy of the board CLI (`.github/board/wa-backlog`), pointer blocks in `AGENTS.md`, `CLAUDE.md` and the Copilot and Cursor instruction files, and `## Ticket`, `## Acceptance criteria` and `## Status` sections appended to the PR template.
+- GitHub provider: a spec written in the issue body (non-empty `## Acceptance criteria`) moves the ticket to `grilled`. `/wa-code` and `/wa-autopilot` pick such a ticket up: they create its linked branch and copy the spec into the task file.
+- GitHub provider: a PR moves the board through the issue it links (Development link or `Closes #n`), whatever its branch is called.
+- GitHub provider: a report-only board check runs twice an hour and comments on tickets whose card disagrees with the repository (lock without claim, review without PR, merged but not done, …), and on PRs pushed without a claim or linking several tickets. It never moves cards.
+- `wa-backlog` warns when the project's `BOARD.md` carries another contract version than the script.
+- GitHub provider: `/wa-setup` flags GitHub's built-in Project workflow "Pull request linked to issue", which moves cards out of the board's states, and asks you to switch it off. While it stays on, the hooks take a card back from its column whenever a `coding` claim is held.
 
 ### Changed
 
+- **Breaking:** the board hooks move to the `hooks-v2` tag with caller template version 16 (new triggers: issue edited, PR edited, schedule). `hooks-v1` stays frozen and keeps working for existing callers; run `/wa-setup backlog` to take the v2 PR.
 - **Breaking:** under the GitHub provider, agent rounds stop with an upgrade message when the project's board workflow is older than template version 14 (a full copy of the logic instead of the small caller). Run `/wa-setup backlog` to install the caller. The partial support for template versions below 6 is gone.
 - Local provider: `status: review` and `validated` now count as the contract's `review` state (a human is on turn), and only `in-progress` counts as `coding`, the same split as the GitHub provider. The provider contract gains a *Who's on turn* table.
 - The `wa-verifier` subagent always runs on Opus. It used to follow the main conversation's model, so `/wa-validate`, `/wa-review` and `/wa-feedback` could review on a weaker model than `/wa-code` did, or than the Sonnet implementer it judges.

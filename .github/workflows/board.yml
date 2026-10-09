@@ -1,24 +1,31 @@
-# whackagent board hooks — reusable logic. Projects never copy this file: their caller
-# (providers/github/whackagent-board.yml, installed by /wa-setup) holds the triggers, permissions and
-# concurrency, and runs this through `uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v1`.
-# Each release moves `hooks-v1`, so every project runs the new logic on its next event. A change callers
-# must follow (new trigger, permission, secret) needs a new tag `hooks-v2` and a new caller template version.
+# whackagent board hooks — reusable logic, board contract 2.0 (templates/BOARD.md, installed in each project as
+# BOARD.md). Projects never copy this file: their caller (providers/github/whackagent-board.yml, installed by
+# /wa-setup) holds the triggers, permissions and concurrency, and runs this through
+# `uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v2`. Each release moves `hooks-v2`, so every
+# project runs the new logic on its next event; `hooks-v1` stays frozen for callers not yet upgraded. A change
+# callers must follow (new trigger, permission, secret) needs a new tag `hooks-v3` and a new caller template version.
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
-#   issue opened                          → todo (sprint parents, label wa-sprint, stay off the board)
-#   push to wa/<n>-<slug> holding its spec → grilled   (releases the grilling claim)
+#   issue opened / body edited             → todo; grilled when the body holds a non-empty `## Acceptance criteria`
+#                                            and the ticket is todo/grilling (releases the grilling claim)
+#   push to wa/<n>-<slug> holding its spec → grilled (releases the grilling claim)
+#   PR → ticket                            = the one issue the PR links (closingIssuesReferences), else branch wa/<n>-…
 #   PR opened / reopened, draft or not      → review (releases the coding claim)
+#   PR edited, link found late              → review, when the card still sits in todo/grilled
 #   draft marked ready / back to draft      → nothing moves (already review)
 #   push to an open PR while coding claimed → review (end of an agent round); new `## Feedback`
 #                                            rounds of the task file linked (line permalinks) on the ticket and the PR
+#   push to a ticket PR, no coding claim    → reported on the PR, board untouched
 #   PR merged (any base)                   → done, issue closed, run report of the PR body (between
 #                                            <!-- wa-report --> markers) posted on it; sprint parent closed when the
 #                                            sprint has no branch and its last sub-issue is done
 #   sprint branch PR merged                → sprint parent issue closed (sprint landed)
 #   PR closed unmerged                     → grilled
-# `coding` is transient: an agent holds it only while it works. Every round ends with a push,
+#   schedule / manual run                  → report-only check: board vs repository, one comment per problem on the
+#                                            ticket (resolved in place once fixed) + job summary; never moves cards
+# `coding` = an agent holds the ticket and works on it. Every round ends with a push or a release,
 # so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
 # Settings are the caller repository's variables (`vars`), written by `wa-backlog provision`. Projects v2
-# writes need the WA_PROJECT_TOKEN secret (classic PAT, scopes: project, repo), passed by the caller:
+# reads and writes need the WA_PROJECT_TOKEN secret (classic PAT, scopes: project, repo), passed by the caller:
 # `secrets: inherit` only works inside one owner, so the caller names it. Everything else uses the
 # caller's GITHUB_TOKEN.
 
@@ -126,6 +133,22 @@ jobs:
             const comment = (number, body) =>
               github.rest.issues.createComment({ owner, repo, issue_number: number, body });
 
+            // Contract breaks are reported, never repaired: one comment per problem, keyed by a hidden marker,
+            // flipped to resolved in place once the problem clears (scheduled check).
+            const marker = (kind) => `<!-- board-check:${kind} -->`;
+            const contractUrl = `${context.serverUrl}/${owner}/${repo}/blob/HEAD/BOARD.md`;
+            async function report(number, kind, text, existing) {
+              const comments = existing ?? await github.paginate(github.rest.issues.listComments,
+                { owner, repo, issue_number: number, per_page: 100 });
+              if (comments.some((c) => c.body?.includes(marker(kind)))) return;
+              await comment(number, `${marker(kind)}\n⚠️ **board check** — ${text}. See [BOARD.md](${contractUrl}); this check only reports, it never moves cards.`);
+            }
+            async function resolve(commentId, body, kind) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: commentId,
+                body: body.replace(marker(kind), `<!-- board-check:${kind}:resolved -->`)
+                  .replace("⚠️ **board check**", "✅ **board check — resolved**") });
+            }
+
             // A merged PR's `Closes #n` closes the issue itself, racing this call: 422 then means already closed.
             async function closeIssue(number) {
               try {
@@ -217,11 +240,121 @@ jobs:
             const event = context.eventName;
             const payload = context.payload;
 
+            // PR → ticket: the one issue it links (Development link or `Closes #n`), else its wa/<n>-… branch.
+            // Sprint parents and ignored issues are not tickets. `link-pr` runs right after `gh pr create`,
+            // so a fresh PR with neither waits a little for its link before counting as ticketless.
+            async function ticketOf(pr, wait) {
+              const named = issueFromBranch(pr.head.ref);
+              for (let attempt = 0; ; attempt++) {
+                const data = await github.graphql(
+                  `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){
+                    closingIssuesReferences(first:10){nodes{number labels(first:20){nodes{name}}}}}}}`,
+                  { o: owner, r: repo, n: pr.number });
+                const linked = data.repository.pullRequest.closingIssuesReferences.nodes
+                  .filter((i) => !i.labels.nodes.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name)))
+                  .map((i) => i.number);
+                if (linked.length === 1) return linked[0];
+                if (named && (!linked.length || linked.includes(named))) return named;
+                if (linked.length > 1) {
+                  await report(pr.number, "several-tickets",
+                    `#${pr.number} links ${linked.map((n) => `#${n}`).join(", ")}: a PR links exactly one ticket`);
+                  return null;
+                }
+                if (!wait || attempt >= 5) return null;
+                await new Promise((done) => setTimeout(done, 10000));
+              }
+            }
+
+            // Report-only: compare every ticket's card with what the repository says, comment what disagrees.
+            async function check() {
+              const p = await project();
+              const query = `query($p:ID!,$after:String,$f:String!){node(id:$p){... on ProjectV2{items(first:50,after:$after){
+                pageInfo{hasNextPage endCursor}
+                nodes{ fieldValueByName(name:$f){... on ProjectV2ItemFieldSingleSelectValue{name}}
+                  content{... on Issue{ number state body repository{nameWithOwner} labels(first:20){nodes{name}}
+                    closedByPullRequestsReferences(first:10,includeClosedPrs:true){nodes{state}}
+                    linkedBranches(first:5){nodes{id}}
+                    comments(last:50){nodes{databaseId body}} }}}}}}}`;
+              const nodes = [];
+              for (let after = null, more = true; more;) {
+                const page = (await projects.graphql(query, { p: p.id, after, f: statusField })).node.items;
+                nodes.push(...page.nodes);
+                ({ hasNextPage: more, endCursor: after } = page.pageInfo);
+              }
+              const held = {};
+              for (const ref of await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: "wa-claims/" })) {
+                const [, , n, phase] = ref.ref.split("/");
+                (held[n] ??= []).push(phase);
+              }
+              const branches = new Set((await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: `heads/${prefix}` }))
+                .map((ref) => issueFromBranch(ref.ref.replace("refs/heads/", ""))));
+              // PRs linked by branch name only (opened before link-pr existed) still count as open
+              const openByBranch = new Set((await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 }))
+                .map((pr) => issueFromBranch(pr.head.ref)));
+              const found = [];
+              for (const node of nodes) {
+                const issue = node.content;
+                if (!issue?.number || issue.repository.nameWithOwner !== `${owner}/${repo}`) continue;
+                if (issue.labels.nodes.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name))) continue;
+                const state = Object.keys(states).find((s) => states[s] === node.fieldValueByName?.name);
+                if (!state) continue; // no card status, or a column whackagent doesn't own
+                const n = issue.number;
+                const problems = {};
+                if (issue.state === "CLOSED") {
+                  // closed = landed or canceled; only an open lock column is wrong there
+                  if (["grilling", "coding"].includes(state)) problems["closed-locked"] = `#${n} is closed but its card sits in \`${state}\``;
+                } else {
+                  const prs = issue.closedByPullRequestsReferences.nodes;
+                  const open = prs.some((pr) => pr.state === "OPEN") || openByBranch.has(n);
+                  const merged = prs.some((pr) => pr.state === "MERGED");
+                  const bodySpec = !!section(issue.body ?? "", "Acceptance criteria");
+                  const spec = bodySpec || issue.linkedBranches.nodes.length > 0 || branches.has(n);
+                  const claims = held[n] ?? [];
+                  if (["grilling", "coding"].includes(state) && !claims.includes(state))
+                    problems["lock-no-claim"] = `card in \`${state}\` but nobody holds a ${state} claim: claim it before working, or a human runs \`release ${n} ${state} --reset-to <state>\``;
+                  if (state === "done") problems["done-open"] = `card in \`done\` but the issue is still open`;
+                  if (state !== "done" && merged && !open) problems["merged-not-done"] = `a linked PR is merged but the card sits in \`${state}\``;
+                  if (state === "review" && !open) problems["review-no-pr"] = `card in \`review\` but no open PR links this ticket`;
+                  if (["todo", "grilled"].includes(state) && open) problems["pr-not-review"] = `a linked PR is open but the card sits in \`${state}\``;
+                  if (state === "grilled" && !spec) problems["grilled-no-spec"] = `card in \`grilled\` but no spec: no \`## Acceptance criteria\` in the issue body, no ticket branch`;
+                  if (state === "todo" && bodySpec) problems["spec-todo"] = `the issue body holds acceptance criteria but the card sits in \`todo\``;
+                }
+                const comments = issue.comments.nodes;
+                for (const [kind, text] of Object.entries(problems)) {
+                  found.push([`#${n}`, text]);
+                  await report(n, kind, text, comments);
+                }
+                for (const c of comments) {
+                  const kind = /<!-- board-check:([a-z-]+) -->/.exec(c.body ?? "")?.[1];
+                  if (kind && !problems[kind]) await resolve(c.databaseId, c.body, kind);
+                }
+              }
+              core.summary.addHeading("Board check", 3);
+              if (found.length) core.summary.addTable([[{ data: "Ticket", header: true }, { data: "Problem", header: true }], ...found]);
+              else core.summary.addRaw("Board matches the repository.");
+              await core.summary.write();
+            }
+
+            if (event === "schedule" || event === "workflow_dispatch") {
+              await check();
+              return;
+            }
+
             if (event === "issues") {
-              if (payload.issue.pull_request) return;
-              if (payload.issue.labels.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name))) return;
-              const ticket = await item(payload.issue.number);
-              if (!ticket.column) await setState(ticket, "todo");
+              const issue = payload.issue;
+              if (issue.pull_request) return;
+              if (issue.labels.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name))) return;
+              if (payload.action === "edited" && !payload.changes?.body) return; // title-only edit
+              const ticket = await item(issue.number);
+              if (!ticket.column) {
+                await setState(ticket, "todo");
+                ticket.state = "todo";
+              }
+              // spec in the issue body: written in one edit at the end of a grill, or by a human on a todo ticket
+              if (!["todo", "grilling"].includes(ticket.state) || !section(issue.body ?? "", "Acceptance criteria")) return;
+              await setState(ticket, "grilled");
+              await release(issue.number, "grilling");
+              await comment(issue.number, `✅ **grilled** — spec in the issue body`);
               return;
             }
 
@@ -246,7 +379,7 @@ jobs:
             if (event === "pull_request") {
               const pr = payload.pull_request;
               if (pr.head.repo?.full_name !== pr.base.repo.full_name) return;
-              const number = issueFromBranch(pr.head.ref);
+              const number = await ticketOf(pr, ["opened", "reopened"].includes(payload.action));
               if (!number) {
                 // sprint branch landed → its parent issue closes
                 if (!sprintPrefix || !pr.head.ref.startsWith(sprintPrefix) || payload.action !== "closed" || !pr.merged) return;
@@ -257,11 +390,20 @@ jobs:
                 return;
               }
               const ticket = await item(number);
-              if (ticket.column && !ticket.state) {
-                core.info(`#${number} sits in column ${ticket.column}, not a whackagent state: untouched`);
-                return;
-              }
               const action = payload.action;
+              // A column outside the six states is a human's choice (Blocked, …): hands off. Except when a coding
+              // claim is held: GitHub's built-in Project workflow "Pull request linked to issue" moves the card to its
+              // own column the moment a PR links it, and the claim proves a contract round is running.
+              let reclaimed = false;
+              if (ticket.column && !ticket.state) {
+                reclaimed = ["opened", "reopened", "edited", "synchronize"].includes(action) && await claimExists(number, "coding");
+                if (!reclaimed) {
+                  core.info(`#${number} sits in column ${ticket.column}, not a whackagent state: untouched`);
+                  return;
+                }
+                core.info(`#${number} sits in column ${ticket.column} while a coding claim is held: taken back`);
+                ticket.state = "coding";
+              }
 
               if (action === "opened" || action === "reopened") {
                 if (ticket.state === "done") return;
@@ -269,6 +411,16 @@ jobs:
                 await release(number, "coding");
                 const kind = pr.draft ? "draft " : "";
                 await comment(number, `🔀 **review** — ${kind}#${pr.number} → \`${pr.base.ref}\``);
+                return;
+              }
+
+              if (action === "edited") {
+                // link added after `opened` (refreshed body with `Closes #n`): the board learns of the PR late.
+                // Never from `coding`: an agent may be mid-round on a PR already known.
+                if (pr.state !== "open" || !(reclaimed || ["todo", "grilled"].includes(ticket.state))) return;
+                await setState(ticket, "review");
+                await release(number, "coding");
+                await comment(number, `🔀 **review** — ${pr.draft ? "draft " : ""}#${pr.number} → \`${pr.base.ref}\``);
                 return;
               }
 
@@ -282,7 +434,15 @@ jobs:
               }
 
               if (action === "synchronize") {
-                if (!(await claimExists(number, "coding"))) return;
+                if (!(await claimExists(number, "coding"))) {
+                  // no round open: a push nobody claimed. GitHub's own merges (Update branch button) are fine.
+                  if (ticket.state === "done") return;
+                  const { data: head } = await github.rest.repos.getCommit({ owner, repo, ref: payload.after });
+                  if (head.committer?.login === "web-flow") return;
+                  await report(pr.number, `push-no-claim-${payload.after.slice(0, 7)}`,
+                    `push ${payload.after.slice(0, 7)} to #${pr.number} while #${number} holds no coding claim: claim before changing a ticket's code, every round`);
+                  return;
+                }
                 await setState(ticket, "review");
                 await release(number, "coding");
                 const rounds = await newFeedback(number, payload.before, payload.after);

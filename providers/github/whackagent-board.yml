@@ -1,6 +1,6 @@
-# whackagent board hooks — template version: 15
+# whackagent board hooks — template version: 16 · board-contract: 2.0
 # Installed by /wa-setup from the whackagent plugin (providers/github/whackagent-board.yml).
-# Caller only: the logic lives in rlatapy-luna/whackagent and updates itself through the `hooks-v1` tag,
+# Caller only: the logic lives in rlatapy-luna/whackagent and updates itself through the `hooks-v2` tag,
 # so this file changes only when its triggers, permissions or secrets do (/wa-setup backlog offers it).
 # Settings are repository variables written by `wa-backlog provision`; WA_PROJECT_TOKEN secret = classic
 # PAT, scopes project + repo (GITHUB_TOKEN can't reach Projects v2).
@@ -10,11 +10,15 @@ name: whackagent board
 
 on:
   issues:
-    types: [opened]
+    types: [opened, edited]
   push:
     branches: ["wa/**"]
   pull_request:
-    types: [opened, reopened, ready_for_review, converted_to_draft, synchronize, closed]
+    types: [opened, reopened, edited, ready_for_review, converted_to_draft, synchronize, closed]
+  # report-only board check (BOARD.md → Checks): comments what disagrees with the repository, never moves cards
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,6 +33,6 @@ concurrency:
 
 jobs:
   board:
-    uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v1
+    uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v2
     secrets:
       WA_PROJECT_TOKEN: ${{ secrets.WA_PROJECT_TOKEN }}

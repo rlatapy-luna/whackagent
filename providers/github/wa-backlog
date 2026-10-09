@@ -60,6 +60,11 @@ IGNORE_LABEL = "wa-ignore"
 SPRINT_LABEL = "wa-sprint"
 
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
+# Board contract this script implements: the project's BOARD.md, its PR template sections and its workflow
+# caller carry the same stamp. Installed and updated together by the setup PR.
+CONTRACT_VERSION = "2.0"
+# Built-in Project workflows that set Status on their own, against the board contract.
+CONFLICTING_WORKFLOWS = {"Pull request linked to issue"}
 
 
 class Failure(Exception):
@@ -976,6 +981,13 @@ def op_provision(args):
         gh(["variable", "set", name, "--repo", repo, "--body", value])
     config = load(refresh=True)
     secret = gh(["secret", "list", "--repo", repo, "--json", "name", "--jq", ".[].name"], check=False).stdout.split()
+    # GitHub's built-in Project workflows that move cards behind the hooks' back. API can only delete them:
+    # setup asks a human to switch them off in the Project settings.
+    workflows = graphql(
+        f"query($l:String!,$n:Int!){{{owner_kind}(login:$l){{projectV2(number:$n){{workflows(first:20){{nodes{{name enabled}}}}}}}}}}",
+        l=owner, n=number,
+    )[owner_kind]["projectV2"]["workflows"]["nodes"]
+    conflicting = [w["name"] for w in workflows if w["enabled"] and w["name"] in CONFLICTING_WORKFLOWS]
     emit(
         {
             "project_url": url,
@@ -986,6 +998,7 @@ def op_provision(args):
             "variables": variables,
             "secret_WA_PROJECT_TOKEN": "WA_PROJECT_TOKEN" in secret,
             "state_options": config["state_options"],
+            "conflicting_workflows": conflicting,
         }
     )
 
@@ -1121,8 +1134,22 @@ def parser():
     return p
 
 
+def check_contract():
+    """Warn when the project's BOARD.md names another contract version than this script implements."""
+    try:
+        board = Path(git("rev-parse", "--show-toplevel")) / "BOARD.md"
+        first = board.read_text().splitlines()[0] if board.exists() else ""
+    except (subprocess.CalledProcessError, OSError, IndexError):
+        return
+    match = re.search(r"board-contract:\s*([\d.]+)", first)
+    if match and match.group(1) != CONTRACT_VERSION:
+        note(f"warning: BOARD.md is board-contract {match.group(1)}, this script implements {CONTRACT_VERSION}"
+             " — update both through the setup PR")
+
+
 def main():
     args = parser().parse_args()
+    check_contract()
     try:
         try:
             args.func(args)

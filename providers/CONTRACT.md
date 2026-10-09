@@ -1,6 +1,6 @@
 # Backlog provider contract
 
-Where tickets live and how their state moves. Skills speak **only** verbs below — never tracker terms (issue, card, column, GraphQL). New tracker (Jira, Linear, Trello, Notion) = new folder under `providers/` implementing same verbs, same states, same exit codes.
+Where tickets live and how their state moves. **Implementer view**, for whoever builds a provider. Worker-facing rules of GitHub board — what any agent or tool must do, whatever its loop — live in `templates/BOARD.md`, installed in each project as `BOARD.md`; they win on conflict. Skills speak **only** verbs below — never tracker terms (issue, card, column, GraphQL). New tracker (Jira, Linear, Trello, Notion) = new folder under `providers/` implementing same verbs, same states, same exit codes.
 
 Config picks provider: `backlog.provider: local | github` in `.whackagent/config.md`. Missing → `local`.
 
