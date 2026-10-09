@@ -4,6 +4,11 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- The `wa-verifier` subagent always runs on Opus. It used to follow the main conversation's model, so `/wa-validate`, `/wa-review` and `/wa-feedback` could review on a weaker model than `/wa-code` did, or than the Sonnet implementer it judges.
+- `/wa-feedback` runs on Opus, like `/wa-code`: it triages your notes and writes micro-fixes itself, in the main thread.
+
 ## [0.42.0] - 2026-10-08
 
 ### Added

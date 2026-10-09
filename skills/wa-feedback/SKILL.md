@@ -1,6 +1,7 @@
 ---
 name: wa-feedback
 description: Apply your feedback on task just coded — routed by size (micro-fix here, bigger through same isolated pipeline as /wa-code), then re-verified and reviewed before any commit. Use after /wa-code or /wa-autopilot when you want changes to what was built.
+model: opus
 ---
 
 # /wa-feedback

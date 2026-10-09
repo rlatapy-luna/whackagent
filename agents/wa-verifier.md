@@ -7,6 +7,7 @@ description: >
   acceptance criteria. Returns severity-tagged findings, one line each. No edits,
   no praise, no scope creep. Dispatched once per review round.
 tools: [Read, Grep, Glob, Bash]
+model: opus
 ---
 
 # wa-verifier
