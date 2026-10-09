@@ -5,7 +5,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 ## Layout
 
 - `.claude-plugin/plugin.json`: plugin manifest. Registers every skill in `skills[]`.
-- `hooks/`: the backlog pane (`/wa-pane`), loaded through `hooks/hooks.json`. `board.ts` is pure parsing and view logic (config, `{backlog}`, task frontmatter, `wa-backlog list` rows) with its tests in `board.test.ts`; `register.tsx` reads files and runs the provider, keeps the board in session state and draws it. It follows **wa-board → Display format** and **GitHub board**: change the pane when those change. It also serves the `name_session` tool that task skills call to rename the session (**wa-board → Session name**), built by `sessionName` in `board.ts`. `types/index.d.ts` declares its state, named in `plugin.json` as `types`.
+- `hooks/`: the backlog pane (`/wa-pane`), loaded through `hooks/hooks.json`. `board.ts` is pure parsing and view logic (config, `{backlog}`, task frontmatter, `wa-backlog list` rows) with its tests in `board.test.ts` (and the drawn pane's in `pane.test.tsx`); `register.tsx` reads files and runs the provider, keeps the board in session state and draws it. It follows **wa-board → Display format** and **GitHub board**: change the pane when those change. It also serves the `name_session` tool that task skills call to rename the session (**wa-board → Session name**), built by `sessionName` in `board.ts`. `types/index.d.ts` declares its state, named in `plugin.json` as `types`.
 - `.claude-plugin/marketplace.json`: marketplace entry. Carries the version twice (`metadata.version` and `plugins[0].version`).
 - `skills/wa-*/SKILL.md`: the user commands (`/wa-setup`, `/wa-task`, `/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-release`, `/wa-autopilot`, `/wa-board`, `/wa-review`, `/wa-wiki`).
 - `agents/`: the only two subagents. `wa-implementer` writes code. `wa-verifier` is read-only and reviews the diff on four lenses (style, elegance, structure, correctness).
@@ -33,7 +33,7 @@ Who sets what:
 
 The word `review` names both a board state and a sub-phase. Say which one when editing.
 
-Keep each step's ownership intact when editing. For example, only `/wa-close` commits task work in attended runs (`/wa-autopilot` commits on its own task branch only; `/wa-release` commits, tags and pushes only what the project's release doc says, each outward step confirmed), and the orchestrator skills never write code themselves.
+Keep each step's ownership intact when editing. For example, only `/wa-close` commits task work in attended runs on the local provider (under the GitHub provider every agent round commits and pushes its ticket branch, and `/wa-close` merges the ready PR on the user's yes; `/wa-autopilot` commits on its own task branch only; `/wa-release` commits, tags and pushes only what the project's release doc says, each outward step confirmed), and the orchestrator skills never write code themselves.
 
 ## Rules when editing
 

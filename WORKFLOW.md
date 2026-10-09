@@ -111,7 +111,7 @@ flowchart LR
 
 | Command | Claims | Git | PR after |
 | --- | --- | --- | --- |
-| `/wa-grill <n>` | `grilling` | spec → issue body or task file on ticket branch | — |
+| `/wa-grill <n>` | `grilling` | spec → task file on ticket branch (`task: grill #<n>`) | — |
 | `/wa-code <n>` | `coding` | commit + push, end of round | **draft**, self-assigned |
 | `/wa-feedback <n> <notes>` | `coding` | ready PR → back to draft first, commit + push | draft |
 | `/wa-validate <n>` | `coding` | verifier + autofix. Clean → wiki sync, rebase if base moved, commit + push | **ready**, reviewers requested. Findings open → stays draft |
@@ -214,16 +214,16 @@ stateDiagram-v2
 | Event | Condition | Result |
 | --- | --- | --- |
 | `issues: opened` | no `wa-ignore` / `wa-sprint` label | card added, `todo` |
-| `issues: edited` | body holds non-empty `## Acceptance criteria`, card `todo` / `grilling` | `grilled`, grilling claim dropped |
+| `issues: edited` | body holds non-empty `## Acceptance criteria`, card `todo` / `grilling`, editor can push | `grilled`, grilling claim dropped. Editor can't push → reported, card stays |
 | `push` to `wa/**` | task file `issue: <n>` with non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped |
-| `pull_request: opened` / `reopened` | links one ticket, same repo, not `done` | `review`, coding claim dropped |
+| `pull_request: opened` / `reopened` | links one ticket of this repo, not a sprint PR, not `done` | `review`, claims dropped, Development link added if missing; card watched ~30 s against built-in workflow |
 | `pull_request: edited` | link found late, card `todo` / `grilled` | `review` |
 | `pull_request: synchronize` | coding claim held | `review`, claim dropped, new `## Feedback` round linked |
 | `pull_request: synchronize` | no claim (not GitHub's own merge) | comment on PR, board untouched |
 | `pull_request: ready_for_review` / `converted_to_draft` | — | nothing moves |
 | `pull_request: closed`, merged | ticket PR | `done`, issue closed, claims dropped. Sprint without branch, last ticket → sprint parent closed |
 | `pull_request: closed`, merged | head = sprint branch | sprint parent closed |
-| `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim dropped |
+| `pull_request: closed`, unmerged | not `done`, no coding claim, no other open PR for ticket | `grilled` |
 | scheduled, once a day on weekdays at 06:17 UTC (cron `17 6 * * 1-5`), or run by hand (`workflow_dispatch`) | — | board check, report only |
 
 Card in column outside six states → hooks hands off. Except coding claim held → card taken back (GitHub built-in "Pull request linked to issue" workflow moves it; switch that off).
@@ -235,7 +235,7 @@ Once a day on weekdays (06:17 UTC), or by hand: `gh workflow run whackagent-boar
 On ticket:
 
 - `grilling` / `coding` card, no claim held
-- claim held, no push for `WA_STALE_AFTER_HOURS`
+- claim held, nothing new for `WA_STALE_AFTER_HOURS` (age = newer of claim and branch's last commit)
 - `review` card, no open PR
 - linked PR open, card `todo` / `grilled`
 - linked PR merged, card not `done`
@@ -243,6 +243,7 @@ On ticket:
 - criteria in issue body, card `todo`
 - `done` card, issue open
 - closed issue in lock column
+- issue closed as completed, card not `done`
 
 On PR, as it happens: push without coding claim · PR linking several tickets.
 
