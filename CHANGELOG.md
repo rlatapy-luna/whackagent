@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-09
+
 ### Added
 
 - GitHub provider: a `BOARD.md` board contract, so devs using other agents or work loops (Codex, Cursor, other skills, plain git) share the board safely. `/wa-setup backlog` installs it in one PR with a copy of the board CLI (`.github/board/wa-backlog`), pointer blocks in `AGENTS.md`, `CLAUDE.md` and the Copilot and Cursor instruction files, `## Ticket`, `## Acceptance criteria` and `## Status` sections appended to the PR template, and the project's whackagent config. A human decides every merge: on GitHub, or by asking their agent to merge that PR (ready, no check failing, reviews in, never an admin override).
