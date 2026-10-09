@@ -55,7 +55,7 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 
 **Conflicting PR = no hook.** GitHub skips `pull_request` workflows when PR merge ref conflicts: push to conflicting PR moves nothing, claim stays. Round end checks `mergeable`, rebases ticket range when `CONFLICTING`.
 
-| `schedule` (`17,47 * * * *`) / `workflow_dispatch` | — | **report-only check**: per open ticket, card vs repo data (lock column without claim, `review` without open PR, PR open but card `todo`/`grilled`, merged but not `done`, `grilled` without spec, criteria in body but `todo`, `done` but issue open, closed but lock column). One comment per problem (marker `<!-- board-check:<kind> -->`), flipped to resolved once cleared; job summary table. Never moves cards |
+| `schedule` (`17 6 * * 1-5`, weekdays 06:17 UTC) / `workflow_dispatch` | — | **report-only check**: per open ticket, card vs repo data (lock column without claim, `review` without open PR, PR open but card `todo`/`grilled`, merged but not `done`, `grilled` without spec, criteria in body but `todo`, `done` but issue open, closed but lock column). One comment per problem (marker `<!-- board-check:<kind> -->`), flipped to resolved once cleared; job summary table. Never moves cards |
 
 Logic always = `hooks-v2`, whatever ref runs caller. Caller runs from default branch for `issues`, from pushed ref for `push`/`pull_request` — so it must be merged on default branch **and** present on ticket branches (branches forked after merge carry it).
 

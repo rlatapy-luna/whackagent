@@ -17,7 +17,7 @@ on:
     types: [opened, reopened, edited, ready_for_review, converted_to_draft, synchronize, closed]
   # report-only board check (BOARD.md → Checks): comments what disagrees with the repository, never moves cards
   schedule:
-    - cron: "17,47 * * * *"
+    - cron: "17 6 * * 1-5"
   workflow_dispatch:
 
 permissions:

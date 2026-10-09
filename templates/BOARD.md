@@ -157,7 +157,7 @@ Never merge a ticket branch locally. The workflow sets `done`, drops the claim a
 
 The board workflow **reports** what breaks this contract, once per problem, as a comment on the ticket or PR. It never moves cards: fixing is up to the worker or a human. It reports:
 
-- on a ticket, twice an hour: a card in `grilling` or `coding` with no claim held; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no spec; acceptance criteria in the issue body while the card sits in `todo`; a card in `done` on an open issue; a closed issue in a lock column; a claim held with no push for <stale-hours> h. The comment turns to resolved once the problem is gone.
+- on a ticket, once a day on weekdays: a card in `grilling` or `coding` with no claim held; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no spec; acceptance criteria in the issue body while the card sits in `todo`; a card in `done` on an open issue; a closed issue in a lock column; a claim held with no push for <stale-hours> h. The comment turns to resolved once the problem is gone.
 - on a PR, as it happens: a push while the ticket holds no `coding` claim; a PR linking several tickets.
 
 Read those comments when you take a ticket, and fix what they name.
