@@ -40,8 +40,8 @@ Add the marketplace, then install the plugin:
 | `/wa-grill [task]` | Grills one task until it's clear (grill-me, includes architecture), writes its acceptance criteria |
 | `/wa-code <task>` | Full pipeline: understand → code + test → review → verify → report |
 | `/wa-feedback [task] <notes>` | Applies your notes on what was built — micro-fix inline, bigger changes through the isolated pipeline |
-| `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close, doesn't touch git |
-| `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR ready for review — never merged —, or nothing — `close.strategy`), delete branch + worktree, `done` |
+| `/wa-validate [task]` | Your green light: "this is the feature I asked for" → runs the verifier on the whole diff. Doesn't close; touches git only under the GitHub provider, where a clean verdict marks the ticket PR ready |
+| `/wa-close [task]` | Ends the task: commit, land the branch (sprint merge, PR ready for review, or nothing — `close.strategy`), delete branch + worktree, `done`. GitHub provider: merges the ready ticket PR on your yes |
 | `/wa-close <sprint>` | Lands a complete sprint later: sprint PR when its branch holds unlanded work, else closes the GitHub sprint parent (asks first) |
 | `/wa-release [milestone]` | Ships a milestone: checks its tasks landed, then walks you through the project's own documented release flow, confirming every outward step (finds the doc, or interviews you and writes it first) |
 | `/wa-autopilot [tasks\|sprint\|milestone]` | Applies wa-code on 1..n tasks autonomously, one branch per task, independent ones in parallel. A task you name runs from whatever state it's in (grills, codes, validates or refreshes what's left; never closes) |
@@ -53,7 +53,7 @@ Each step suggests the next one. You never have to figure out what to run.
 
 ### Backlog pane
 
-In a project with `.whackagent/config.md`, a live pane beside the conversation shows the backlog in the `/wa-board` format: one section per state, sprint and milestone progress, and one tab per milestone to filter the board, lowest version first, then **All**. The board opens on the lowest milestone. Each task carries buttons for the moves its state allows (`grill`, `code`, `feedback`, `validate`, `close`), plus `autopilot` on every task not done; pressing one types the command into the prompt, it never runs it. The pane refreshes as task files change (local provider). Under the GitHub provider it calls GitHub only when it opens and on `↻ refresh`, to spare the API rate limit; task files of tasks in flight still reload as they change.
+In a project with `.whackagent/config.md`, a live pane beside the conversation shows the backlog in the `/wa-board` format: one section per state, sprint and milestone progress, and one tab per milestone to filter the board, lowest version first, then **All**. The board opens on the lowest milestone. Each task carries buttons for the moves its state allows (`grill`, `code`, `feedback`, `validate`, `close`, and `merge` on a ready ticket PR under the GitHub provider), plus `autopilot` on every task not done; pressing one types the command into the prompt, it never runs it. The pane refreshes as task files change (local provider). Under the GitHub provider it calls GitHub only when it opens and on `↻ refresh`, to spare the API rate limit; task files of tasks in flight still reload as they change.
 
 🎉 Done and 🚫 Canceled show their three most recent tasks; `+N more` lists them all and `show less` folds them back. **🏁 Sprints**, at the top of the board, lists each sprint (GitHub: every open `wa-sprint` parent, with its `#n` and milestone) with its progress; `▸ N tickets` unfolds its tickets under it, and once all of them are closed it shows `· complete` with a `close` button that fills `/wa-close <sprint>`. On a milestone tab it keeps the sprints of that milestone. A milestone still open whose tasks are all landed (at least one done, none left) shows `🎯 0.4.0 — 5/5 · ready to ship` with a `release` button that fills `/wa-release 0.4.0`; tracks never get one. Under the GitHub provider, an issue closed as not planned shows under 🚫 Canceled, never under 🎉 Done. The pane lists canceled tasks only on a milestone tab, not on **All**. Each state has its emoji on the board's sections, the task tabs and the task details: 📥 todo · 🔥 grilling · 📐 grilled · 🔨 in progress / coding · 👀 review · 👍 validated · 🎉 done · 🚫 canceled.
 
@@ -176,6 +176,20 @@ pr:
 - **Reviewers aren't pinged on drafts.** A draft is your turn to test; reviewers are requested when the PR goes ready.
 - No `pr:` block keeps the previous behavior: no template, title = task title, assigned to you.
 
+### Other settings
+
+`/wa-setup` writes `.whackagent/config.md` from [`templates/config.md`](templates/config.md), where every key carries a comment. The ones not covered above:
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `discussion_language` | `en` | Language Claude talks to you in. Files and code stay in English |
+| `primary_language` | `generic` | Picks the convention pack: `swift`, `kotlin`, `typescript`, or `generic` for anything else |
+| `review.inline_micro_fixes` | `true` | `/wa-feedback` applies a micro-fix itself (≤2 files, ≤~20 lines, no new type or API change) instead of spawning the implementer |
+| `review.public_doc` | `true` | The verifier requires doc comments on public API |
+| `build.test_command` | `""` | Test command; empty uses the build tool's own test task |
+| `verify.target` | `local` | Where the runtime check runs: `simulator`, `emulator`, `device`, `browser` or `local` |
+| `branch.checkout_next` | `true` | After `/wa-close`, check out the next task's branch (with `branch.per_task` and `commit.auto_commit_after_validation`) |
+
 ## Typical flow
 
 Bootstrap once, then loop: describe → grill → code → you test → you validate → verifier → closed. Prioritization isn't a step you run — it happens on its own every time a task is added.
@@ -234,8 +248,8 @@ The order matters, and it's the whole point of the flow: **code → you test →
 1. It dispatches one `wa-verifier`, which sweeps four lenses over the diff — **style**, **elegance**, **structure** (layers, boundaries, file tree) and **correctness** (real bugs, plus whether the diff meets the acceptance criteria) — and reports which ones ran. It's handed the diff hunks, so it judges the change instead of hunting for it, then autofix loops until clean. One agent rather than one per lens is a measured call: an isolated agent costs ~50k tokens of context before it reads a line, and every lens judges the same diff against the same rulebook — paying that twice bought nothing but duplicate findings to dedupe. And every round resumes the *same* agent rather than spawning a new one — it already holds its modules and the code, so round 2 costs a diff instead of a full re-read.
 
 2. The scope is the **whole diff** — the code plus every feedback round, in one pass. Sending three notes costs three fixes, not three reviews.
-3. Findings are severity-ordered, autofixed in a loop, and written to the task's `## Review`. The task moves to `validated`, **not** `done` — the autofix just changed code you'd tested, so you get to retest.
-4. `/wa-validate` never touches git and never closes anything. Retest, then **`/wa-close`** — next section.
+3. Findings are severity-ordered, autofixed in a loop, and written to the task's `## Review`. A clean verdict (or findings you explicitly accept) moves the task to `validated`, **not** `done` — the autofix may have changed code you'd tested, so you get to retest. Findings left open keep it in `review`.
+4. `/wa-validate` never closes anything. On the local provider it never touches git: retest, then **`/wa-close`** — next section. Under the GitHub provider a clean verdict syncs the wiki and marks the ticket PR ready (it stays a draft when autofix changed code since your test, until you retest and run `/wa-validate` again).
 
 `review.when: each_round` restores a review after `/wa-code` and after every `/wa-feedback` if you'd rather catch drift early — `/wa-validate` still runs the final pass. **No task closes unreviewed either way: `/wa-close` refuses a task the verifier never saw.**
 
@@ -283,7 +297,7 @@ close:
   delete_branch: auto # auto = only once the code lives elsewhere
 ```
 
-`nothing` is the default and stops after the commit — the branch stays, you open the PR yourself. `pr` pushes and leaves a PR ready for review onto `target`: a draft PR already open for the branch is marked ready (body refreshed, reviewers requested), otherwise a PR is opened ready. It never merges the PR; that stays a human's call on GitHub. It asks every single time, because a PR is visible to other people the moment it opens. `merge` merges locally without pushing.
+`nothing` is the default and stops after the commit — the branch stays, you open the PR yourself. `pr` pushes and leaves a PR ready for review onto `target`: a draft PR already open for the branch is marked ready (body refreshed, reviewers requested), otherwise a PR is opened ready. It never merges the PR; that stays a human's call on GitHub. It asks every single time, because a PR is visible to other people the moment it opens. `merge` merges locally without pushing. Under the GitHub backlog provider, `close.strategy` doesn't apply to tickets: `/wa-validate` marks the PR ready and `/wa-close` offers to merge it.
 
 A branch is only deleted once its code exists somewhere else: merged into its sprint branch, or merged into `target`. `pr` and `nothing` keep it — a PR needs its branch, and so do you. The task's worktree (an autopilot leftover, or any task under `branch.worktree`) gets removed with it, and if it's dirty the command stops and asks.
 
@@ -301,9 +315,9 @@ When the **last task of a sprint** closes, the sprint branch becomes the thing t
 /wa-wiki
 ```
 
-Updates the wiki. `/wa-close` runs it on every close, so the wiki lands in the same commit/PR as the code it describes; run it yourself only for a catch-up sync.
+Updates the wiki. `/wa-close` runs it on every close (under the GitHub provider, a clean `/wa-validate` or autopilot delivery does), so the wiki lands in the same commit/PR as the code it describes; run it yourself only for a catch-up sync.
 
-> Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **reviewed code**: built, run, then `/wa-validate` run by autopilot itself — its runtime check stands in for your green light — committed on its branch, task left at `validated`. You test it, then `/wa-close`. Findings the autofix couldn't clear stay open: task left at `review`, listed in the report.
+> Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **reviewed code**: built, run, then `/wa-validate` run by autopilot itself — its runtime check stands in for your green light — committed on its branch, task left at `validated`. You test it, then `/wa-close` (GitHub provider: the PR is already ready; merge it on GitHub or with `/wa-close`). Findings the autofix couldn't clear stay open: task left at `review`, listed in the report.
 
 > **Branch per task.** Set `branch.per_task: true` (asked at `/wa-setup`) and `/wa-code` codes on `wa/<slug>` instead of your current branch. Combine it with `commit.auto_commit_after_validation` and `/wa-close` commits the task, then checks out the next task's branch for you — chain tasks without touching git.
 >
@@ -315,6 +329,8 @@ Updates the wiki. `/wa-close` runs it on every close, so the wiki lands in the s
 
 By default the backlog is files in your repo, for one agent at a time. Set `backlog.provider: github` (asked at `/wa-setup`) and it moves to a **GitHub Project**, so several agents in different worktrees, or on different machines, share one board without taking the same ticket.
 
+The board doesn't require whackagent behind it. `/wa-setup` installs a **`BOARD.md`** contract in the project, plus pointers to it in `AGENTS.md`, `CLAUDE.md` and the Copilot and Cursor instruction files, a copy of the board CLI, and board sections in the PR template. Any dev, using any agent or work loop, follows that one file and the board stays right. See [GITHUB.md → One board, any work loop](GITHUB.md#one-board-any-work-loop).
+
 Every ticket goes through six states. Agents only ever *take* a ticket; the rest is moved by what happens in the repo:
 
 | State | Who moves it there |
@@ -323,7 +339,7 @@ Every ticket goes through six states. Agents only ever *take* a ticket; the rest
 | `grilling` | an agent claims it with `/wa-grill #12`, a lock, so no other agent grills it |
 | `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
 | `coding` | an agent claims it for one round (`/wa-code 12`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`), a lock held only while the agent works |
-| `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; `/wa-close` marks it ready = your turn to merge |
+| `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; a clean `/wa-validate` marks it ready = your turn to merge (on GitHub, or `/wa-close`) |
 | `done` | the hooks workflow, when the PR is merged. The issue is closed. |
 
 A closed-unmerged PR sends the ticket back to `grilled`.
@@ -333,7 +349,8 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 - **Where data lives:** the issue holds title and summary; the Project holds Status, priority (card order) and Size; a sprint is a parent issue (label `wa-sprint`, sprint name = its title in kebab-case) whose sub-issues are its tickets, so GitHub shows its progress bar. The parent stays off the board and closes when the sprint lands. The spec is the task file on the ticket branch, merged with the code. There is no local mirror.
 - **Milestones are the repo's GitHub milestones** (see [Milestones](#milestones)). You create them on GitHub; "highest" is the open one with the highest title in version order. The hooks never touch a milestone, and the script never creates one; it closes one only when `/wa-release` asks, on your yes.
 - **Order is yours.** New tickets land at the bottom. Agents reorder only when you run `/wa-task` with no argument, and apply the new order on your yes.
-- **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR (a small caller of whackagent's reusable workflow, so hook fixes reach every project with each release, no new PR), and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). It can migrate an existing local backlog.
+- **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR (a small caller of whackagent's reusable workflow, so hook fixes reach every project with each release, no new PR), and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). That token reaches every repository its account can, and any collaborator with write access can read it, so create it on a dedicated bot account. It can migrate an existing local backlog.
+- **Workflow at a glance:** [WORKFLOW.md](WORKFLOW.md), short notes and diagrams: board states, whose turn it is, any work loop, the whackagent loop, merge, hook events.
 - **Full walkthrough:** [GITHUB.md](GITHUB.md) explains what every command does on GitHub, the agent round, PRs, sprints, stacking and the gotchas.
 - **Another tracker** (Jira, Linear, Trello, Notion) means a new folder under `providers/` implementing the same contract (`providers/CONTRACT.md`); the skills don't change.
 

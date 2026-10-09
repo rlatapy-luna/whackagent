@@ -11,11 +11,13 @@ Local keeps its own finer statuses in task frontmatter `status:`. Mapping onto c
 | `todo` | `status: todo`, `grilled: false` |
 | `grilling` | — (transient, lives in `/wa-grill` session only) |
 | `grilled` | `status: todo`, `grilled: true` |
-| `coding` | `status: in-progress` / `review` / `validated` |
-| `review` | — (`/wa-close` with `close.strategy: pr` go straight to `done`) |
+| `coding` | `status: in-progress` |
+| `review` | `status: review` / `validated` |
 | `done` | `status: done` |
 
-Local `status: review` sits inside contract `coding` (coded, verifier not run) — not contract `review`.
+Same split as GitHub: `coding` = agent works now, `review` = human on turn. Local `status: review` (coded, test it) and `validated` (verifier ran, retest then `/wa-close`) play GitHub's task file `phase:` inside contract `review` — table in **CONTRACT.md** → *Who's on turn*.
+
+`done` under `close.strategy: pr` = PR opened ready, **not merged** — no hook sees merge. `/wa-release` readiness checks those PRs (**wa-release** step 2).
 
 ## Verbs
 

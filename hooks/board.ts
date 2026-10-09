@@ -287,6 +287,7 @@ export function toTickets(
       claimedBy: claims.length > 0 ? (text(claims[0]?.agent).split(/[/\\]/).pop() ?? '') || '?' : '',
       reservedBy: row.reserved === true ? (assignees[0] ?? '?') : '',
       isMine: assignees.length > 0 && row.reserved !== true,
+      phase: text(row.phase),
       pr: pull ? { number: pull.number, isDraft: pull.isDraft, url: pull.url ?? '' } : null,
     })
   }
@@ -512,20 +513,22 @@ function stepActions(task: BoardTask): Action[] {
 export const taskActions = (task: BoardTask): Action[] =>
   isLive(task) ? [...stepActions(task), action('autopilot', `/wa-autopilot ${task.slug}`)] : []
 
-function ticketStepActions(ticket: GithubTicket, phase: string): Action[] {
+// Draft PR → test it, then feedback or validate (a clean /wa-validate marks it ready, even when `phase` already
+// says validated). Ready PR → test it, then merge: /wa-close merges on the user's yes. A ready PR whose task file
+// still says `review` (marked ready by hand) goes through /wa-validate first; no phase = another work loop's PR.
+function ticketStepActions(ticket: GithubTicket): Action[] {
   const { number } = ticket
   if (ticket.state === 'todo') return [action('grill', `/wa-grill ${number}`)]
   if (ticket.state === 'grilled') return [action('code', `/wa-code ${number}`)]
   if (ticket.state !== 'review') return []
-  if (ticket.pr?.isDraft === false) return [action('feedback', `/wa-feedback ${number} `)]
-  return phase === 'validated'
-    ? [action('close', `/wa-close ${number}`), action('feedback', `/wa-feedback ${number} `)]
+  return ticket.pr?.isDraft === false && ticket.phase !== 'review'
+    ? [action('merge', `/wa-close ${number}`), action('feedback', `/wa-feedback ${number} `)]
     : [action('feedback', `/wa-feedback ${number} `), action('validate', `/wa-validate ${number}`)]
 }
 
-export function ticketActions(ticket: GithubTicket, phase = ''): Action[] {
+export function ticketActions(ticket: GithubTicket): Action[] {
   if (ticket.reservedBy !== '' || ticket.claimedBy !== '' || !isOpenTicket(ticket)) return []
-  return [...ticketStepActions(ticket, phase), action('autopilot', `/wa-autopilot ${ticket.number}`)]
+  return [...ticketStepActions(ticket), action('autopilot', `/wa-autopilot ${ticket.number}`)]
 }
 
 // endregion
@@ -586,7 +589,7 @@ const localRow = (task: BoardTask): ViewRow => ({
   actions: taskActions(task),
 })
 
-const githubRow = (ticket: GithubTicket, phase = ''): ViewRow => ({
+const githubRow = (ticket: GithubTicket): ViewRow => ({
   key: String(ticket.number),
   size: ticket.size,
   title: ticket.title,
@@ -607,7 +610,7 @@ const githubRow = (ticket: GithubTicket, phase = ''): ViewRow => ({
     ...(ticket.state === 'todo' ? [{ text: NOT_GRILLED, tone: 'warning' as const }] : []),
   ],
   summary: ticket.summary,
-  actions: ticketActions(ticket, phase),
+  actions: ticketActions(ticket),
 })
 
 function legendOf(parts: readonly ViewSection[]): string {
@@ -865,7 +868,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
       blocks: fileBlocks(focus.file),
     }
   }
-  const phase = focus.file?.phase ?? ''
+  const phase = focus.file?.phase || ticket.phase
   const openBlockers = focus.blockedBy.filter(blocker => blocker.isOpen).map(blocker => `#${blocker.number}`)
   const facts = [
     [withIcon(ticket.state), phase ? `phase: ${phase}` : '', ticket.milestone ? `milestone ${ticket.milestone}` : '']
@@ -878,7 +881,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
   return {
     id: focus.id,
     icon: STATE_ICON[ticket.state] ?? '·',
-    row: githubRow(ticket, phase),
+    row: githubRow(ticket),
     pr: ticket.pr && { ...ticket.pr, url: ticket.pr.url || focus.prUrl },
     facts,
     blocks: [

@@ -16,7 +16,7 @@ Read `.whackagent/config.md` first — its `paths:` block say where `{wiki}` and
 
 ## Update mode — `/wa-wiki`
 
-Task status + report handled by `/wa-code`. This step keep shared knowledge true. **`/wa-close` calls it on every close** (step 2b), scoped to that task: then skip step 1 (scope = that task's diff + task file) and step 3 (`/wa-close` commits wiki with task).
+Task status + report handled by `/wa-code`. This step keep shared knowledge true. **Called scoped to one task** by local `/wa-close` (step 2b, every close) — GitHub provider: clean `/wa-validate` or `/wa-autopilot` validated delivery. Then skip step 1 (scope = that task's diff + task file) and step 3 (caller commits wiki with task).
 
 1. **Figure out what changed** — recent `done` tasks, latest `{reports}/*.md`, and/or git diff since last sync.
 2. **Wiki.** Update or create affected pages, under `{wiki}/`:
@@ -29,7 +29,7 @@ Task status + report handled by `/wa-code`. This step keep shared knowledge true
 
 Stop and ask if can't tell which page a change belongs to — don't scatter duplicates.
 
-**GitHub provider** — wiki update is part of `coding`: `/wa-close` runs it on ticket branch, commit goes into ticket PR, never straight to base. Parallel tickets touch wiki at once → keep `{wiki}/index.md` **one line per page, sorted alphabetically**, no grouped prose: two tickets adding pages → adjacent-line changes, `/wa-close` rebase resolves mechanically.
+**GitHub provider** — wiki update is part of `coding`: clean `/wa-validate` (or `/wa-autopilot` validated delivery) runs it on ticket branch, commit goes into ticket PR, never straight to base. Parallel tickets touch wiki at once → keep `{wiki}/index.md` **one line per page, sorted alphabetically**, no grouped prose: two tickets adding pages → adjacent-line changes, whichever round rebases resolves them mechanically.
 
 ## Query mode — `/wa-wiki <feature or question>`
 

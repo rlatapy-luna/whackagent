@@ -71,7 +71,7 @@ Rules = `/wa-code` → *Resuming, rounds 2+*, in full — delta only, anti-stale
 6. **Re-run it — only when `verify.mode: always`.** Re-driven in step 4 — by you for inline fix, by implementer otherwise — against **updated** acceptance criteria; tell it explicit when triage moved them, it reuse its checklist otherwise. Failed checks → back through step 4. Can't run → stop and ask. Append to `## Verification`, keep previous round entry.
    Other modes → append `round <n>: manual validation — not run by agent` and hand ball back: summary in step 8 say what to test, one line, so user know exactly what changed under their fingers.
 7. **Log it.** Append round to task `## Feedback` as own block headed `### Round <n> — YYYY-MM-DD` (heading = block boundary, GitHub hook links each new block, line permalink, on ticket and PR): what user asked (their words), triage, what changed, review verdict (`deferred` when `review.when: on_validation`), verify verdict, any rule captured. Refresh `{reports}/<slug>.md`.
-8. **Report + loop.** **wa-code → Report card**, feedback variant: header `## 🟢 <title> · feedback #<n>`, **Asked** (user words, short) replaces Problem + Goal, rest identical — Done, To test, status line, next. More notes → run again, next round. Feature match spec now → **`/wa-validate <slug>`**: that fire verifier; **`/wa-close <slug>`** end it after your retest. **Never set `done` here, never commit** — say next command instead.
+8. **Report + loop.** **wa-code → Report card**, feedback variant: header `## 🟢 <title> · feedback #<n>`, **Asked** (user words, short) replaces Problem + Goal, rest identical — Done, To test, status line, next. More notes → run again, next round. Feature match spec now → **`/wa-validate <slug>`**: that fire verifier; **`/wa-close <slug>`** end it after your retest (GitHub: `/wa-validate` syncs wiki + readies PR; merge on GitHub or `/wa-close <n>`). **Never set `done` here, never commit** — say next command instead.
 
 ## GitHub provider
 
@@ -79,12 +79,14 @@ Rules = `/wa-code` → *Resuming, rounds 2+*, in full — delta only, anti-stale
 
 Ticket sits in `review` between rounds (**wa-board → Backlog provider**, *Agent round*). One round here:
 
-- **Claim first** — `wa-backlog claim <n> coding` (exit 3 → someone mid-round, say who, stop; legacy hooks: same-host holder counts as yours). Check out ticket branch, rebase not needed yet.
+- **Hooks version gate** (**wa-board → Backlog provider**, *Hooks version gate*) before claim.
+- **Claim first** — `wa-backlog claim <n> coding` (exit 3 → someone mid-round, say who, stop). Check out ticket branch, rebase not needed yet.
 - **Input** = user notes **plus PR review threads** (`gh pr view <pr> --comments`, `gh api repos/{repo}/pulls/<pr>/comments`) — quote reviewer words as feedback items, triage same way.
-- **PR already ready** (not draft) → `gh pr ready --undo` before first commit: code moving after validation, nobody merges it meanwhile. Board stays `review`.
+- **PR already ready** (not draft) → `gh pr ready --undo` right before first commit, not earlier: code moving after validation, nobody merges it meanwhile. Board stays `review`. Undo ran, round then aborts → `gh pr ready` again.
+- **Round ends without push** — nothing to push (all items new scope), user drops round, `BLOCKED:` left open → `release <n> coding --reset-to review --reason "<why>"`. Claim never left dangling.
 - **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) with `commit.author_*`, push to PR, then **refresh PR body** (**wa-board → Backlog provider**, *PR body refresh*) — criteria triage moved, new behavior, status line `Draft — feedback round <n> not reviewed yet`. UI changed → refresh screenshots (**wa-board → Backlog provider**, *Screenshots*). Hook keeps `review`, drops claim, comments on ticket and PR with line permalink to new `## Feedback` round (`### Round <n>` block) — task file stays source, no `gh issue comment` / `gh pr comment` here, would double it. Next: your retest.
 
-Never mark ready, never merge — `/wa-close` job.
+Never mark ready, never merge — `/wa-validate` marks ready, `/wa-close` merges on user's yes.
 
 ## Asking
 
@@ -101,4 +103,4 @@ Triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always 
 
 ## Next step
 
-More notes → run again. Feature matches spec → **`/wa-validate <slug>`** (verifier on whole diff), then **`/wa-close <slug>`** after your retest (syncs wiki itself).
+More notes → run again. Feature matches spec → **`/wa-validate <slug>`** (verifier on whole diff), then **`/wa-close <slug>`** after your retest (syncs wiki itself). GitHub: `/wa-validate` syncs wiki + readies PR; merge on GitHub or `/wa-close <n>`.

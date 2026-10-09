@@ -9,6 +9,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 """
 
 import argparse
+import base64
 import re
 import concurrent.futures
 import hashlib
@@ -20,6 +21,7 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 STATES = ["todo", "grilling", "grilled", "coding", "review", "done"]
 DEFAULT_STATE_NAMES = {
@@ -41,15 +43,16 @@ STATE_COLORS = {
 STATE_DESCRIPTIONS = {
     "todo": "Not grilled yet",
     "grilling": "Locked: an agent is grilling it",
-    "grilled": "Spec on its branch, ready to code",
+    "grilled": "Spec written (issue body or its branch), ready to code",
     "coding": "Locked: an agent is coding it",
     "review": "PR open",
     "done": "PR merged",
 }
 SIZES = ["quickwin", "medium", "large"]
 SIZE_COLORS = {"quickwin": "GREEN", "medium": "YELLOW", "large": "RED"}
-# Phase claimed → states the ticket may be in when the claim is taken.
-CLAIM_FROM = {"grilling": {"todo"}, "coding": {"grilled", "review"}}
+# Phase claimed → states the ticket may be in when the claim is taken. `grilled` → `grilling` = re-grill:
+# the spec is rewritten on the same branch, and the push hook moves it back to `grilled`.
+CLAIM_FROM = {"grilling": {"todo", "grilled"}, "coding": {"grilled", "review"}}
 CLAIM_NAMESPACE = "wa-claims"
 IGNORE_LABEL = "wa-ignore"
 # Sprint = parent issue labeled wa-sprint, sprint name = its title in kebab-case; its tickets are its
@@ -57,6 +60,11 @@ IGNORE_LABEL = "wa-ignore"
 SPRINT_LABEL = "wa-sprint"
 
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
+# Board contract this script implements: the project's BOARD.md, its PR template sections and its workflow
+# caller carry the same stamp. Installed and updated together by the setup PR.
+CONTRACT_VERSION = "2.0"
+# Built-in Project workflows that set Status on their own, against the board contract.
+CONFLICTING_WORKFLOWS = {"Pull request linked to issue"}
 
 
 class Failure(Exception):
@@ -253,8 +261,10 @@ def claims(config, number=None):
     """Live claims, all of them or one ticket's. Map by number, or list when number given."""
     scope = f"{CLAIM_NAMESPACE}/{number}/" if number is not None else f"{CLAIM_NAMESPACE}/"
     code, data = rest("GET", f"repos/{config['repo']}/git/matching-refs/{scope}", check=False)
+    if code != 0 or not isinstance(data, list):
+        raise Failure(f"could not list claims: {(data or {}).get('message', 'gh api failed') if isinstance(data, dict) else 'gh api failed'}")
     found = {}
-    for ref in data or []:
+    for ref in data:
         _, _, held_by, phase = ref["ref"].split("/", 3)
         found.setdefault(int(held_by), []).append({"phase": phase, "sha": ref["object"]["sha"]})
     return found if number is None else found.get(number, [])
@@ -339,6 +349,8 @@ def find(config, number, with_owners=True):
             raise Failure(f"#{number} does not exist")
         if is_sprint(issue):
             raise Failure(f"#{number} is sprint {issue['title']!r}, not a ticket", EXIT_WRONG_STATE)
+        if IGNORE_LABEL in [l["name"] for l in issue["labels"]["nodes"]]:
+            raise Failure(f"#{number} is labeled {IGNORE_LABEL}, not a ticket", EXIT_WRONG_STATE)
         for node in issue["projectItems"]["nodes"]:
             if node["project"]["id"] == config["project_id"]:
                 ticket = to_ticket(config, node, {number: claims(config, number)}, with_owners)
@@ -417,6 +429,20 @@ def remote_branch(config, number):
     return names[0] if names else None
 
 
+def task_phase(config, branch):
+    """`phase:` of the task file on a ticket branch (`in-progress`, `review`, `validated`); None when
+    the branch or file is missing or the field is empty. Branch `wa/12-login` holds `{tasks}/12-login.md`."""
+    if not branch:
+        return None
+    path = f"{config['tasks_path'].rstrip('/')}/{branch.removeprefix(config['branch_prefix'])}.md"
+    code, data = rest("GET", f"repos/{config['repo']}/contents/{path}?ref={quote(branch, safe='')}", check=False)
+    if code != 0 or not data or "content" not in data:
+        return None
+    text = base64.b64decode(data["content"]).decode("utf-8", "replace")
+    match = re.search(r"^phase:[ \t]*([\w-]*)", text, re.M)
+    return (match.group(1) or None) if match else None
+
+
 # ---------------------------------------------------------------- operations
 
 
@@ -448,6 +474,12 @@ def op_list(args):
         if args.milestone and ticket["milestone"] != args.milestone:
             continue
         rows.append(ticket)
+    # review = humans on turn; the task file's phase says which turn (test, retest, merge)
+    review = [t for t in rows if t.get("state") == "review"]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        phases = pool.map(lambda t: task_phase(config, remote_branch(config, t["number"])), review)
+        for ticket, phase in zip(review, phases):
+            ticket["phase"] = phase
     if args.owners:
         claimed = [c for t in rows for c in t.get("claims", [])]
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
@@ -463,6 +495,7 @@ def op_get(args):
     config = load()
     ticket = find(config, args.number)
     ticket["branch"] = remote_branch(config, args.number)
+    ticket["phase"] = task_phase(config, ticket["branch"])
     ticket["blocked_by"] = blocked_by(config, args.number)
     emit(ticket)
 
@@ -496,13 +529,17 @@ def op_claim(args):
         emit({"number": args.number, "phase": phase, "taken": True, "agent": who, "assigned": True})
         raise Failure(f"#{args.number} is assigned to {who}, not to @{viewer_login()}", EXIT_TAKEN)
     ref = f"refs/{CLAIM_NAMESPACE}/{args.number}/{phase}"
+    agent = agent_id(args.agent)
     held = next((c for c in claims(config, args.number) if c["phase"] == phase), None)
     if held:  # before the state check, so a loser learns who holds it; leaves no commit behind
+        owner = claim_owner(config, held["sha"])
+        if owner["agent"] == agent:  # a retry by the holder (say after a failed run): still yours
+            emit({"number": args.number, "phase": phase, "taken": False, "agent": agent, "since": owner["since"], "already": True})
+            return
         taken(config, args.number, phase, held["sha"])
     if ticket["state"] not in CLAIM_FROM[phase]:
         where = ticket["state"] or f"in column {ticket['column']!r}"
         raise Failure(f"#{args.number} is {where}, {phase} needs {sorted(CLAIM_FROM[phase])}", EXIT_WRONG_STATE)
-    agent = agent_id(args.agent)
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     # The winner assigns its account, so other accounts' agents see the ticket reserved. Recorded
     # in the claim so `release` gives back only an assignment this claim made.
@@ -524,7 +561,19 @@ def op_claim(args):
             raise Failure(f"could not create claim ref {ref}: {(data or {}).get('message', 'unknown error')}")
         existing = rest("GET", f"repos/{config['repo']}/git/ref/{ref.removeprefix('refs/')}")
         taken(config, args.number, phase, existing["object"]["sha"])
-    set_state_raw(config, ticket, phase)
+    if ticket["state"] == "grilled":
+        # Both phases claim from `grilled` (re-grill, code) on two refs, so the ref alone isn't the lock.
+        # Checked after creating ours: of two racers, the later checker always sees the other one. Two
+        # simultaneous checkers can both back off: never two winners, at worst none (claim again later).
+        other = next((c for c in claims(config, args.number) if c["phase"] != phase), None)
+        if other:
+            rest("DELETE", f"repos/{config['repo']}/git/{ref}", check=False)
+            taken(config, args.number, other["phase"], other["sha"])
+    try:
+        set_state_raw(config, ticket, phase)
+    except BaseException:  # a lock on a card that never moved misleads everyone: give the ref back
+        rest("DELETE", f"repos/{config['repo']}/git/{ref}", check=False)
+        raise
     if assigning:
         code, data = rest("POST", f"repos/{config['repo']}/issues/{args.number}/assignees", {"assignees": [login]}, check=False)
         if code != 0 or login not in [a["login"] for a in (data or {}).get("assignees", [])]:
@@ -544,7 +593,9 @@ def op_release(args):
     ref = f"{CLAIM_NAMESPACE}/{args.number}/{args.phase}"
     held = next((c for c in claims(config, args.number) if c["phase"] == args.phase), None)
     assigned = claim_fields(config, held["sha"]).get("assigned") if held else None
-    code, _ = rest("DELETE", f"repos/{config['repo']}/git/refs/{ref}", check=False)
+    code, data = rest("DELETE", f"repos/{config['repo']}/git/refs/{ref}", check=False)
+    if code != 0 and held:  # the ref is there but stays: never reset a card whose lock is still held
+        raise Failure(f"could not release {ref}: {(data or {}).get('message', 'gh api failed')}")
     if code == 0 and assigned:  # undo only the assignment this claim made; a human's stays
         rest("DELETE", f"repos/{config['repo']}/issues/{args.number}/assignees", {"assignees": [assigned]}, check=False)
     if args.reset_to:
@@ -800,22 +851,16 @@ def op_screenshots(args):
 
 
 def op_link_pr(args):
-    """Give PR <pr> the ticket's milestone and a manual closing link (PR Development). Idempotent.
-
-    `Closes #n` in the body only links when the PR targets the default branch; sprint and
-    stacked PRs never do, so the link is added explicitly.
-    """
+    """Manual closing link from PR <pr> to ticket <n> (PR Development). Idempotent. Repair only: the hooks
+    link every open PR whose ticket they find (`Closes #n` in the body, or a wa/<n>-… branch)."""
     config = load()
     issue = rest("GET", f"repos/{config['repo']}/issues/{args.number}")
-    milestone = (issue.get("milestone") or {}).get("number")
-    if milestone:
-        rest("PATCH", f"repos/{config['repo']}/issues/{args.pr}", {"milestone": milestone})
     graphql(
         "mutation($i:ID!,$p:[ID!]!){addCloseIssueReferences(input:{issueId:$i,pullRequestIds:$p}){clientMutationId}}",
         i=issue["node_id"],
         p=[rest("GET", f"repos/{config['repo']}/pulls/{args.pr}")["node_id"]],
     )
-    emit({"number": args.number, "pr": args.pr, "milestone": (issue.get("milestone") or {}).get("title"), "linked": True})
+    emit({"number": args.number, "pr": args.pr, "linked": True})
 
 
 def blocked_by(config, number):
@@ -945,6 +990,13 @@ def op_provision(args):
         gh(["variable", "set", name, "--repo", repo, "--body", value])
     config = load(refresh=True)
     secret = gh(["secret", "list", "--repo", repo, "--json", "name", "--jq", ".[].name"], check=False).stdout.split()
+    # GitHub's built-in Project workflows that move cards behind the hooks' back. API can only delete them:
+    # setup asks a human to switch them off in the Project settings.
+    workflows = graphql(
+        f"query($l:String!,$n:Int!){{{owner_kind}(login:$l){{projectV2(number:$n){{workflows(first:20){{nodes{{name enabled}}}}}}}}}}",
+        l=owner, n=number,
+    )[owner_kind]["projectV2"]["workflows"]["nodes"]
+    conflicting = [w["name"] for w in workflows if w["enabled"] and w["name"] in CONFLICTING_WORKFLOWS]
     emit(
         {
             "project_url": url,
@@ -955,6 +1007,7 @@ def op_provision(args):
             "variables": variables,
             "secret_WA_PROJECT_TOKEN": "WA_PROJECT_TOKEN" in secret,
             "state_options": config["state_options"],
+            "conflicting_workflows": conflicting,
         }
     )
 
@@ -1047,7 +1100,7 @@ def parser():
     s.add_argument("--on", required=True, type=lambda v: [int(x) for x in v.split(",") if x], help="blocker ids, comma-separated")
     s.set_defaults(func=op_depend)
 
-    s = sub.add_parser("link-pr", help="PR gets ticket milestone + closing link (Development)")
+    s = sub.add_parser("link-pr", help="repair: closing link PR → ticket (Development); hooks link on their own")
     s.add_argument("number", type=int)
     s.add_argument("pr", type=int)
     s.set_defaults(func=op_link_pr)
@@ -1090,8 +1143,22 @@ def parser():
     return p
 
 
+def check_contract():
+    """Warn when the project's BOARD.md names another contract version than this script implements."""
+    try:
+        board = Path(git("rev-parse", "--show-toplevel")) / "BOARD.md"
+        first = board.read_text().splitlines()[0] if board.exists() else ""
+    except (subprocess.CalledProcessError, OSError, IndexError):
+        return
+    match = re.search(r"board-contract:\s*([\d.]+)", first)
+    if match and match.group(1) != CONTRACT_VERSION:
+        note(f"warning: BOARD.md is board-contract {match.group(1)}, this script implements {CONTRACT_VERSION}"
+             " — update both through the setup PR")
+
+
 def main():
     args = parser().parse_args()
+    check_contract()
     try:
         try:
             args.func(args)

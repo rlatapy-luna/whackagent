@@ -1,13 +1,50 @@
 # Changelog
 
-All notable changes to whackagent are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: a minor bump can change behavior).
+All notable changes to whackagent are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- GitHub provider: a `BOARD.md` board contract, so devs using other agents or work loops (Codex, Cursor, other skills, plain git) share the board safely. `/wa-setup backlog` installs it in one PR with a copy of the board CLI (`.github/board/wa-backlog`), pointer blocks in `AGENTS.md`, `CLAUDE.md` and the Copilot and Cursor instruction files, `## Ticket`, `## Acceptance criteria` and `## Status` sections appended to the PR template, and the project's whackagent config. A human decides every merge: on GitHub, or by asking their agent to merge that PR (ready, no check failing, reviews in, never an admin override).
+- GitHub provider: a spec written in the issue body (non-empty `## Acceptance criteria`, by someone who can push to the repo) moves the ticket to `grilled`. Criteria written by anyone else are reported and wait for a maintainer's edit. `/wa-code` and `/wa-autopilot` pick such a ticket up: they create its linked branch and copy the spec into the task file.
+- GitHub provider: the hooks find a PR's ticket through the issue it links, the one `Closes #n` in its body, or its `wa/<n>-…` branch, and add the Development link themselves, whatever the base branch.
+- GitHub provider: a report-only board check runs once a day on weekdays (06:17 UTC), or by hand (`gh workflow run whackagent-board.yml`). It comments on tickets whose card disagrees with the repository (lock without claim, claim with nothing new for `WA_STALE_AFTER_HOURS`, review without PR, merged or closed as completed but not done, …), and on PRs pushed without a claim or linking several tickets. It never moves cards.
+- GitHub provider: `/wa-close` on a ticket merges its ready PR for you, on your yes every time: squash (a merge commit for a track landing), only when no check is failing, required reviews are in and the base has landed, never with an admin override. When that was the sprint's last ticket, it opens the sprint PR and offers merging it once it can merge. The backlog pane offers it as **merge** on ready PRs.
+- GitHub provider: `/wa-grill` can re-grill a `grilled` ticket, on your yes. `claim grilling` now also starts from `grilled`, and a re-grill and a `/wa-code` claiming the same ticket at once never both win.
+- GitHub provider: `/wa-setup` flags GitHub's built-in Project workflow "Pull request linked to issue", which moves cards out of the board's states, and asks you to switch it off. While it stays on, the hooks take a card back when a `coding` claim is held, and for about 30 seconds after a PR opens.
+- `wa-backlog list` and `get` report the task file's `phase` for tickets in review, so `/wa-board` and the backlog pane know whose turn it is. `wa-backlog` warns when the project's `BOARD.md` carries another contract version than the script.
+- `WORKFLOW.md`: a one-page cheat sheet of the workflow, with diagrams.
+
 ### Changed
 
+- **Breaking:** the board hooks move to the `hooks-v2` tag with caller template version 16 (new triggers: issue edited, PR edited, schedule, `workflow_dispatch`). Agent rounds stop with an upgrade message on projects whose caller is older than version 16, because `hooks-v1` never links PRs to their tickets. Run `/wa-setup backlog` to take the v2 PR. `hooks-v1` stays frozen for callers not yet upgraded.
+- **Breaking:** GitHub provider: a clean `/wa-validate` now gets the ticket PR ready to merge: it syncs the wiki, rebases when the base moved, marks the PR ready and requests `pr.reviewers`. When autofix changed code since your test, the PR stays a draft until you retest and run `/wa-validate` again. `/wa-close` no longer marks PRs ready.
+- `/wa-validate` sets `validated` only on a clean verdict, or when you accept the remaining findings; findings left open keep the task in `review`.
+- GitHub provider: under the GitHub provider, `branch.base` is the same branch as `close.target`, so every agent forks from and lands on one base. A sprint branch missing on GitHub is pushed before its first ticket uses it.
+- GitHub provider: `/wa-setup` sets the board token secret before opening the board PR, says plainly what a `repo`-scoped token can reach, and offers to move imported issues that already carry acceptance criteria to `grilled`. Its reconfigure mode flags a board workflow or `BOARD.md` older than the plugin's.
+- `/wa-autopilot` on a validated draft PR now refreshes and marks it ready. It never changes the repository's `delete_branch_on_merge` setting on its own any more.
+- PRs whackagent opens are always assigned to you; `pr.assignees` only adds people.
+- Local provider: `status: review` and `validated` now count as the contract's `review` state (a human is on turn), and only `in-progress` counts as `coding`, the same split as the GitHub provider. The provider contract gains a *Who's on turn* table.
 - The `wa-verifier` subagent always runs on Opus. It used to follow the main conversation's model, so `/wa-validate`, `/wa-review` and `/wa-feedback` could review on a weaker model than `/wa-code` did, or than the Sonnet implementer it judges.
 - `/wa-feedback` runs on Opus, like `/wa-code`: it triages your notes and writes micro-fixes itself, in the main thread.
+- `wa-backlog claim` answers `0` when you already hold that claim, so a retry after a failed run no longer reports the ticket as taken by yourself.
+
+### Removed
+
+- **Breaking:** support for board workflows older than caller template version 16, including the partial support for versions below 6.
+- Agents no longer run `wa-backlog link-pr` after opening a PR (it stays as a repair command), and PRs no longer get the ticket's milestone: the linked issue carries it.
+- Config keys `code_language`, `ui_strings_language`, `autopilot.on_blocker` and `yagni`: no command ever read them. `/wa-setup` reconfigure stops offering them; leaving them in your config does nothing.
+
+### Fixed
+
+- GitHub provider: a PR closing another repository's issue (`Closes acme/lib#12`) no longer moves or closes this repository's issue with the same number.
+- GitHub provider: closing a superseded PR no longer sends its ticket back to `grilled` and drops another round's claim while a coding claim or another open PR keeps the ticket going.
+- GitHub provider: releasing a stale claim (`/wa-task release`) resets the ticket to `review` when its PR is open, and a re-grill's claim back to `grilled`.
+- GitHub provider: every agent round releases its claim when it ends without a push (`/wa-validate`, `/wa-feedback`, `/wa-autopilot`), and `/wa-close` re-claims after a rebase before it merges.
+- `wa-backlog` no longer crashes or leaves a lock behind when GitHub errors in the middle of a claim, refuses to claim issues labeled `wa-ignore`, and stops before resetting a card when it couldn't delete the claim.
+- `/wa-release` on the local provider with `close.strategy: pr` no longer counts tasks whose PR is still open as landed.
+- `/wa-close` no longer contradicts itself on force pushes: `--force-with-lease` on the task's own branch after the ticket-range rebase is allowed, a plain force push never is.
 
 ## [0.42.0] - 2026-10-08
 

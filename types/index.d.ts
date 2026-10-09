@@ -24,6 +24,8 @@ export type GithubTicket = {
   claimedBy: string
   reservedBy: string
   isMine: boolean
+  /** task file `phase:` on the ticket branch, from `wa-backlog list` (`review` rows only), else '' */
+  phase: string
   pr: { number: number; isDraft: boolean; url: string } | null
 }
 
