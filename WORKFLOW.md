@@ -224,7 +224,7 @@ stateDiagram-v2
 | `pull_request: closed`, merged | ticket PR | `done`, issue closed, claims dropped. Sprint without branch, last ticket → sprint parent closed |
 | `pull_request: closed`, merged | head = sprint branch | sprint parent closed |
 | `pull_request: closed`, unmerged | not `done` | `grilled`, coding claim dropped |
-| `schedule` (`:17`, `:47`) / manual | — | board check, report only |
+| scheduled, twice an hour (cron `17,47 * * * *`), or run by hand (`workflow_dispatch`) | — | board check, report only |
 
 Card in column outside six states → hooks hands off. Except coding claim held → card taken back (GitHub built-in "Pull request linked to issue" workflow moves it; switch that off).
 
