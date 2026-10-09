@@ -26,9 +26,10 @@ permissions:
   pull-requests: write
 
 concurrency:
-  # event + action in the group: GitHub keeps one pending run per group and cancels the older one, so a
-  # force push (synchronize) followed by `gh pr ready` (ready_for_review) would drop one of them.
-  group: whackagent-board-${{ github.event.issue.number || github.head_ref || github.ref_name }}-${{ github.event_name }}-${{ github.event.action }}
+  # PR and push events: event + action in the group. GitHub keeps one pending run per group and cancels the
+  # older one, so a force push (synchronize) followed by `gh pr ready` (ready_for_review) would drop one of them.
+  # Issue events: one group per issue, so `opened` and a quick `edited` run in order, never side by side.
+  group: whackagent-board-${{ github.event.issue.number && format('issue-{0}', github.event.issue.number) || format('{0}-{1}-{2}', github.head_ref || github.ref_name, github.event_name, github.event.action) }}
   cancel-in-progress: false
 
 jobs:

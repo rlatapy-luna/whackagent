@@ -64,7 +64,7 @@ Column names may differ on the Project; the board CLI always reports the six nam
 | leave a note on the ticket | `<board-cli> comment <n> "…"` |
 | see live locks | `<board-cli> claims` |
 
-Exit codes: `0` ok · `1` error · `2` usage · **`3` taken** (someone else holds it, or it is assigned to another account; the owner is printed) · **`4` wrong state**. `3` and `4` are normal answers, not failures.
+Exit codes: `0` ok · `1` error · `2` usage · **`3` taken** (someone else holds it, or it is assigned to another account; the owner is printed) · **`4` wrong state**. `3` and `4` are normal answers, not failures. Claiming a phase you already hold (same agent id) answers `0`.
 
 ## Working a ticket
 
@@ -83,8 +83,8 @@ A winning claim assigns your account to the issue. Leave that assignment alone.
 - Write the spec in the **issue body**, below the original request, which you keep untouched:
   - `## Acceptance criteria` (required, non-empty): observable checks that mean "done", one per line.
   - `## Context / Decisions` (optional): what was decided and why.
-- Write both sections in **one edit, at the end** (`gh issue edit <n> --body-file <file>`). The workflow moves the ticket to `grilled` on that edit and drops your claim. A half-written spec saved early would move it too soon.
-- A task file on the ticket's branch (`<tasks-path>/<n>-<slug>.md`, frontmatter `issue: <n>`, non-empty `## Acceptance criteria`) is accepted too: pushing it has the same effect.
+- Write both sections in **one edit, at the end** (`gh issue edit <n> --body-file <file>`). The workflow moves the ticket to `grilled` on that edit and drops your claim. A half-written spec saved early would move it too soon. Only an edit by an account that can push to the repository counts: criteria written by anyone else are reported, until a maintainer edits the body.
+- A task file on the ticket's branch (`<tasks-path>/<n>-<slug>.md`, frontmatter `issue: <n>`, non-empty `## Acceptance criteria`) is accepted too: pushing it has the same effect. That route needs the branch named `<branch-prefix><n>-<slug>`.
 - Spec too big for one ticket → split it into new tickets in a sprint (see *Sprints*), with your user's agreement.
 - You stop before the spec is written → `release <n> grilling --reset-to todo` (re-spec: `--reset-to grilled`).
 
@@ -101,7 +101,7 @@ A winning claim assigns your account to the issue. Leave that assignment alone.
 
 ### 4. Ready
 
-`gh pr ready <pr>` means: *this PR is mergeable*. Mark ready only when every acceptance criterion is proven (checked in the PR body) or explicitly left to a human, and the checks are green. In an attended run, the human who tested says so. In an unattended run, mark ready only if your own verification proved every criterion it could run; otherwise leave the PR draft and say what is left. Request reviewers when the PR goes ready, never on a draft.
+`gh pr ready <pr>` means: *this PR is mergeable*. Mark ready only when every acceptance criterion is proven (checked in the PR body) or explicitly left to a human, and no check is failing. In an attended run, the human who tested says so. In an unattended run, mark ready only if your own verification proved every criterion it could run; otherwise leave the PR draft and say what is left. Request reviewers when the PR goes ready, never on a draft.
 
 ### 5. Merge
 
@@ -121,6 +121,7 @@ Never merge a ticket branch locally. The workflow sets `done`, drops the claim a
   - `## Ticket`: `Closes #<n>`.
   - `## Acceptance criteria`: the ticket's current criteria as a checklist. Check `- [x]` only what a round proved; leave the rest `- [ ]` with a one-line reason.
   - `## Status`: one line saying what is owed next (`Draft — test it`, `Ready — review, then merge`).
+  - A PR that is not a ticket's (sprint, track or sync PR) writes `Sprint #<parent>` or `n/a` under `## Ticket`, never `Closes`.
 - **Refresh the body on every round that pushes**: a PR body describing superseded behavior misleads its reviewer. Keep text a human added.
 - **No milestone on PRs**: the linked ticket carries it. **Labels**: pick from the repository's own; never create labels.
 
@@ -151,14 +152,15 @@ Never merge a ticket branch locally. The workflow sets `done`, drops the claim a
 ## Locks
 
 - Claims never expire: a spec interview may wait two days for an answer.
-- `claims` flags a lock `stale` after <stale-hours> h with no push, and the check reports it on the ticket. **Only a human clears a stale lock** (`release <n> <phase> --reset-to <state> --reason "stale: …"`). Never release a lock you don't hold to take its ticket.
+- `claims` flags a lock `stale` after <stale-hours> h with nothing new (age = the newer of the claim and the branch's last commit), and the check reports it on the ticket. **Only a human clears a stale lock** (`release <n> <phase> --reset-to <state> --reason "stale: …"`). Never release a lock you don't hold to take its ticket.
 
 ## Checks
 
 The board workflow **reports** what breaks this contract, once per problem, as a comment on the ticket or PR. It never moves cards: fixing is up to the worker or a human. It reports:
 
-- on a ticket, once a day on weekdays: a card in `grilling` or `coding` with no claim held; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no spec; acceptance criteria in the issue body while the card sits in `todo`; a card in `done` on an open issue; a closed issue in a lock column; a claim held with no push for <stale-hours> h. The comment turns to resolved once the problem is gone.
+- on a ticket, once a day on weekdays: a card in `grilling` or `coding` with no claim held; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no spec; acceptance criteria in the issue body while the card sits in `todo`; a card in `done` on an open issue; a closed issue in a lock column; a claim held with nothing new for <stale-hours> h; an issue closed as completed whose card is not `done`. The comment turns to resolved once the problem is gone.
 - on a PR, as it happens: a push while the ticket holds no `coding` claim; a PR linking several tickets.
+- on a ticket, as it happens: acceptance criteria written by an account that can't push to the repository.
 
 Read those comments when you take a ticket, and fix what they name.
 
@@ -174,4 +176,4 @@ Read those comments when you take a ticket, and fix what they name.
 
 ## Version
 
-This file carries `board-contract: 2.0` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when they disagree: update them together with the setup PR, never one file by hand.
+This file carries `board-contract: 2.0` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when this file's version differs from its own: update them together with the setup PR, never one file by hand.

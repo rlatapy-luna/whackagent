@@ -17,7 +17,7 @@ Shared lifecycle, provider-neutral names. Provider maps them onto its own column
 |---|---|---|
 | `todo` | ticket exists, not grilled | creation (agent or human on tracker UI) |
 | `grilling` | **locked** — one agent grilling it (first grill, or re-grill) | agent `claim <id> grilling` |
-| `grilled` | spec written, ready to code | **data**: ticket branch holds spec with acceptance criteria (hook) |
+| `grilled` | spec written, ready to code | **data**: acceptance criteria in issue body (edit by a writer), or ticket branch holds spec file (hook) |
 | `coding` | **locked, transient** — one agent working a round (code, feedback, validate, close) | agent `claim <id> coding` |
 | `review` | change proposed (PR open, draft or not) — humans on turn: test (draft) or merge (ready) | **data**: PR opened, or agent round pushed to it (hook) |
 | `done` | change landed | **data**: PR merged (hook) |
@@ -54,7 +54,7 @@ All print JSON on stdout, messages on stderr.
 | `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` / `set-field <id> milestone <title\|"">` | fields; sprint created on first use, milestone must be known to `milestones` (never created) | object |
 | `milestones` | release scopes, **highest first** (*Milestones*) — open ones, then closed ones still holding open tickets | `[{title,open,tickets,done}]` — `tickets` total, `done` closed (landed or canceled) |
 | `close-milestone <title>` | close shipped milestone — **`/wa-release` only, on user's yes** | `{title,open:false}`; unknown → exit 2 |
-| `split <id>` | ticket too big → becomes **root of sprint** named after its title (kebab-case), leaves board; children join via `create --sprint <name>`. Unclaimed, open, not in sprint, name free — else exit 4 | `{number,sprint}` |
+| `split <id>` | ticket too big → becomes **root of sprint** named after its title (kebab-case), leaves board; children join via `create --sprint <name>`. Unclaimed, open, not in sprint, name free — else exit 4 (title with no letter or digit: exit 2) | `{number,sprint}` |
 | `comment <id> <text>` | human-facing trail | object |
 | `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |
@@ -83,6 +83,6 @@ Release scope (iteration, version) — **not** a sprint. Sprint = feature groupi
 
 ## Ticket ↔ repo contract
 
-- Branch `<branch.prefix><id>-<slug>` (`wa/12-login-apple`). Grilling creates it, coding continues on it, PR opens from it.
-- Spec file `{tasks}/<id>-<slug>.md` on that branch, frontmatter `issue: <id>`, non-empty `## Acceptance criteria`. That file = everything needed to start coding.
+- Branch `<branch.prefix><id>-<slug>` (`wa/12-login-apple`). Grilling creates it (spec in issue body: first coding round does), coding continues on it, PR opens from it.
+- Spec = `## Acceptance criteria` in issue body, or file `{tasks}/<id>-<slug>.md` on that branch (frontmatter `issue: <id>`, non-empty `## Acceptance criteria`). First coding round on body spec builds that file from issue body. File = everything needed to start coding.
 - Ticket title/summary/state/size/sprint/milestone live in tracker only — never duplicated in task file. Optional `ported-from:` / `lands:` (tracks) are task-file facts, not tracker fields.

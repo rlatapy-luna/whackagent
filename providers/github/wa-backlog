@@ -43,7 +43,7 @@ STATE_COLORS = {
 STATE_DESCRIPTIONS = {
     "todo": "Not grilled yet",
     "grilling": "Locked: an agent is grilling it",
-    "grilled": "Spec on its branch, ready to code",
+    "grilled": "Spec written (issue body or its branch), ready to code",
     "coding": "Locked: an agent is coding it",
     "review": "PR open",
     "done": "PR merged",
@@ -261,8 +261,10 @@ def claims(config, number=None):
     """Live claims, all of them or one ticket's. Map by number, or list when number given."""
     scope = f"{CLAIM_NAMESPACE}/{number}/" if number is not None else f"{CLAIM_NAMESPACE}/"
     code, data = rest("GET", f"repos/{config['repo']}/git/matching-refs/{scope}", check=False)
+    if code != 0 or not isinstance(data, list):
+        raise Failure(f"could not list claims: {(data or {}).get('message', 'gh api failed') if isinstance(data, dict) else 'gh api failed'}")
     found = {}
-    for ref in data or []:
+    for ref in data:
         _, _, held_by, phase = ref["ref"].split("/", 3)
         found.setdefault(int(held_by), []).append({"phase": phase, "sha": ref["object"]["sha"]})
     return found if number is None else found.get(number, [])
@@ -347,6 +349,8 @@ def find(config, number, with_owners=True):
             raise Failure(f"#{number} does not exist")
         if is_sprint(issue):
             raise Failure(f"#{number} is sprint {issue['title']!r}, not a ticket", EXIT_WRONG_STATE)
+        if IGNORE_LABEL in [l["name"] for l in issue["labels"]["nodes"]]:
+            raise Failure(f"#{number} is labeled {IGNORE_LABEL}, not a ticket", EXIT_WRONG_STATE)
         for node in issue["projectItems"]["nodes"]:
             if node["project"]["id"] == config["project_id"]:
                 ticket = to_ticket(config, node, {number: claims(config, number)}, with_owners)
@@ -525,13 +529,17 @@ def op_claim(args):
         emit({"number": args.number, "phase": phase, "taken": True, "agent": who, "assigned": True})
         raise Failure(f"#{args.number} is assigned to {who}, not to @{viewer_login()}", EXIT_TAKEN)
     ref = f"refs/{CLAIM_NAMESPACE}/{args.number}/{phase}"
+    agent = agent_id(args.agent)
     held = next((c for c in claims(config, args.number) if c["phase"] == phase), None)
     if held:  # before the state check, so a loser learns who holds it; leaves no commit behind
+        owner = claim_owner(config, held["sha"])
+        if owner["agent"] == agent:  # a retry by the holder (say after a failed run): still yours
+            emit({"number": args.number, "phase": phase, "taken": False, "agent": agent, "since": owner["since"], "already": True})
+            return
         taken(config, args.number, phase, held["sha"])
     if ticket["state"] not in CLAIM_FROM[phase]:
         where = ticket["state"] or f"in column {ticket['column']!r}"
         raise Failure(f"#{args.number} is {where}, {phase} needs {sorted(CLAIM_FROM[phase])}", EXIT_WRONG_STATE)
-    agent = agent_id(args.agent)
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     # The winner assigns its account, so other accounts' agents see the ticket reserved. Recorded
     # in the claim so `release` gives back only an assignment this claim made.
@@ -555,12 +563,17 @@ def op_claim(args):
         taken(config, args.number, phase, existing["object"]["sha"])
     if ticket["state"] == "grilled":
         # Both phases claim from `grilled` (re-grill, code) on two refs, so the ref alone isn't the lock.
-        # Checked after creating ours: of two racers, the later checker always sees the other one.
+        # Checked after creating ours: of two racers, the later checker always sees the other one. Two
+        # simultaneous checkers can both back off: never two winners, at worst none (claim again later).
         other = next((c for c in claims(config, args.number) if c["phase"] != phase), None)
         if other:
             rest("DELETE", f"repos/{config['repo']}/git/{ref}", check=False)
             taken(config, args.number, other["phase"], other["sha"])
-    set_state_raw(config, ticket, phase)
+    try:
+        set_state_raw(config, ticket, phase)
+    except BaseException:  # a lock on a card that never moved misleads everyone: give the ref back
+        rest("DELETE", f"repos/{config['repo']}/git/{ref}", check=False)
+        raise
     if assigning:
         code, data = rest("POST", f"repos/{config['repo']}/issues/{args.number}/assignees", {"assignees": [login]}, check=False)
         if code != 0 or login not in [a["login"] for a in (data or {}).get("assignees", [])]:
@@ -580,7 +593,9 @@ def op_release(args):
     ref = f"{CLAIM_NAMESPACE}/{args.number}/{args.phase}"
     held = next((c for c in claims(config, args.number) if c["phase"] == args.phase), None)
     assigned = claim_fields(config, held["sha"]).get("assigned") if held else None
-    code, _ = rest("DELETE", f"repos/{config['repo']}/git/refs/{ref}", check=False)
+    code, data = rest("DELETE", f"repos/{config['repo']}/git/refs/{ref}", check=False)
+    if code != 0 and held:  # the ref is there but stays: never reset a card whose lock is still held
+        raise Failure(f"could not release {ref}: {(data or {}).get('message', 'gh api failed')}")
     if code == 0 and assigned:  # undo only the assignment this claim made; a human's stays
         rest("DELETE", f"repos/{config['repo']}/issues/{args.number}/assignees", {"assignees": [assigned]}, check=False)
     if args.reset_to:
