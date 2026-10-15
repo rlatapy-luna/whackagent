@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+# wa-runner — the whackagent feedback runner of this machine (whackagent providers/github/wa-runner).
+# A review you leave on your own ticket PR runs /wa-feedback here, in your own Claude Code (hooks, plugins, settings,
+# auth), inside a tmux session you can attach to. Run from the repository's checkout:
+#   wa-runner setup      register this machine's runner for this repository, install the SwiftBar menu
+#   wa-runner status     this machine's runners and the rounds they ran
+#   wa-runner pause      stop taking rounds (they queue on GitHub, 24 h at most)
+#   wa-runner resume     take rounds again
+#   wa-runner remove     unregister this repository's runner, drop your login from WA_RUNNER_PROFILES
+#   wa-runner swiftbar   install or refresh the SwiftBar menu only
+set -euo pipefail
+
+say() { printf '%s\n' "$*"; }
+warn() { printf '⚠️  %s\n' "$*" >&2; }
+die() { printf '✗ %s\n' "$*" >&2; exit 1; }
+
+RUNNERS_ROOT="$HOME/actions-runner"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/whackagent/runner"
+
+set_env() {
+  local env="$1/.env"
+  { grep -v "^$2=" "$env" 2>/dev/null || true; printf '%s=%s\n' "$2" "$3"; } > "$env.tmp"
+  mv "$env.tmp" "$env"
+  chmod 600 "$env"
+}
+env_value() { { grep -E "^$2=" "$1/.env" 2>/dev/null || true; } | tail -n1 | cut -d= -f2-; }
+
+repo_context() {
+  command -v gh >/dev/null || die "gh not found: brew install gh"
+  gh auth status >/dev/null 2>&1 || die "gh not logged in: gh auth login"
+  local common
+  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || die "run from the repository's checkout"
+  REPO_PATH=$(dirname "$common")
+  REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+  PRIVATE=$(gh repo view --json isPrivate --jq .isPrivate)
+  LOGIN=$(gh api user --jq .login)
+  DIR="$RUNNERS_ROOT/whackagent-$(printf '%s' "$REPO" | tr '/' '-')"
+}
+
+profiles_edit() {
+  local action="$1" current updated
+  current=$(gh variable get WA_RUNNER_PROFILES --repo "$REPO" 2>/dev/null || echo '[]')
+  updated=$(python3 -c '
+import json, sys
+action, login, raw = sys.argv[1:4]
+try:
+    logins = [x for x in json.loads(raw) if isinstance(x, str)]
+except ValueError:
+    logins = []
+if action == "add" and login not in logins:
+    logins.append(login)
+if action == "remove":
+    logins = [x for x in logins if x != login]
+print(json.dumps(logins, separators=(",", ":")))
+' "$action" "$LOGIN" "$current")
+  [[ "$updated" != "$current" ]] || return 0
+  if gh variable set WA_RUNNER_PROFILES --repo "$REPO" --body "$updated" >/dev/null 2>&1; then
+    say "✓ WA_RUNNER_PROFILES = $updated"
+  else
+    warn "couldn't write WA_RUNNER_PROFILES (admin only): ask an admin to set it to $updated"
+  fi
+}
+
+service() { (cd "$1" && ./svc.sh "$2"); }
+runner_state() {
+  [[ -f "$1/.runner" ]] || { echo "not registered"; return; }
+  if pgrep -f "$1/bin/Runner.Listener" >/dev/null 2>&1; then echo online; else echo paused; fi
+}
+
+cmd_setup() {
+  repo_context
+  [[ "$PRIVATE" == true ]] || die "$REPO is public: a self-hosted runner there would run code from any fork on this machine"
+  case "$(uname -s)" in
+    Darwin) ;;
+    Linux) warn "Linux is untested: no SwiftBar menu, no notifications" ;;
+    *) die "macOS only (Linux untested)" ;;
+  esac
+  local missing=()
+  for tool in tmux claude python3 git; do command -v "$tool" >/dev/null || missing+=("$tool"); done
+  ((${#missing[@]} == 0)) || die "missing on PATH: ${missing[*]} (tmux: brew install tmux)"
+
+  cat <<EOF
+
+whackagent feedback runner for $REPO, as @$LOGIN
+
+  A review you leave on your own ticket PR will run /wa-feedback on this machine, in your own Claude Code:
+  your ~/.claude (hooks, plugins, settings), your git and gh credentials, permission mode auto,
+  in tmux session wa-<repo>-<pr>-… (attach to watch or take over).
+  Checkout: $REPO_PATH (rounds work in task worktrees, never switch this checkout's branch).
+
+⚠️  Security: the runner runs AS YOU, with your home, SSH keys, gh token and Claude subscription.
+   Anyone with write access to $REPO can push a workflow that targets your runner label and runs
+   code here. Install only on repositories whose writers you trust.
+
+EOF
+  local answer
+  read -r -p "Type yes to install: " answer
+  [[ "$answer" == yes ]] || die "not installed"
+
+  local platform version token
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) platform=osx-arm64 ;; Darwin-x86_64) platform=osx-x64 ;;
+    Linux-x86_64) platform=linux-x64 ;; Linux-aarch64) platform=linux-arm64 ;;
+    *) die "unsupported platform $(uname -sm)" ;;
+  esac
+  mkdir -p "$DIR"
+  if [[ -f "$DIR/.runner" ]]; then
+    say "Runner already registered: refreshing its settings and service."
+    service "$DIR" stop >/dev/null 2>&1 || true
+    service "$DIR" uninstall >/dev/null 2>&1 || true
+  else
+    token="${WA_RUNNER_REGISTRATION_TOKEN:-$(gh api --method POST "repos/$REPO/actions/runners/registration-token" --jq .token 2>/dev/null || true)}"
+    [[ -n "$token" ]] || die "registering a runner takes an admin of $REPO: ask one for a registration token (Settings → Actions → Runners → New), then WA_RUNNER_REGISTRATION_TOKEN=<token> $0 setup"
+    if [[ ! -x "$DIR/config.sh" ]]; then
+      version=$(gh api repos/actions/runner/releases/latest --jq .tag_name | sed 's/^v//')
+      say "Downloading actions-runner ${version}…"
+      curl -fsSL "https://github.com/actions/runner/releases/download/v$version/actions-runner-$platform-$version.tar.gz" | tar -xz -C "$DIR"
+    fi
+    # config.sh records this shell's PATH in .path: jobs then find tmux, claude and your toolchains.
+    (cd "$DIR" && ./config.sh --unattended --replace --url "https://github.com/$REPO" --token "$token" \
+      --name "$(hostname -s)-$LOGIN-whackagent" --labels "whackagent-$LOGIN" --work "$DIR/_work")
+  fi
+  set_env "$DIR" WA_RUNNER_REPO "$REPO"
+  set_env "$DIR" WA_REPO_PATH "$REPO_PATH"
+  set_env "$DIR" WA_RUNNER_PERMISSION_MODE "${WA_RUNNER_PERMISSION_MODE:-auto}"
+  [[ -z "${WA_RUNNER_CLAUDE_ARGS:-}" ]] || set_env "$DIR" WA_RUNNER_CLAUDE_ARGS "$WA_RUNNER_CLAUDE_ARGS"
+  if [[ "$(uname -s)" == Darwin ]]; then
+    service "$DIR" install >/dev/null
+    # svc.sh's SessionCreate gives the service a security session of its own: no login keychain, so neither
+    # Claude Code nor gh would find your login.
+    plutil -remove SessionCreate "$(cat "$DIR/.service")" 2>/dev/null || true
+    service "$DIR" start >/dev/null
+  elif command -v systemctl >/dev/null; then
+    service "$DIR" install >/dev/null
+    service "$DIR" start >/dev/null
+  else
+    warn "no service manager: start it with $DIR/run.sh"
+  fi
+  local tries=0
+  until [[ "$(runner_state "$DIR")" == online ]] || ((++tries > 15)); do sleep 1; done
+  say "✓ runner $(hostname -s)-$LOGIN-whackagent, label whackagent-$LOGIN, $(runner_state "$DIR")"
+  profiles_edit add
+  trusted=$(python3 -c '
+import json, os, sys
+try:
+    projects = json.load(open(os.path.expanduser("~/.claude.json"))).get("projects", {})
+except (OSError, ValueError):
+    projects = {}
+print("yes" if projects.get(sys.argv[1], {}).get("hasTrustDialogAccepted") else "no")
+' "$REPO_PATH")
+  [[ "$trusted" == yes ]] || warn "Claude Code never trusted $REPO_PATH: open claude there once and accept, or rounds stop on that prompt"
+  [[ "$(uname -s)" != Darwin ]] || cmd_swiftbar
+  say ""
+  say "Next: leave a review on one of your ticket PRs. Keep the Mac awake on power (System Settings → Battery)."
+}
+
+cmd_status() {
+  local dir found=0
+  for dir in "$RUNNERS_ROOT"/whackagent-*/; do
+    dir=${dir%/}
+    [[ -f "$dir/.env" ]] || continue
+    found=1
+    say "$(env_value "$dir" WA_RUNNER_REPO) · $(runner_state "$dir") · $(env_value "$dir" WA_REPO_PATH)"
+  done
+  ((found)) || say "no whackagent runner on this machine"
+  [[ -d "$STATE_DIR" ]] || return 0
+  local state status pr title result
+  for state in "$STATE_DIR"/*.state; do
+    [[ -f "$state" ]] || continue
+    status=$(sed -n 's/^status=//p' "$state") pr=$(sed -n 's/^pr=//p' "$state")
+    title=$(sed -n 's/^title=//p' "$state") result=$(sed -n 's/^result=//p' "$state")
+    say "  #$pr $title · $status${result:+ · $result}"
+  done
+}
+
+cmd_pause() { repo_context; [[ -f "$DIR/.runner" ]] || die "no runner for $REPO here"; service "$DIR" stop >/dev/null; say "⏸ paused: rounds queue on GitHub (24 h at most)"; }
+cmd_resume() { repo_context; [[ -f "$DIR/.runner" ]] || die "no runner for $REPO here"; service "$DIR" start >/dev/null; say "▶ $(runner_state "$DIR")"; }
+
+cmd_remove() {
+  repo_context
+  [[ -f "$DIR/.runner" ]] || die "no runner for $REPO here"
+  service "$DIR" stop >/dev/null 2>&1 || true
+  service "$DIR" uninstall >/dev/null 2>&1 || true
+  local token
+  token=$(gh api --method POST "repos/$REPO/actions/runners/remove-token" --jq .token 2>/dev/null || true)
+  if [[ -n "$token" ]] && (cd "$DIR" && ./config.sh remove --token "$token" >/dev/null); then
+    say "✓ runner unregistered"
+  else
+    warn "couldn't unregister (admin only): ask an admin to remove it in Settings → Actions → Runners"
+  fi
+  rm -rf "$DIR"
+  local other
+  other=$(gh api "repos/$REPO/actions/runners" --jq "[.runners[] | select(.labels[].name == \"whackagent-$LOGIN\")] | length" 2>/dev/null || echo 0)
+  if [[ "$other" == 0 ]]; then profiles_edit remove; else say "other machines still run for @$LOGIN: WA_RUNNER_PROFILES kept"; fi
+}
+
+cmd_swiftbar() {
+  local plugins
+  plugins=$(defaults read com.ameba.SwiftBar PluginDirectory 2>/dev/null || true)
+  if [[ -z "$plugins" ]]; then
+    warn "SwiftBar not set up: brew install --cask swiftbar, open it, pick a plugin folder, then $0 swiftbar"
+    return 0
+  fi
+  plugins=${plugins/#\~/$HOME}
+  mkdir -p "$plugins"
+  write_swiftbar_plugin > "$plugins/whackagent-runner.10s.sh"
+  chmod +x "$plugins/whackagent-runner.10s.sh"
+  open -g "swiftbar://refreshallplugins" 2>/dev/null || true
+  say "✓ SwiftBar menu: $plugins/whackagent-runner.10s.sh"
+}
+
+write_swiftbar_plugin() {
+  cat <<'PLUGIN'
+#!/usr/bin/env bash
+# <xbar.title>whackagent runner</xbar.title>
+# <xbar.desc>Feedback rounds of the whackagent runner on this machine. Written by wa-runner swiftbar.</xbar.desc>
+# <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
+# <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/whackagent/runner"
+RUNNERS_ROOT="$HOME/actions-runner"
+field() { sed -n "s/^$1=//p" "$2" | head -n1; }
+
+case "${1:-}" in
+  attach) exec tmux attach -t "=$2" ;;
+  resume) cd "$(field repo_path "$STATE_DIR/$2.state")" && exec claude --resume "$(field session_id "$STATE_DIR/$2.state")" ;;
+  pause) cd "$2" && ./svc.sh stop; exit ;;
+  start) cd "$2" && ./svc.sh start; exit ;;
+  forget) rm -f "$STATE_DIR/$2".*; exit ;;
+  clear)
+    for s in "$STATE_DIR"/*.state; do
+      [[ -f "$s" ]] || continue
+      case "$(field status "$s")" in running|waiting) ;; *) rm -f "${s%.state}".* ;; esac
+    done
+    exit ;;
+esac
+
+ago() {
+  local s=$(( $(date +%s) - $1 ))
+  if ((s < 3600)); then echo "$((s / 60))m"; elif ((s < 86400)); then echo "$((s / 3600))h"; else echo "$((s / 86400))d"; fi
+}
+
+running=0 waiting=0 paused=0 rows=() recent=()
+for s in $(ls -t "$STATE_DIR"/*.state 2>/dev/null); do
+  key=$(basename "$s" .state) status=$(field status "$s") pr=$(field pr "$s") title=$(field title "$s")
+  repo=$(field repo "$s") session=$(field session "$s") started=$(field started "$s") ended=$(field ended "$s")
+  result=$(field result "$s") run_url=$(field run_url "$s")
+  live=0; tmux has-session -t "=$session" 2>/dev/null && live=1
+  [[ "$status" != running || $live == 1 ]] || status=failed
+  [[ "$status" != waiting || $live == 1 ]] || status=ended
+  case "$status" in
+    running) running=$((running + 1)); icon="▶" ;;
+    waiting) waiting=$((waiting + 1)); icon="⚠️" ;;
+    ready) icon="✅" ;; draft) icon="📝" ;; ended) icon="◻︎" ;; released|busy) icon="↩︎" ;; blocked) icon="⛔" ;; *) icon="✗" ;;
+  esac
+  when=$(ago "${ended:-$started}")
+  line="$icon #$pr ${title:0:40} · $status · $when"
+  entry=("$line | href=https://github.com/$repo/pull/$pr")
+  [[ -z "$result" ]] || entry+=("--$result")
+  ((live)) && entry+=("--Attach session | bash=\"$0\" param1=attach param2=$session terminal=true")
+  ((live)) || entry+=("--Resume session | bash=\"$0\" param1=resume param2=$key terminal=true")
+  entry+=("--Actions log | href=$run_url" "--Forget | bash=\"$0\" param1=forget param2=$key terminal=false refresh=true")
+  if [[ "$status" == running || "$status" == waiting ]]; then rows+=("${entry[@]}"); else recent+=("${entry[@]}"); fi
+done
+
+runners=()
+for dir in "$RUNNERS_ROOT"/whackagent-*/; do
+  dir=${dir%/}
+  [[ -f "$dir/.runner" ]] || continue
+  repo=$(sed -n 's/^WA_RUNNER_REPO=//p' "$dir/.env")
+  if pgrep -f "$dir/bin/Runner.Listener" >/dev/null 2>&1; then
+    runners+=("● $repo · online | color=green" "--Pause | bash=\"$0\" param1=pause param2=\"$dir\" terminal=false refresh=true")
+  else
+    paused=$((paused + 1))
+    runners+=("⏸ $repo · paused" "--Resume | bash=\"$0\" param1=start param2=\"$dir\" terminal=false refresh=true")
+  fi
+done
+
+if ((waiting)); then echo "⚠️ $waiting"
+elif ((running)); then echo "◐ $running"
+elif ((paused)) && ((${#runners[@]} == paused * 2)); then echo "⏸"
+else echo "◯"; fi
+echo "---"
+((${#rows[@]})) && printf '%s\n' "${rows[@]}" && echo "---"
+if ((${#recent[@]})); then printf '%s\n' "${recent[@]:0:40}"; echo "Clear finished | bash=\"$0\" param1=clear terminal=false refresh=true"; echo "---"; fi
+((${#rows[@]} + ${#recent[@]})) || { echo "No feedback round yet"; echo "---"; }
+if ((${#runners[@]})); then printf '%s\n' "${runners[@]}"; else echo "No runner — .github/board/wa-runner setup"; fi
+PLUGIN
+}
+
+case "${1:-}" in
+  setup) cmd_setup ;;
+  status) cmd_status ;;
+  pause) cmd_pause ;;
+  resume) cmd_resume ;;
+  remove) cmd_remove ;;
+  swiftbar) cmd_swiftbar ;;
+  ""|-h|--help|help) sed -n '2,10s/^# \{0,1\}//p' "$0" ;;
+  *) die "unknown command $1 (setup, status, pause, resume, remove, swiftbar)" ;;
+esac

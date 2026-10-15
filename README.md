@@ -188,6 +188,7 @@ pr:
 | `review.public_doc` | `true` | The verifier requires doc comments on public API |
 | `build.test_command` | `""` | Test command; empty uses the build tool's own test task |
 | `verify.target` | `local` | Where the runtime check runs: `simulator`, `emulator`, `device`, `browser` or `local` |
+| `feedback.auto` | `false` | GitHub provider, private repo: a review you leave on your own ticket PR runs `/wa-feedback` on your machine. See [Feedback runner](#feedback-runner) |
 | `branch.checkout_next` | `true` | After `/wa-close`, check out the next task's branch (with `branch.per_task` and `commit.auto_commit_after_validation`) |
 
 ## Typical flow
@@ -352,7 +353,30 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 - **Setup:** `/wa-setup backlog` creates or adopts the Project, adds the columns without touching existing ones, installs the hooks workflow through a PR (a small caller of whackagent's reusable workflow, so hook fixes reach every project with each release, no new PR), and walks you through the `WA_PROJECT_TOKEN` secret (a classic PAT with `project` + `repo`, needed because the Actions token can't write to Projects). That token reaches every repository its account can, and any collaborator with write access can read it, so create it on a dedicated bot account. It can migrate an existing local backlog.
 - **Workflow at a glance:** [WORKFLOW.md](WORKFLOW.md), short notes and diagrams: board states, whose turn it is, any work loop, the whackagent loop, merge, hook events.
 - **Full walkthrough:** [GITHUB.md](GITHUB.md) explains what every command does on GitHub, the agent round, PRs, sprints, stacking and the gotchas.
+- **Feedback runner** (opt-in, `feedback.auto`): review your own PR on GitHub and your machine applies it. See [Feedback runner](#feedback-runner).
 - **Another tracker** (Jira, Linear, Trello, Notion) means a new folder under `providers/` implementing the same contract (`providers/CONTRACT.md`); the skills don't change.
+
+### Feedback runner
+
+With the GitHub provider on a private repository, you can review your own ticket PR on GitHub, line by line in the diff, and let your machine apply it. Turn on `feedback.auto` (`/wa-setup backlog` asks), merge the PR it opens, then each dev who wants it runs, from their checkout:
+
+```bash
+.github/board/wa-runner setup
+```
+
+It registers a self-hosted GitHub Actions runner on your machine, labeled `whackagent-<login>`, adds your login to the repository variable `WA_RUNNER_PROFILES`, and installs a [SwiftBar](https://swiftbar.app) menu. Registering takes an admin of the repository, or a registration token one gives you. It needs `tmux` and Claude Code on your `PATH`.
+
+Then, when you submit a review on your own ticket PR (GitHub only lets you comment there, never request changes), or comment `/wa-feedback <notes>` on it:
+
+- The runner on your machine starts `/wa-feedback #<n> afk` in **your own Claude Code**, with your hooks, plugins, settings and login, in permission mode `auto`, inside a tmux session. Attach to it to watch or take over (`tmux attach -t wa-<repo>-<n>-…`, or one click in the menu). The round works in the task's worktree, so your checkout never switches branch. The round's own GitHub writes (claim and release of its ticket, push of its branch, its PR's body, draft state, comments and thread replies) are pre-approved for that PR only; anything else stays under auto mode's classifier, and a block leaves the session waiting for you.
+- Clear notes (defects, adjustments) are fixed and pushed. Each fixed thread gets a reply with the commit and is resolved. A note it can't settle alone (unclear, new scope, a durable rule) gets a reply with its recommended answer and stays open: answer it in the thread, and your next review starts the next round.
+- A PR that was ready is re-validated in the same round, and marked ready again only if the verifier is clean and build and tests prove every criterion. With `verify.mode: always` it stays draft, since the runner drives no app. A draft stays a draft.
+- If someone else holds the ticket mid-round, the runner comments on the PR and stops: their next `/wa-feedback` reads the open threads anyway.
+- A macOS notification marks start and end, or tells you when Claude stopped and waits for you. The menu bar shows running rounds, recent results, and lets you pause the runner. `wa-runner status`, `pause`, `resume` and `remove` do the same from the terminal.
+
+Label a PR `wa-manual` to keep it out. A dev without a runner gets one comment explaining how to set one up.
+
+> **Security.** The runner runs as you, with your home, SSH keys, gh token and Claude subscription. Anyone with write access to the repository can push a workflow that targets your runner's label. Use it only on private repositories whose writers you trust. On a public repository the workflow refuses to run.
 
 ## File tree created in your project
 

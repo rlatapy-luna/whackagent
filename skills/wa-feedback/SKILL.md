@@ -86,11 +86,32 @@ Ticket sits in `review` between rounds (**wa-board → Backlog provider**, *Agen
 - **Round ends without push** — nothing to push (all items new scope), user drops round, `BLOCKED:` left open → `release <n> coding --reset-to review --reason "<why>"`. Claim never left dangling.
 - **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) with `commit.author_*`, push to PR, then **refresh PR body** (**wa-board → Backlog provider**, *PR body refresh*) — criteria triage moved, new behavior, status line `Draft — feedback round <n> not reviewed yet`. UI changed → refresh screenshots (**wa-board → Backlog provider**, *Screenshots*). Hook keeps `review`, drops claim, comments on ticket and PR with line permalink to new `## Feedback` round (`### Round <n>` block) — task file stays source, no `gh issue comment` / `gh pr comment` here, would double it. Next: your retest.
 
-Never mark ready, never merge — `/wa-validate` marks ready, `/wa-close` merges on user's yes.
+Never mark ready, never merge — `/wa-validate` marks ready, `/wa-close` merges on user's yes. AFK mode exception: below.
+
+## AFK mode — feedback runner
+
+Arg `afk` (`/wa-feedback #<n> afk [review:<id>] [notes]`). Started by **feedback runner** (`feedback.auto: true`, `.github/workflows/whackagent-feedback.yml`): PR author left review on own ticket PR, or commented `/wa-feedback <notes>`; runner launched this session on **their** machine, their Claude Code, in tmux. GitHub provider only — local provider → say so, stop. Nobody at keyboard; user may attach mid-round, still behave AFK. Rules above hold, these change:
+
+- **Never ask.** No question tool, no "stop and ask". Each doubt → thread reply (below), round goes on with rest.
+- **GitHub writes bare, exact form** — runner pre-approves only these, matched per subcommand; anything chained (`cd … &&`, `; echo $?`, pipe) falls to classifier, which blocks it. One per Bash call, cwd = worktree root, exit code already shown:
+  - `.github/board/wa-backlog claim <n> coding` · `.github/board/wa-backlog release <n> coding …` (project copy, not plugin path)
+  - `git push origin <branch>` · `git push --force-with-lease origin <branch>`
+  - `gh pr ready <pr>` · `gh pr ready <pr> --undo` · `gh pr edit <pr> --body-file <file>` · `gh pr comment <pr> --body-file <file>`
+  - reply: `gh api repos/<owner>/<repo>/pulls/<pr>/comments/<id>/replies -f body=…` (path first, no `-X`)
+  - resolve: `gh api graphql …resolveReviewThread…` not pre-approved — blocked → leave thread open, its reply already says fixed.
+- **Worktree always** — `{worktrees}/<slug>` from `origin/<branch>` (**wa-board → Worktrees**), whatever `branch.worktree`. Main checkout = user's, never switch its branch, never touch its tree.
+- **Hooks version gate** stops → result `blocked`, gate message as summary.
+- **Claim exit 3** → one PR comment `Feedback runner: #<n> held by <owner> — your review waits for their next /wa-feedback, which reads open threads.`, result `busy`, stop.
+- **Input** = PR author's **unresolved** review threads (GraphQL `reviewThreads`, `isResolved: false`, full thread so an answer to earlier runner question reads in context) + body of review `<id>` + notes. Thread whose last comment is runner reply (marker `<!-- wa-feedback-runner -->`) → nothing new, skip. Item = one thread, or one note.
+- **Triage** same four buckets. **defect / adjustment** → fix (micro-fix or implementer, unchanged). **Doubt** (bucket unclear, intent ambiguous), **new scope**, **rule**, implementer `BLOCKED:` → don't code it, **reply in its thread** (review-comment reply API; review body or note → one PR comment) with recommended answer + one-line why: new scope → `/wa-task <desc>` proposed; rule → drafted convention line, never written. Thread stays open: user answers there, next review starts next round.
+- **Was PR ready?** Read before `gh pr ready --undo`. Ready → after fixes, **same claim, before push**, run **wa-validate → GitHub provider** steps 2–3 unattended: verifier, autofix, wiki, rebase **without confirm** (nobody to confirm; `--force-with-lease`). Mark ready only when verdict clean **and** every criterion proved by build + tests (BOARD.md → unattended rule). `verify.mode: always` → runner drives nothing: criteria needing app stay unproven → PR stays draft, status `Draft — feedback runner round <n>, app not driven. Test, then /wa-validate <n>.` Was draft → stays draft, status `Draft — feedback runner round <n>. Retest, then /wa-feedback · /wa-validate.`
+- **Round end** — commit + push as attended (task file `## Feedback` round heading `### Round <n> — YYYY-MM-DD (runner)`, user words = thread quotes), body refresh. Then each **fixed** thread: reply `Fixed in <sha7> — <one line>` (commit URL) + marker, then resolve (GraphQL `resolveReviewThread`). Every reply carries `<!-- wa-feedback-runner -->`: gate skips reviews made only of them, else each reply starts next round.
+- **Nothing to push** (all doubts) → replies posted, `release <n> coding --reset-to review --reason "feedback runner: questions in threads"`. Was ready and undo ran → `gh pr ready` again.
+- **Result** — last action, `$WA_ROUND_RESULT` set → write two lines: outcome (`ready` | `draft` | `released` | `busy` | `blocked`) then one-line summary (`3 fixed, 1 question · #42 draft`). Runner ends session on it; missing file = session waits for human. Report card printed as usual (seen on attach).
 
 ## Asking
 
-Triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always with your recommended answer** and one-line reason (which bucket you'd pick, what you'd change). Never bounce bare question back at user. Same rule as `/wa-grill`.
+AFK mode → never ask, thread replies instead (above). Otherwise: triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always with your recommended answer** and one-line reason (which bucket you'd pick, what you'd change). Never bounce bare question back at user. Same rule as `/wa-grill`.
 
 ## Never
 
@@ -99,7 +120,7 @@ Triage doubt, ambiguous note, `BLOCKED:` from implementer → ask, but **always 
 - Never leave inline fix unbuilt, untested, or untagged.
 - Never implement new feature arriving disguised as feedback.
 - Never add comments explaining fix (`style.md` — code carry meaning, task file carry rationale).
-- Never commit and never close — `/wa-validate` own review, `/wa-close` own commit and branch. GitHub provider exception: round-end commit + push (above).
+- Never commit and never close — `/wa-validate` own review, `/wa-close` own commit and branch. GitHub provider exception: round-end commit + push (above); AFK mode may also mark ready (above), never merge.
 
 ## Next step
 

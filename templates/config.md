@@ -197,6 +197,16 @@ pr:                            # HOW every PR whackagent open look — ticket dr
   doc: ""                      # PR rules keys can't say (changelog line, size limit) — `path` or
                                # `path#Heading` (CONTRIBUTING.md#Pull requests). Empty → none.
 
+feedback:
+  auto: false                  # GitHub provider, private repo: review you leave on YOUR OWN ticket PR (or
+                               # `/wa-feedback <notes>` comment of yours) runs /wa-feedback AFK on YOUR machine —
+                               # self-hosted runner, your own Claude Code (hooks, plugins, auth), in tmux you can
+                               # attach to. Clear items fixed + pushed, doubts answered in their thread. PR ready
+                               # before → re-validated, ready again only if clean.
+                               # true → /wa-setup installs .github/workflows/whackagent-feedback.yml + CLI
+                               # .github/board/wa-runner; each dev opts in with `wa-runner setup`.
+                               # Label PR `wa-manual` to keep it out. false → you run /wa-feedback yourself.
+
 compress_wiki: true            # caveman-compress config + wiki pages to save re-read tokens
                                # (at /wa-setup and after every /wa-wiki update; .original backups removed)
 ---

@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- GitHub provider: feedback runner, opt-in with `feedback.auto: true`. On a private repository, a review you leave on your own ticket PR (or a `/wa-feedback <notes>` comment of yours) runs `/wa-feedback` by itself on your machine, in your own Claude Code inside a tmux session you can attach to. Clear notes are fixed and pushed, fixed threads answered and resolved, doubts answered in their thread with a recommended answer; a PR that was ready is re-validated and readied again only when clean. Each dev opts in with `.github/board/wa-runner setup` (self-hosted runner, SwiftBar menu, notifications).
+
 ## [1.4.0] - 2026-10-15
 
 ### Added
