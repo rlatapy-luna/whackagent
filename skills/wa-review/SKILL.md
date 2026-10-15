@@ -24,11 +24,11 @@ Wording (screen + reports): **wa-board → Voice** — telegraphic, tech terms s
 ## Do
 
 1. Resolve scope + changed/target files.
-2. **Dispatch one **wa-verifier**.** **Note `agentId`** — how later rounds resume it. Pass module paths (`review.modules`), target files **plus diff hunks when scope is diff**, and toggles.
+2. **Dispatch one **wa-verifier**.** **Note `agentId`** — how later rounds resume it. Pass modules (`review.modules` per **wa-board → Paths**), target files **plus diff hunks when scope is diff**, and toggles.
 3. **Check `LENSES:` line** — `style`, `elegance`, `structure`, `correctness`, all four ✓; missing one goes back for that lens alone. Then show findings severity-ordered, grouped by lens tag.
 4. **Fix?**
    - Default → **report only**. No mutate existing code unasked.
-   - `--fix` → dispatch **wa-implementer** in **fix mode** with aggregated findings + module paths (tell it: fix only what findings name, re-read style, add no comments), note `agentId`, then re-review. Loop until clean or no progress (cap 3 rounds). `BLOCKED:` → stop and ask.
+   - `--fix` → dispatch **wa-implementer** in **fix mode** with aggregated findings + modules (tell it: fix only what findings name, re-read style, add no comments), note `agentId`, then re-review. Loop until clean or no progress (cap 3 rounds). `BLOCKED:` → stop and ask.
    - **Rounds 2+ resume same agent by id** instead of respawn — per **`/wa-code` → step 3** (delta only, anti-stale warning, respawn fresh past 3 rounds, fall back to fresh spawn if id lost).
 5. If invoked on whackagent task (path is task files), record findings in task `## Review`.
 

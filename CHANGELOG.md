@@ -6,7 +6,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Added
 
-- Convention modules can be linked to the plugin instead of copied: `review.modules` entries like `plugin:kotlin/elegance.md` read the plugin's own file on each machine, so every project and developer shares one rulebook that follows plugin updates. Rules `/wa-feedback` captures go to a small project overlay listed after the linked module. `/wa-setup` asks link or copy (recommended: link), and `/wa-setup review` migrates an existing project's copies, keeping its own lines as overlays. Existing configs keep working unchanged.
+- Your company's coding rules can be the rulebook: `review.modules` accepts `skill:<plugin>:<skill>` entries (e.g. `skill:lunabee-android:android-development`), loaded by name from another installed plugin, so every project, machine and developer reviews against the same rules with no copy and no local path. Rules `/wa-feedback` captures go to a project file listed after it. `/wa-setup` detects such skills and offers them, dropping the whackagent modules they cover. A missing plugin stops the run with the plugin to install. Existing configs keep working unchanged.
 
 ## [1.4.0] - 2026-10-15
 

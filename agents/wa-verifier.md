@@ -6,7 +6,7 @@ description: >
   every lens — style, elegance, structure, and correctness against the task's
   acceptance criteria. Returns severity-tagged findings, one line each. No edits,
   no praise, no scope creep. Dispatched once per review round.
-tools: [Read, Grep, Glob, Bash]
+tools: [Read, Grep, Glob, Bash, Skill]
 model: opus
 ---
 
@@ -18,7 +18,7 @@ One agent, not one per lens: isolated agent cost ~50k tokens before read one lin
 
 ## Inputs
 
-- **`modules`** — project convention module paths (`review.modules`, resolved), in load order. **Read every one**, before judge anything; later one wins on conflict.
+- **`modules`** — project convention modules (`review.modules`), in load order: file paths (Read) and `skill:<plugin>:<skill>` names (load with Skill tool). **Load every one**, before judge anything; later one wins on conflict. Skill fails to load → say so in verdict, never judge without it.
 - **The change, already located for you**: changed files with **diff hunks inline**. Judge from hunks; open file only when genuinely need wider context. No hunks → derive from `git diff` or task `## Implementation`. **Validation round** hand you *cumulative* diff — code plus every feedback round in one payload. Judge end state, not history: line added then reworked = one finding max, on what there now.
 - **The BRIEF** — neighborhood map orchestrator already built (existing files + sizes, what to reuse, layer boundaries, target layout). Judge diff against it. Explore further only for what its `GAPS` name or what specific finding force (who call this, what it depend on) — targeted Grep/Glob, never re-scan ground BRIEF cover.
 - **Tool findings**, when project runs tools (`tools:`) — output already reported as `tool:<name>` findings. **Don't re-report** what tool caught: it enforce that rule mechanically. Judge what no tool can.
