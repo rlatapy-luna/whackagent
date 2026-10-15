@@ -93,6 +93,12 @@ Never mark ready, never merge — `/wa-validate` marks ready, `/wa-close` merges
 Arg `afk` (`/wa-feedback #<n> afk [review:<id>] [notes]`). Started by **feedback runner** (`feedback.auto: true`, `.github/workflows/whackagent-feedback.yml`): PR author left review on own ticket PR, or commented `/wa-feedback <notes>`; runner launched this session on **their** machine, their Claude Code, in tmux. GitHub provider only — local provider → say so, stop. Nobody at keyboard; user may attach mid-round, still behave AFK. Rules above hold, these change:
 
 - **Never ask.** No question tool, no "stop and ask". Each doubt → thread reply (below), round goes on with rest.
+- **GitHub writes bare, exact form** — runner pre-approves only these, matched per subcommand; anything chained (`cd … &&`, `; echo $?`, pipe) falls to classifier, which blocks it. One per Bash call, cwd = worktree root, exit code already shown:
+  - `.github/board/wa-backlog claim <n> coding` · `.github/board/wa-backlog release <n> coding …` (project copy, not plugin path)
+  - `git push origin <branch>` · `git push --force-with-lease origin <branch>`
+  - `gh pr ready <pr>` · `gh pr ready <pr> --undo` · `gh pr edit <pr> --body-file <file>` · `gh pr comment <pr> --body-file <file>`
+  - reply: `gh api repos/<owner>/<repo>/pulls/<pr>/comments/<id>/replies -f body=…` (path first, no `-X`)
+  - resolve: `gh api graphql …resolveReviewThread…` not pre-approved — blocked → leave thread open, its reply already says fixed.
 - **Worktree always** — `{worktrees}/<slug>` from `origin/<branch>` (**wa-board → Worktrees**), whatever `branch.worktree`. Main checkout = user's, never switch its branch, never touch its tree.
 - **Hooks version gate** stops → result `blocked`, gate message as summary.
 - **Claim exit 3** → one PR comment `Feedback runner: #<n> held by <owner> — your review waits for their next /wa-feedback, which reads open threads.`, result `busy`, stop.
