@@ -67,10 +67,15 @@ review:
   autofix: true                # wa-code verify phase re-dispatch implementer until clean
   public_doc: true             # require doc on public API — flip false per company
   modules: [generic.md]        # what single wa-verifier load before judging. Setup write
-                               # what it actually copied: UI module (swiftui.md, compose.md)
+                               # only relevant ones: UI module (swiftui.md, compose.md)
                                # only if project use that toolkit,
                                # architecture-package.md for non-app kinds, single <lang>.md for
-                               # one-file packs. Paths relative to {conventions}.
+                               # one-file packs. `plugin:kotlin/style.md` = linked to plugin's
+                               # module (one source for every project, machine, dev; follows plugin
+                               # updates); plain path = project file relative to {conventions}
+                               # (copy, or overlay with project-only rules). Order = load order,
+                               # later wins. e.g. [plugin:kotlin/style.md, plugin:kotlin/elegance.md,
+                               # elegance.md] (wa-board → Paths).
                                # ONE verifier, not one per lens: isolated agent cost ~50k tokens
                                # context before reading a line, and every lens judge same diff
                                # against same rulebook — splitting pay twice, leave duplicate

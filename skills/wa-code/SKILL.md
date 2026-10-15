@@ -80,8 +80,8 @@ Local provider → `comment` is no-op, nothing to do. Later round re-plans brick
 
 **One implementer for whole task**, bricks fed one at a time (sequential — builds collide otherwise).
 
-- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, conventions dir, test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**wa-board → Worktrees**).
-- **Bricks 2..n** — `SendMessage` that id next brick **alone**. No conventions dir, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
+- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, module paths (`review.modules` resolved, **wa-board → Paths**), test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**wa-board → Worktrees**).
+- **Bricks 2..n** — `SendMessage` that id next brick **alone**. No modules, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
 
 Receipts:
 - `RESULT: done` → record files + build/test/tools/run proof in `## Implementation`, continue.

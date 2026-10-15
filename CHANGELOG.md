@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Convention modules can be linked to the plugin instead of copied: `review.modules` entries like `plugin:kotlin/elegance.md` read the plugin's own file on each machine, so every project and developer shares one rulebook that follows plugin updates. Rules `/wa-feedback` captures go to a small project overlay listed after the linked module. `/wa-setup` asks link or copy (recommended: link), and `/wa-setup review` migrates an existing project's copies, keeping its own lines as overlays. Existing configs keep working unchanged.
+
 ## [1.4.0] - 2026-10-15
 
 ### Added

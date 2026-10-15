@@ -169,6 +169,7 @@ Every whackagent skill writes `{backlog}` `{tasks}` `{wiki}` `{reports}` `{conve
 - **Relative resolves from repo root**, not cwd. Absolute paths resolve, but never user-specific ones (`/Users/<name>`, `/home/<name>`, `~`) — config versioned, shared.
 - **`.whackagent/config.md` is the one fixed path** — it carry the others.
 - Path points at nothing → say which key and what it points at, suggest `/wa-setup`. Never fall back to `.whackagent/` behind user back, never create folder somewhere else: wiki silently written to default is wiki team never sees.
+- **Convention modules** — `review.modules` entry `plugin:<path>` → `${CLAUDE_PLUGIN_ROOT}/conventions/<path>` (linked: plugin's live module, follows plugin updates, resolved on each machine at run time); any other entry → `{conventions}/<path>` (project file: full copy, or overlay of project rules on top of linked module). List order = load order, **later wins on conflict**. Orchestrator resolves list to absolute paths and hands those to subagents — never `plugin:` string, never a dir. Linked file missing (plugin too old, module renamed) → say which entry, suggest updating plugin or `/wa-setup review`; never skip it silently.
 
 ## Worktrees
 

@@ -359,7 +359,7 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 ```
 .whackagent/
   config.md            # language, coding language, project_kind, review timing + modules, paths, commit + branch + close policy
-  conventions/         # copied convention modules (only the useful ones), editable per project
+  conventions/         # project rules: overlays on linked plugin modules, or full copies
   BACKLOG.md           # task index (order = priority)
   tasks/<slug>.md      # one task = one file (frontmatter + body)
   wiki/index.md        # wiki summary
@@ -423,9 +423,21 @@ conventions/swift/                    conventions/kotlin/
 
 Single-file packs: `typescript.md` (front end and back end) and `generic.md` — the fallback for every other language (Rust, Go, Python, C#, Java, Dart, …). Generic is a starting point to grow with your team's rules, not a lesser mode: the pipeline, the runtime check and the review work the same whatever pack is loaded.
 
-`/wa-setup` detects the language, the **kind** (`app` · `web` · `server` · `cli` · `package`) and the UI toolkit, then copies **only the useful modules** into `.whackagent/conventions/` (no `swiftui.md` in a package without SwiftUI, no `compose.md` in a Ktor server). You edit these copies to adapt per project (e.g. drop public doc). A polyglot repo (KMP shared code + iOS app) can load two packs.
+`/wa-setup` detects the language, the **kind** (`app` · `web` · `server` · `cli` · `package`) and the UI toolkit, then picks **only the useful modules** (no `swiftui.md` in a package without SwiftUI, no `compose.md` in a Ktor server). A polyglot repo (KMP shared code + iOS app) can load two packs.
 
-The copied list lands in `review.modules` — the verifier reads exactly that, and nothing else in the tree.
+The picked modules are either **linked** or **copied**, asked at setup:
+
+- **Linked** (recommended): `review.modules` points at the plugin's own files, e.g. `plugin:kotlin/elegance.md`, resolved on each machine at run time. Every project, machine and developer reads the same rulebook, and rule improvements arrive with plugin updates. Rules your team adds (captured by `/wa-feedback`) go to a small project file listed right after it, e.g. `elegance.md` in `.whackagent/conventions/`, which only holds the project's additions and wins on conflict. Each developer reviews against the plugin version they have installed, so keep the team on the same version.
+- **Copied**: the modules are copied into `.whackagent/conventions/` and you own them entirely (e.g. drop public doc). Upstream changes reach you only when `/wa-setup` shows you the diff and you accept it.
+
+An existing project switches from copied to linked with `/wa-setup review`: identical copies are replaced by links, and edited ones are cut down to the project's own lines.
+
+```yaml
+review:
+  modules: [plugin:kotlin/style.md, plugin:kotlin/elegance.md, elegance.md, plugin:kotlin/architecture-app.md]
+```
+
+The verifier and the implementer read exactly `review.modules`, in order, and nothing else in the tree.
 
 ## Skill dependencies
 
