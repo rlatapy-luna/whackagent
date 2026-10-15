@@ -169,6 +169,8 @@ Without an argument, it picks the top unclaimed `grilled` ticket. It claims `cod
 
 Claims `coding` from `review`. Its input is your notes **plus the PR's review comments**, triaged the same way. A PR already marked ready is turned back into a draft first, so nobody merges code that is moving. The round ends with a push and a body refresh; the ticket goes back to `review`, and the hook comments on the ticket and on the PR with a permalink to the new `## Feedback` round in the task file (what you asked, triage, what changed, verdicts). GitHub embeds those lines as a snippet; the task file stays the source of truth.
 
+**Feedback runner** (`feedback.auto: true`): when you review your own ticket PR on GitHub, or comment `/wa-feedback <notes>` on it, the same round starts by itself on your machine, in your own Claude Code inside tmux, through a self-hosted runner (`.github/board/wa-runner setup`). It never asks: clear notes are fixed, each fixed thread is answered with the commit and resolved, and every doubt gets a reply in its thread with the recommended answer, left open for you. A PR that was ready is re-validated in the same claim and marked ready again only when clean and fully proven by build and tests. A busy claim gets one comment, and the round stops. See [README → Feedback runner](README.md#feedback-runner).
+
 ### `/wa-validate #12`
 
 Claims `coding` from `review`, runs the project tools and the verifier over the ticket's whole diff, and autofixes. When the verdict is clean, the same round gets the PR ready to merge:

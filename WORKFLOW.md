@@ -226,6 +226,27 @@ stateDiagram-v2
 | `pull_request: closed`, unmerged | not `done`, no coding claim, no other open PR for ticket | `grilled` |
 | scheduled, once a day on weekdays at 06:17 UTC (cron `17 6 * * 1-5`), or run by hand (`workflow_dispatch`) | — | board check, report only |
 
+Feedback runner (`feedback.auto`, separate caller `whackagent-feedback.yml`, private repo only), moves no card itself:
+
+| Event | Condition | Result |
+| --- | --- | --- |
+| `pull_request_review: submitted` | PR author on own open ticket PR, state `COMMENTED`, not only runner replies, no `wa-manual` | `/wa-feedback #<n> afk` on author's runner (`whackagent-<login>`), in their Claude Code, in tmux. Round claims `coding` like any |
+| `issue_comment: created` | PR author, body starts `/wa-feedback` | same, notes = rest of comment |
+| either | author not in `WA_RUNNER_PROFILES` / repo public | one comment on PR, nothing runs |
+
+```mermaid
+sequenceDiagram
+  actor Dev as PR author
+  participant GH as GitHub
+  participant R as Dev's runner (tmux)
+  Dev->>GH: review own PR (comments)
+  GH->>R: job runs-on whackagent-<login>
+  R->>GH: claim coding, fix, push, reply + resolve threads
+  GH-->>GH: synchronize hook → review
+  R-->>Dev: notification, SwiftBar menu
+  Note over Dev,R: doubts → thread reply, open → next review = next round
+```
+
 Card in column outside six states → hooks hands off. Except coding claim held → card taken back (GitHub built-in "Pull request linked to issue" workflow moves it; switch that off).
 
 ## Board check

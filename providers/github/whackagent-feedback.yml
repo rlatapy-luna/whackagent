@@ -1,0 +1,23 @@
+# whackagent feedback runner — template version: 1
+# Installed by /wa-setup when `feedback.auto: true` (providers/github/whackagent-feedback.yml).
+# Caller only: the logic lives in rlatapy-luna/whackagent and updates itself through the `hooks-v2` tag.
+# A review you leave on your own ticket PR, or a `/wa-feedback <notes>` comment of yours on it, runs /wa-feedback
+# on your machine, in your own Claude Code, through the self-hosted runner `.github/board/wa-runner setup` registers.
+# Private repositories only. Label a PR `wa-manual` to keep it out.
+
+name: whackagent feedback
+
+on:
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  feedback:
+    uses: rlatapy-luna/whackagent/.github/workflows/feedback.yml@hooks-v2

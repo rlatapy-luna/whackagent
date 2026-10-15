@@ -1,0 +1,199 @@
+# whackagent feedback runner — reusable logic. Projects never copy this file: their caller
+# (providers/github/whackagent-feedback.yml, installed by /wa-setup when `feedback.auto` is on) holds the triggers and
+# permissions, and runs this through `uses: rlatapy-luna/whackagent/.github/workflows/feedback.yml@hooks-v2`.
+#   review the PR author submits on their own open ticket PR (`COMMENTED`, the only state GitHub allows there)
+#   or a `/wa-feedback <notes>` comment of theirs on it
+#     → gate (GitHub-hosted): private repository, head <WA_BRANCH_PREFIX><n>-…, no `wa-manual` label, author listed
+#       in WA_RUNNER_PROFILES (`.github/board/wa-runner setup` adds them). Public repository or no runner → one
+#       comment on the PR saying why, nothing runs
+#     → round (the author's machine, runner labeled whackagent-<login>): `/wa-feedback #<n> afk` in the author's own
+#       interactive Claude Code, inside tmux session wa-<repo>-<n>-<id>, attachable while it runs. Ends when the
+#       skill writes its result and the turn stops; a stop without result = Claude waits for a human, the session
+#       stays for them. State files feed the SwiftBar menu of wa-runner.
+# Replies the round posts carry <!-- wa-feedback-runner --> and come from the author's own token: a review made only
+# of those is skipped, or each round would start the next one.
+# The runner shares the author's home on purpose (hooks, plugins, settings, git and gh auth): whoever can push a
+# workflow to this repository can run code there as them. Private repositories with trusted writers only.
+
+name: whackagent feedback
+
+on:
+  workflow_call:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      login: ${{ steps.gate.outputs.login }}
+      pr: ${{ steps.gate.outputs.pr }}
+      review: ${{ steps.gate.outputs.review }}
+      notes: ${{ steps.gate.outputs.notes }}
+      title: ${{ steps.gate.outputs.title }}
+    steps:
+      - id: gate
+        uses: actions/github-script@v9
+        env:
+          WA_BRANCH_PREFIX: ${{ vars.WA_BRANCH_PREFIX }}
+          WA_RUNNER_PROFILES: ${{ vars.WA_RUNNER_PROFILES }}
+        with:
+          script: |
+            const MARKER = "<!-- wa-feedback-runner -->";
+            const payload = context.payload;
+            const { owner, repo } = context.repo;
+            const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const prefix = process.env.WA_BRANCH_PREFIX || "wa/";
+            const skip = (why) => { core.info(`skipped: ${why}`); core.setOutput("run", "false"); };
+
+            let pr, review = "", notes = "";
+            if (context.eventName === "pull_request_review") {
+              pr = payload.pull_request;
+              const r = payload.review;
+              if (r.user.type === "Bot" || r.user.login !== pr.user.login) return skip("review not by the PR author");
+              if ((r.state || "").toLowerCase() !== "commented") return skip(`review state ${r.state}`);
+              const comments = await github.paginate(github.rest.pulls.listCommentsForReview,
+                { owner, repo, pull_number: pr.number, review_id: r.id, per_page: 100 });
+              const body = (r.body || "").trim();
+              const human = comments.filter((c) => !c.body.includes(MARKER));
+              if ((!body || body.includes(MARKER)) && human.length === 0) return skip("runner replies only");
+              review = String(r.id);
+            } else if (context.eventName === "issue_comment") {
+              const c = payload.comment;
+              if (!payload.issue.pull_request) return skip("comment on an issue");
+              if (c.user.type === "Bot" || c.user.login !== payload.issue.user.login) return skip("comment not by the PR author");
+              const match = c.body.match(/^\/wa-feedback\b([\s\S]*)$/);
+              if (!match) return skip("no /wa-feedback command");
+              notes = match[1].trim();
+              pr = (await github.rest.pulls.get({ owner, repo, pull_number: payload.issue.number })).data;
+            } else {
+              return skip(`event ${context.eventName}`);
+            }
+
+            if (pr.state !== "open") return skip("PR closed");
+            if (!new RegExp(`^${escape(prefix)}\\d+-`).test(pr.head.ref)) return skip(`head ${pr.head.ref} is no ticket branch`);
+            if (pr.labels.some((l) => l.name === "wa-manual")) return skip("label wa-manual");
+            const author = pr.user.login;
+
+            const once = async (kind, text) => {
+              const tag = `<!-- wa-feedback:${kind} -->`;
+              const existing = await github.paginate(github.rest.issues.listComments,
+                { owner, repo, issue_number: pr.number, per_page: 100 });
+              if (existing.some((c) => c.body.includes(tag))) return;
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body: `${tag}\n${text}` });
+            };
+
+            if (!payload.repository.private) {
+              await once("public", "whackagent feedback runner: not run. This repository is public, and a self-hosted " +
+                "runner there would run code from any fork on the author's machine. Run `/wa-feedback` yourself.");
+              return skip("public repository");
+            }
+            let profiles = [];
+            try { profiles = JSON.parse(process.env.WA_RUNNER_PROFILES || "[]"); } catch { core.warning("WA_RUNNER_PROFILES is not a JSON list"); }
+            if (!profiles.includes(author)) {
+              await once(`no-runner-${author}`, `@${author} your review would run \`/wa-feedback\` on your machine, ` +
+                "but it has no feedback runner. From your checkout: `.github/board/wa-runner setup`. Until then, " +
+                "run `/wa-feedback` yourself, or label the PR `wa-manual` to silence this.");
+              return skip(`${author} has no runner`);
+            }
+
+            core.setOutput("run", "true");
+            core.setOutput("login", author);
+            core.setOutput("pr", String(pr.number));
+            core.setOutput("review", review);
+            core.setOutput("notes", Buffer.from(notes).toString("base64"));
+            core.setOutput("title", pr.title.replace(/\s+/g, " "));
+
+  round:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ${{ fromJSON(format('["self-hosted","whackagent-{0}"]', needs.gate.outputs.login)) }}
+    timeout-minutes: 240
+    # One round per PR at a time. A newer pending round replaces an older pending one: each round reads every open
+    # thread of the PR, so nothing is lost.
+    concurrency:
+      group: whackagent-feedback-${{ github.repository }}-${{ needs.gate.outputs.pr }}
+      cancel-in-progress: false
+    steps:
+      - name: Round on ${{ needs.gate.outputs.login }}'s machine
+        shell: bash
+        env:
+          PR: ${{ needs.gate.outputs.pr }}
+          REVIEW: ${{ needs.gate.outputs.review }}
+          NOTES_B64: ${{ needs.gate.outputs.notes }}
+          TITLE: ${{ needs.gate.outputs.title }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${WA_REPO_PATH:-}" || ! -d "$WA_REPO_PATH/.git" && ! -f "$WA_REPO_PATH/.git" ]]; then
+            echo "::error::runner .env has no valid WA_REPO_PATH: re-run .github/board/wa-runner setup"; exit 1
+          fi
+          for tool in tmux claude; do
+            command -v "$tool" >/dev/null || { echo "::error::$tool not on the runner's PATH: re-run .github/board/wa-runner setup"; exit 1; }
+          done
+
+          dir="${XDG_STATE_HOME:-$HOME/.local/state}/whackagent/runner"
+          mkdir -p "$dir"
+          id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+          key="$(printf '%s' "$REPO" | tr -c 'A-Za-z0-9_-' '-')-$PR"
+          session="wa-$(printf '%s' "${REPO##*/}" | tr -c 'A-Za-z0-9_-' '-')-$PR-${id:0:6}"
+          state="$dir/$key.state" result="$dir/$key.result" stopped="$dir/$key.stopped" prompt="$dir/$key.prompt"
+          rm -f "$result" "$stopped"
+          started=$(date +%s)
+
+          write_state() {
+            {
+              printf 'status=%s\nrepo=%s\npr=%s\ntitle=%s\n' "$1" "$REPO" "$PR" "$TITLE"
+              printf 'session=%s\nsession_id=%s\nrepo_path=%s\nrun_url=%s\n' "$session" "$id" "$WA_REPO_PATH" "$RUN_URL"
+              printf 'started=%s\nended=%s\nresult=%s\n' "$started" "${2:-}" "${3:-}"
+            } > "$state.tmp"
+            mv "$state.tmp" "$state"
+          }
+          notify() {
+            command -v osascript >/dev/null || return 0
+            osascript - "$1" "$2" >/dev/null 2>&1 <<'EOF' || true
+          on run argv
+            display notification (item 2 of argv) with title (item 1 of argv)
+          end run
+          EOF
+          }
+
+          notes=$(printf '%s' "$NOTES_B64" | base64 --decode 2>/dev/null || printf '%s' "$NOTES_B64" | base64 -D)
+          { printf '/wa-feedback #%s afk%s' "$PR" "${REVIEW:+ review:$REVIEW}"; [[ -z "$notes" ]] || printf '\n\n%s' "$notes"; } > "$prompt"
+          hook=$(printf '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"touch \\"%s\\""}]}]}}' "$stopped")
+
+          write_state running
+          notify "whackagent #$PR" "Feedback round started — $TITLE"
+          # Background tasks off: the first Stop must mean the turn really ended, not that agents still run behind it.
+          tmux new-session -d -s "$session" -c "$WA_REPO_PATH" \
+            -e WA_ROUND_RESULT="$result" -e WA_PROMPT="$prompt" -e WA_SID="$id" -e WA_HOOK="$hook" \
+            -e WA_NAME="#$PR feedback (runner)" -e WA_MODE="${WA_RUNNER_PERMISSION_MODE:-auto}" \
+            -e WA_ARGS="${WA_RUNNER_CLAUDE_ARGS:-}" -e CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1 \
+            "${SHELL:-/bin/zsh}" -ilc 'claude --session-id "$WA_SID" --name "$WA_NAME" --permission-mode "$WA_MODE" --settings "$WA_HOOK" $(printf "%s" "$WA_ARGS") "$(cat "$WA_PROMPT")"'
+          echo "Attach: tmux attach -t $session · resume later: cd $WA_REPO_PATH && claude --resume $id"
+
+          deadline=$((SECONDS + 230 * 60))
+          while [[ ! -f "$stopped" ]] && tmux has-session -t "=$session" 2>/dev/null && ((SECONDS < deadline)); do
+            sleep 5
+          done
+
+          attached=$(tmux list-clients -t "=$session" 2>/dev/null | wc -l | tr -d ' ')
+          if [[ -s "$result" ]]; then
+            outcome=$(head -n1 "$result" | tr -d '\r') summary=$(sed -n 2p "$result" | tr -d '\r')
+            write_state "$outcome" "$(date +%s)" "$summary"
+            notify "whackagent #$PR · $outcome" "${summary:-$TITLE}"
+            [[ "$attached" != 0 ]] || tmux kill-session -t "=$session" 2>/dev/null || true
+            printf '### #%s · %s\n\n%s\n' "$PR" "$outcome" "$summary" >> "$GITHUB_STEP_SUMMARY"
+          elif ((SECONDS >= deadline)); then
+            write_state timeout "$(date +%s)" "no result after 230 min, session left open"
+            notify "whackagent #$PR · timeout" "Session $session left open"
+            echo "::error::round timed out, session $session left open"; exit 1
+          elif tmux has-session -t "=$session" 2>/dev/null; then
+            write_state waiting "" "Claude stopped without a result: it waits for you"
+            notify "whackagent #$PR · needs you" "tmux attach -t $session"
+            printf '### #%s · waiting\n\nClaude stopped without a result. `tmux attach -t %s`\n' "$PR" "$session" >> "$GITHUB_STEP_SUMMARY"
+          else
+            write_state failed "$(date +%s)" "session ended without a result"
+            notify "whackagent #$PR · failed" "Session ended without a result — claude --resume $id"
+            echo "::error::session ended without a result"; exit 1
+          fi
