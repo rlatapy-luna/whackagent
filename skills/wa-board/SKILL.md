@@ -169,6 +169,7 @@ Every whackagent skill writes `{backlog}` `{tasks}` `{wiki}` `{reports}` `{conve
 - **Relative resolves from repo root**, not cwd. Absolute paths resolve, but never user-specific ones (`/Users/<name>`, `/home/<name>`, `~`) — config versioned, shared.
 - **`.whackagent/config.md` is the one fixed path** — it carry the others.
 - Path points at nothing → say which key and what it points at, suggest `/wa-setup`. Never fall back to `.whackagent/` behind user back, never create folder somewhere else: wiki silently written to default is wiki team never sees.
+- **Convention modules** — `review.modules` entry `skill:<plugin>:<skill>` → rulebook shipped as skill by another installed plugin (company guidelines: `skill:lunabee-android:android-development`), loaded **by name** with Skill tool — never by file path: install location differs per machine and per install mode (user, org-managed). Any other entry → `{conventions}/<path>` (project file: whackagent module copy, or overlay of project rules on top of skill). List order = load order, **later wins on conflict**. Orchestrator hands subagents list in order: `skill:` names as is, files resolved to absolute paths — never a dir. Check every `skill:` name is in session's skill list first; missing → stop, name plugin to install (`/plugin install <plugin>@<marketplace>`), never review without it silently.
 
 ## Worktrees
 

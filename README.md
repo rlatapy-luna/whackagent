@@ -359,7 +359,7 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 ```
 .whackagent/
   config.md            # language, coding language, project_kind, review timing + modules, paths, commit + branch + close policy
-  conventions/         # copied convention modules (only the useful ones), editable per project
+  conventions/         # copied convention modules (only the useful ones) + project rules on top of a company skill
   BACKLOG.md           # task index (order = priority)
   tasks/<slug>.md      # one task = one file (frontmatter + body)
   wiki/index.md        # wiki summary
@@ -425,7 +425,21 @@ Single-file packs: `typescript.md` (front end and back end) and `generic.md` —
 
 `/wa-setup` detects the language, the **kind** (`app` · `web` · `server` · `cli` · `package`) and the UI toolkit, then copies **only the useful modules** into `.whackagent/conventions/` (no `swiftui.md` in a package without SwiftUI, no `compose.md` in a Ktor server). You edit these copies to adapt per project (e.g. drop public doc). A polyglot repo (KMP shared code + iOS app) can load two packs.
 
-The copied list lands in `review.modules` — the verifier reads exactly that, and nothing else in the tree.
+### Your company's rulebook
+
+If your team already ships its coding rules as a skill in a Claude Code plugin (for example `lunabee-android:android-development`), `/wa-setup` finds it and offers to use it as the rulebook instead of copying whackagent modules that cover the same ground:
+
+```yaml
+review:
+  modules: [skill:lunabee-android:android-development, android-development.md, architecture-global.md]
+```
+
+- `skill:<plugin>:<skill>` loads that skill by name on each machine, wherever and however the plugin was installed. There's no file path or local clone, so every project, machine and developer uses the same rulebook, and it updates with that plugin.
+- Rules your team adds for one project (captured by `/wa-feedback`) go to a small project file listed right after it (`android-development.md` above), which wins on conflict. The skill itself is never edited.
+- Every developer needs that plugin installed. If it's missing, whackagent stops and names the plugin to install rather than reviewing without it.
+- On an existing project, `/wa-setup review` offers the skill when it shows up, and moves your team's own lines out of the copies it replaces.
+
+The verifier and the implementer load exactly `review.modules`, in order, and nothing else in the tree.
 
 ## Skill dependencies
 
