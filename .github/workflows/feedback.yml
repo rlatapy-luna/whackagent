@@ -160,16 +160,19 @@ jobs:
 
           notes=$(printf '%s' "$NOTES_B64" | base64 --decode 2>/dev/null || printf '%s' "$NOTES_B64" | base64 -D)
           { printf '/wa-feedback #%s afk%s' "$PR" "${REVIEW:+ review:$REVIEW}"; [[ -z "$notes" ]] || printf '\n\n%s' "$notes"; } > "$prompt"
-          hook=$(printf '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"touch \\"%s\\""}]}]}}' "$stopped")
+          # Pre-approved: the GitHub writes a round exists to make. Unattended, auto mode would otherwise stop on them.
+          allow='"Bash(*wa-backlog *)","Bash(git push *)","Bash(gh pr *)","Bash(gh api *)"'
+          settings=$(printf '{"permissions":{"allow":[%s]},"hooks":{"Stop":[{"hooks":[{"type":"command","command":"touch \\"%s\\""}]}]}}' "$allow" "$stopped")
 
           write_state running
           notify "whackagent #$PR" "Feedback round started — $TITLE"
           # Background tasks off: the first Stop must mean the turn really ended, not that agents still run behind it.
-          tmux new-session -d -s "$session" -c "$WA_REPO_PATH" \
-            -e WA_ROUND_RESULT="$result" -e WA_PROMPT="$prompt" -e WA_SID="$id" -e WA_HOOK="$hook" \
+          # RUNNER_TRACKING_ID empty: the runner kills what a job started when it ends, tmux server and session included.
+          RUNNER_TRACKING_ID="" tmux new-session -d -s "$session" -c "$WA_REPO_PATH" \
+            -e WA_ROUND_RESULT="$result" -e WA_PROMPT="$prompt" -e WA_SID="$id" -e WA_SETTINGS="$settings" \
             -e WA_NAME="#$PR feedback (runner)" -e WA_MODE="${WA_RUNNER_PERMISSION_MODE:-auto}" \
             -e WA_ARGS="${WA_RUNNER_CLAUDE_ARGS:-}" -e CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1 \
-            "${SHELL:-/bin/zsh}" -ilc 'claude --session-id "$WA_SID" --name "$WA_NAME" --permission-mode "$WA_MODE" --settings "$WA_HOOK" $(printf "%s" "$WA_ARGS") "$(cat "$WA_PROMPT")"'
+            "${SHELL:-/bin/zsh}" -ilc 'claude --session-id "$WA_SID" --name "$WA_NAME" --permission-mode "$WA_MODE" --settings "$WA_SETTINGS" $(printf "%s" "$WA_ARGS") "$(cat "$WA_PROMPT")"'
           echo "Attach: tmux attach -t $session · resume later: cd $WA_REPO_PATH && claude --resume $id"
 
           deadline=$((SECONDS + 230 * 60))

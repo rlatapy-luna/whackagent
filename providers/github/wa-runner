@@ -103,34 +103,52 @@ EOF
     Linux-x86_64) platform=linux-x64 ;; Linux-aarch64) platform=linux-arm64 ;;
     *) die "unsupported platform $(uname -sm)" ;;
   esac
-  token="${WA_RUNNER_REGISTRATION_TOKEN:-$(gh api --method POST "repos/$REPO/actions/runners/registration-token" --jq .token 2>/dev/null || true)}"
-  [[ -n "$token" ]] || die "registering a runner takes an admin of $REPO: ask one for a registration token (Settings → Actions → Runners → New), then WA_RUNNER_REGISTRATION_TOKEN=<token> $0 setup"
-
   mkdir -p "$DIR"
-  if [[ ! -x "$DIR/config.sh" ]]; then
-    version=$(gh api repos/actions/runner/releases/latest --jq .tag_name | sed 's/^v//')
-    say "Downloading actions-runner $version…"
-    curl -fsSL "https://github.com/actions/runner/releases/download/v$version/actions-runner-$platform-$version.tar.gz" | tar -xz -C "$DIR"
-  fi
   if [[ -f "$DIR/.runner" ]]; then
+    say "Runner already registered: refreshing its settings and service."
     service "$DIR" stop >/dev/null 2>&1 || true
     service "$DIR" uninstall >/dev/null 2>&1 || true
+  else
+    token="${WA_RUNNER_REGISTRATION_TOKEN:-$(gh api --method POST "repos/$REPO/actions/runners/registration-token" --jq .token 2>/dev/null || true)}"
+    [[ -n "$token" ]] || die "registering a runner takes an admin of $REPO: ask one for a registration token (Settings → Actions → Runners → New), then WA_RUNNER_REGISTRATION_TOKEN=<token> $0 setup"
+    if [[ ! -x "$DIR/config.sh" ]]; then
+      version=$(gh api repos/actions/runner/releases/latest --jq .tag_name | sed 's/^v//')
+      say "Downloading actions-runner ${version}…"
+      curl -fsSL "https://github.com/actions/runner/releases/download/v$version/actions-runner-$platform-$version.tar.gz" | tar -xz -C "$DIR"
+    fi
+    # config.sh records this shell's PATH in .path: jobs then find tmux, claude and your toolchains.
+    (cd "$DIR" && ./config.sh --unattended --replace --url "https://github.com/$REPO" --token "$token" \
+      --name "$(hostname -s)-$LOGIN-whackagent" --labels "whackagent-$LOGIN" --work "$DIR/_work")
   fi
-  # config.sh records this shell's PATH in .path: jobs then find tmux, claude and your toolchains.
-  (cd "$DIR" && ./config.sh --unattended --replace --url "https://github.com/$REPO" --token "$token" \
-    --name "$(hostname -s)-$LOGIN-whackagent" --labels "whackagent-$LOGIN" --work "$DIR/_work")
   set_env "$DIR" WA_RUNNER_REPO "$REPO"
   set_env "$DIR" WA_REPO_PATH "$REPO_PATH"
   set_env "$DIR" WA_RUNNER_PERMISSION_MODE "${WA_RUNNER_PERMISSION_MODE:-auto}"
   [[ -z "${WA_RUNNER_CLAUDE_ARGS:-}" ]] || set_env "$DIR" WA_RUNNER_CLAUDE_ARGS "$WA_RUNNER_CLAUDE_ARGS"
-  if [[ "$(uname -s)" == Darwin ]] || command -v systemctl >/dev/null; then
+  if [[ "$(uname -s)" == Darwin ]]; then
+    service "$DIR" install >/dev/null
+    # svc.sh's SessionCreate gives the service a security session of its own: no login keychain, so neither
+    # Claude Code nor gh would find your login.
+    plutil -remove SessionCreate "$(cat "$DIR/.service")" 2>/dev/null || true
+    service "$DIR" start >/dev/null
+  elif command -v systemctl >/dev/null; then
     service "$DIR" install >/dev/null
     service "$DIR" start >/dev/null
   else
     warn "no service manager: start it with $DIR/run.sh"
   fi
+  local tries=0
+  until [[ "$(runner_state "$DIR")" == online ]] || ((++tries > 15)); do sleep 1; done
   say "✓ runner $(hostname -s)-$LOGIN-whackagent, label whackagent-$LOGIN, $(runner_state "$DIR")"
   profiles_edit add
+  trusted=$(python3 -c '
+import json, os, sys
+try:
+    projects = json.load(open(os.path.expanduser("~/.claude.json"))).get("projects", {})
+except (OSError, ValueError):
+    projects = {}
+print("yes" if projects.get(sys.argv[1], {}).get("hasTrustDialogAccepted") else "no")
+' "$REPO_PATH")
+  [[ "$trusted" == yes ]] || warn "Claude Code never trusted $REPO_PATH: open claude there once and accept, or rounds stop on that prompt"
   [[ "$(uname -s)" != Darwin ]] || cmd_swiftbar
   say ""
   say "Next: leave a review on one of your ticket PRs. Keep the Mac awake on power (System Settings → Battery)."
