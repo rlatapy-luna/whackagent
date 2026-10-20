@@ -84,10 +84,10 @@ Local provider → `comment` is no-op, nothing to do. Later round re-plans brick
 
 **One implementer for whole task**, bricks fed one at a time (sequential — builds collide otherwise).
 
-- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, conventions dir, test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**reference/worktrees.md**).
+- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, modules (`review.modules` per **reference/paths.md**), test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**reference/worktrees.md**).
 - **Glossary** — `{wiki}/glossary.md` exists → brick 1 also gets its path (step 3 verifier too). Absent → nothing passed.
 - **Screenshots** — GitHub provider + `pr.screenshots: each_round` (or key missing) → every brick dispatch asks: *diff changes UI → return final-state `SCREENSHOTS:`* (**reference/provider-github.md**, *Screenshots*). Last receipt's shots = upload. `validation`, `off` or local provider → never asked.
-- **Bricks 2..n** — `SendMessage` that id next brick **alone**. No conventions dir, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
+- **Bricks 2..n** — `SendMessage` that id next brick **alone**. No modules, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
 
 Receipts:
 - `RESULT: done` → record files + build/test/tools/run proof + `NOTES:` worth keeping in `## Implementation`, continue.
@@ -106,7 +106,7 @@ Why it wait: feature not feature until user say so. Reviewing now review code th
 
 All bricks green → spawn **one `wa-verifier`**. Note its `agentId`.
 
-**Hand it change, not repo.** It gets: module paths (`review.modules`), changed-file list **with diff hunks inline** (worktree mode: diffed in the worktree), BRIEF, task path, toggles. It judges diff — don't hunt for what moved.
+**Hand it change, not repo.** It gets: modules (`review.modules` per **reference/paths.md**), changed-file list **with diff hunks inline** (worktree mode: diffed in the worktree), BRIEF, task path, toggles. It judges diff — don't hunt for what moved.
 Plus glossary path when step 2 passed one.
 
 Then:

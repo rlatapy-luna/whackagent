@@ -20,18 +20,18 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 
 ## Conventions
 
-- `.whackagent/config.md` exists: use its `review.modules` + project `{conventions}/` — `paths.conventions`, default `.whackagent/conventions/` (project copies + toggles win).
+- `.whackagent/config.md` exists: use its `review.modules`, resolved per **reference/paths.md** (*Convention modules*), + toggles.
 - No config (fresh existing project): detect language + kind, fall back to plugin defaults in `${CLAUDE_PLUGIN_ROOT}/conventions/` — multi-module pack (`swift/`, `kotlin/`: style, elegance, testing, architecture-global, matching architecture-\*, UI module — `swiftui.md`/`compose.md` — only if project use that toolkit), or single `<lang>.md`, else `generic.md`. Tell user it run on defaults; suggest `/wa-setup` to customize.
 - Glossary: config present and `{wiki}/glossary.md` exists → pass its path to verifier and `--fix` implementer. Absent → nothing.
 
 ## Do
 
 1. Resolve scope + changed/target files.
-2. **Dispatch one **wa-verifier**.** **Note `agentId`** — how later rounds resume it. Pass module paths (`review.modules`), target files **plus diff hunks when scope is diff**, and toggles.
+2. **Dispatch one **wa-verifier**.** **Note `agentId`** — how later rounds resume it. Pass modules (`review.modules` per **reference/paths.md**), target files **plus diff hunks when scope is diff**, and toggles.
 3. **Check `LENSES:` line** — `style`, `elegance`, `structure`, `correctness`, all four ✓; missing one goes back for that lens alone. Then show findings severity-ordered, grouped by lens tag.
 4. **Fix?**
    - Default → **report only**. No mutate existing code unasked.
-   - `--fix` → dispatch **wa-implementer** in **fix mode** with aggregated findings + conventions dir (tell it: fix only what findings name, re-read style, add no comments), note `agentId`, then re-review. Loop until clean or no progress (cap 3 rounds). `BLOCKED:` → stop and ask.
+   - `--fix` → dispatch **wa-implementer** in **fix mode** with aggregated findings + modules (tell it: fix only what findings name, re-read style, add no comments), note `agentId`, then re-review. Loop until clean or no progress (cap 3 rounds). `BLOCKED:` → stop and ask.
    - **Rounds 2+ resume same agent by id** instead of respawn — per **`/wa-code` → step 3** (delta only, anti-stale warning, respawn fresh past 3 rounds, fall back to fresh spawn if id lost).
 5. If invoked on whackagent task (path is task files), record findings in task `## Review`.
 

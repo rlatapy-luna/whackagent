@@ -67,13 +67,18 @@ review:
   autofix: true                # wa-code verify phase re-dispatch implementer until clean
   public_doc: true             # require doc on public API — flip false per company
   modules: [generic.md]        # what single wa-verifier load before judging. Setup write
-                               # what it actually copied: UI module (swiftui.md, compose.md)
+                               # only relevant ones: UI module (swiftui.md, compose.md)
                                # only if project use that toolkit,
                                # architecture-package.md for non-app kinds, single <lang>.md for
                                # one-file packs. Paths relative to {conventions}.
                                # + apple.md when setup exported Xcode's Apple references
                                # into {conventions}/apple/ (Xcode 27+): index only, agents
                                # open one page per topic they touch.
+                               # `skill:<plugin>:<skill>` = rulebook from another installed plugin
+                               # (company guidelines), loaded by name on every machine; project rules
+                               # on top go to overlay file listed after it. Order = load order, later
+                               # wins. e.g. [skill:lunabee-android:android-development,
+                               # android-development.md, architecture-global.md] (reference/paths.md).
                                # ONE verifier, not one per lens: isolated agent cost ~50k tokens
                                # context before reading a line, and every lens judge same diff
                                # against same rulebook — splitting pay twice, leave duplicate
