@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-20
+
 ### Added
 
 - Your company's coding rules can be the rulebook: `review.modules` accepts `skill:<plugin>:<skill>` entries (e.g. `skill:lunabee-android:android-development`), loaded by name from another installed plugin, so every project, machine and developer reviews against the same rules with no copy and no local path. Rules `/wa-feedback` captures go to a project file listed after it. `/wa-setup` detects such skills and offers them, dropping the whackagent modules they cover. A missing plugin stops the run with the plugin to install. Existing configs keep working unchanged.
