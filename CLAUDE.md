@@ -77,6 +77,10 @@ Bump the version in all three places, `plugin.json` and both fields of `marketpl
 
 After pushing the release commit, move the hooks tag onto it (`git tag -f hooks-v2 && git push -f origin hooks-v2`): every project's caller runs `board.yml` (GitHub board) or `board-plane.yml` (Plane board) from that tag, so this is what ships hook changes. Test `board.yml` on the GitHub playground and `board-plane.yml` on the Plane playground first. The Plane hook rules themselves live in `wa-backlog`, which projects vendor: they reach a project when `/wa-setup` refreshes its copy of the script, not through the tag. A change callers must follow (new trigger, permission or secret) gets a new tag `hooks-v3` plus a caller template version bump, never a move of `hooks-v2`. The two callers version separately: the GitHub one is at template version 16, the Plane one (`providers/plane/whackagent-board-plane.yml`) at 1, so a change only Plane callers must follow bumps the Plane caller alone. `hooks-v1` stays where it is, for callers below template version 16.
 
+## Shipped features
+
+- [0001 Plane CE board provider](docs/features/0001-plane-board-provider.md) — board on self-hosted Plane, code on GitHub (experimental)
+
 ## Commits
 
 Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`, optional scope such as `feat(review):`). The subject says what changed for the user of the plugin.
