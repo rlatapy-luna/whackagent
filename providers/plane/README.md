@@ -4,7 +4,18 @@
 
 ## Built so far
 
-`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, and `milestones` (always `[]` for now). Every other verb that writes the board (claims and state changes, `move`, `comment`, `depend`, `link-pr`, sprints, milestones) exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own.
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, `milestones` (always `[]` for now), and the claim verbs: `claim`, `release` (with `--reset-to`), `claims`, `whoami`, plus `set-state` and `comment`, which the claims use. Every other verb that writes the board (`move`, `depend`, `link-pr`, sprints, milestones) exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own, so a pushed spec leaves the card in Grilling with its claim held.
+
+### Claims
+
+Claims are the shared core's, unchanged: a git ref `refs/wa-claims/WA-42/<phase>` created over the GitHub REST API, where "Reference already exists" means taken (exit 3), with the claim-from rules and exit codes of `providers/CONTRACT.md`. Only the board writes go to Plane:
+
+- **State.** `PATCH work-items/<id>/ {"state", "sort_order"}`. The card keeps its priority: `sort_order` is sent unchanged with the state, the same as a GitHub Project, where a Status change keeps the item's place in its one order, so `list` order does not move. Plane 1.4.2 keeps `sort_order` on a state change anyway; sending it guards against a release that repositions. A claim whose state write fails deletes its ref again.
+- **Assignee.** The winning claim assigns the Plane user owning the API key (`GET users/me/`). Plane replaces the assignee list whole on `PATCH`, so the adapter reads the list fresh and writes it back with the user added; `release` removes only an assignment its claim recorded (trailer `assigned: <display name>`). `reserved` compares that user's display name with the card's assignees (workspace members, read once per run).
+- **Trail comment.** `POST work-items/<id>/comments/ {"comment_html"}`: paragraphs plus inline bold and code, enough for the claim trail (`🔒 grilling — agent · time`).
+- **Accounts.** `whoami` prints `login` (the Plane display name that claims assign and `reserved` compares) and `vcs_login` (the GitHub login that writes the claim refs, branches and PRs). The claim owner shown by `claims` and exit 3 is the agent id, as on GitHub.
+
+Checked live on the rig and `whackagent-playground-plane`: six parallel `claim grilling` from Todo, then six `claim coding` from Grilled, each gave one exit 0 and five exit 3, the card in the winner's state with the key user assigned. Grilling and coding claimed at once on a Grilled card never both win. `release --reset-to grilled|review` moved the card back and deleted the ref, and a claim from a wrong state or on a canceled card exits 4.
 
 ## Settings
 
@@ -28,7 +39,9 @@ The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the 
 | priority | `sort_order` inside the state, lower is higher; `list` reads `?order_by=sort_order`, paged 1000 rows a call |
 | create | `POST work-items/` with the todo state: Plane puts it at the bottom of Todo |
 | excluded | label `wa-ignore`; label `wa-sprint` marks a sprint root (both created by `provision`) |
-| reservation | assignees, by workspace display name; `reserved` when assigned to someone other than the key's user |
+| reservation | assignees, by workspace display name; `reserved` when assigned to someone other than the key's user; a winning claim assigns the key's user |
+| state change | `PATCH {state, sort_order}`, priority kept (see *Claims*) |
+| comment | work item comment, `comment_html` |
 | dependencies | relations `blocked_by`, read back in `get` |
 | web link | `<url>/<slug>/browse/WA-42/` |
 

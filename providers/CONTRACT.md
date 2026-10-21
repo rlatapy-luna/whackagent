@@ -8,7 +8,7 @@ Config picks provider: `backlog.provider: local | github | plane` in `.whackagen
 |---|---|---|
 | `local` | prompt-implemented, files — `providers/local.md` | no — one agent, one checkout |
 | `github` | script `providers/wa-backlog` (`GitHubBoard`; `providers/github/wa-backlog` links to it) + board workflow — `providers/github/README.md` | yes — atomic claims, hooks drive state |
-| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | planned — claims and hooks not built yet |
+| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | claims yes (atomic, same refs); hooks not built yet |
 
 ## States
 
@@ -60,7 +60,7 @@ All print JSON on stdout, messages on stderr.
 | `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |
 | `branch <id>` | remote branch carrying ticket | `{branch}` |
-| `whoami [--agent a]` | agent id used for claims (`WA_AGENT` env, else `<host>:<worktree>`), plus tracker account | `{agent,login}` — `login` null when tracker has no accounts |
+| `whoami [--agent a]` | agent id used for claims (`WA_AGENT` env, else `<host>:<worktree>`), plus tracker account | `{agent,login}` — `login` null when tracker has no accounts; board whose accounts aren't the code host's (Plane) adds `vcs_login` (account writing claim refs, branches, PRs) |
 
 Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 3 and 4 as normal outcomes, not failures: pick next ticket or tell user.
 

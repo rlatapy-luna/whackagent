@@ -1016,6 +1016,13 @@ def html_of(markdown):
     return "".join("<p>" + "<br>".join(html.escape(line) for line in p.splitlines()) + "</p>" for p in paragraphs) or "<p></p>"
 
 
+def comment_html(markdown):
+    """Comment → Plane comment HTML: paragraphs as html_of, plus inline **bold** and `code` (the claim trail)."""
+    markup = html_of(markdown)
+    markup = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", markup)
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", markup)
+
+
 def text_of(markup):
     """Plane description → plain text, one line per block."""
     text = re.sub(r"<br\s*/?>|</(?:p|div|li|h\d|pre|blockquote)>", "\n", markup or "", flags=re.I)
@@ -1093,11 +1100,13 @@ def ensure_plane_labels(url, base):
 class PlaneBoard(Board):
     """Plane CE project: ticket = work item, id = its key "WA-42", state = Plane state (ids in WA_PLANE_STATES,
     plus Canceled), priority = sort_order within the state (lower = higher), excluded = label wa-ignore.
-    No size (Plane CE estimates are UI-only). Writes beyond create, sprints, milestones: not built yet."""
+    No size (Plane CE estimates are UI-only). Claims (state, assignee, trail comment) and create write the
+    board; move, sprints, milestones, dependencies and PR links: not built yet. Account = the Plane user owning
+    the API key (display name), not the GitHub login that writes claim refs, branches and PRs."""
 
     name = "a Plane"
-    # Contract operations later issues build (claims, fields, sprints, milestones, hooks): "not yet", not "never".
-    PENDING = {"set-state", "move", "assignment", "comment", "close-milestone", "milestone", "split", "sprint", "depend", "link-pr"}
+    # Contract operations later issues build (fields, sprints, milestones, hooks): "not yet", not "never".
+    PENDING = {"move", "close-milestone", "milestone", "split", "sprint", "depend", "link-pr"}
 
     def __init__(self, config):
         super().__init__(config)
@@ -1154,13 +1163,15 @@ class PlaneBoard(Board):
     def key(self, item):
         return f"{self.config['project_key']}-{item['sequence_id']}"
 
-    def logins(self, ids):
-        if not ids:
-            return []
+    def member_names(self):
+        """{user id: display name} of the workspace, read once per run."""
         if self.members is None:
             rows = self.api("GET", f"workspaces/{self.config['workspace']}/members/")
             self.members = {m["id"]: m["display_name"] for m in (rows or [])}
-        return [self.members.get(i, i) for i in ids]
+        return self.members
+
+    def logins(self, ids):
+        return [self.member_names().get(i, i) for i in ids] if ids else []
 
     def to_ticket(self, item):
         config = self.config
@@ -1230,13 +1241,60 @@ class PlaneBoard(Board):
         return rows
 
     @functools.cache
+    def user(self):
+        """Plane user owning the API key: the account a claim assigns and `reserved` compares against."""
+        return self.api("GET", "users/me/")
+
     def me(self):
-        return self.api("GET", "users/me/")["display_name"]
+        return self.user()["display_name"]
+
+    def member_id(self, login):
+        if login == self.me():
+            return self.user()["id"]
+        return next((i for i, name in self.member_names().items() if name == login), None)
 
     def ticket_url(self, number):
         return f"{self.config['plane_url']}/{self.config['workspace']}/browse/{number}/"
 
     # ------------------------------------------------ writing
+
+    def set_state(self, ticket, state):
+        """Card to the state's column, priority kept: sort_order sent unchanged with the state. Same as a GitHub
+        Project, where a Status change keeps the item's place in its one order; `list` order stays as it was.
+        Sent explicitly so a Plane release that repositions on state change can't reorder the board behind us."""
+        item = self.item(ticket["number"])
+        moved = self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {
+            "state": self.config["state_ids"][state], "sort_order": item["sort_order"],
+        })
+        self.items[ticket["number"]] = moved
+
+    def set_assignees(self, number, change):
+        """Read the assignee ids fresh (a human may have just assigned someone), PATCH the changed list (Plane
+        replaces it whole). Returns the ids Plane stored."""
+        item = self.api("GET", f"{self.base()}/work-items/{self.item(number)['id']}/")
+        ids = change(list(item.get("assignees") or []))
+        if ids == item.get("assignees"):
+            return ids
+        stored = self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {"assignees": ids})
+        self.items[number] = stored
+        return stored.get("assignees") or []
+
+    def assign(self, number, login):
+        user = self.member_id(login)
+        if not user:
+            return False
+        try:
+            return user in self.set_assignees(number, lambda ids: ids if user in ids else ids + [user])
+        except Failure:
+            return False
+
+    def unassign(self, number, login):
+        user = self.member_id(login)
+        if user:
+            self.set_assignees(number, lambda ids: [i for i in ids if i != user])
+
+    def comment(self, number, text):
+        self.api("POST", f"{self.base()}/work-items/{self.item(number)['id']}/comments/", {"comment_html": comment_html(text)})
 
     def set_size(self, ticket, size):
         raise Failure("size has no meaning on a Plane board (Plane CE cannot create estimates over its API)", EXIT_USAGE)
@@ -1688,7 +1746,12 @@ def op_claims(args):
 
 
 def op_whoami(args):
-    emit({"agent": agent_id(args.agent), "login": viewer_login()})
+    """`login` = board account (claims assign it, `reserved` compares it). A board whose accounts aren't GitHub's
+    adds `vcs_login`: the GitHub account writing claim refs, branches and PRs."""
+    if board_class() is GitHubBoard:
+        emit({"agent": agent_id(args.agent), "login": viewer_login()})
+        return
+    emit({"agent": agent_id(args.agent), "login": open_board().me(), "vcs_login": viewer_login()})
 
 
 def op_branch(args):
