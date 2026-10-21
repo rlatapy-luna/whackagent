@@ -102,7 +102,7 @@ The hooks run as GitHub Actions on a self-hosted runner because this needs nothi
 | Option | How it works | Needs | For | Against |
 |---|---|---|---|---|
 | **Actions on a self-hosted runner** (what ships) | The caller workflow calls `board-plane.yml`, which runs `wa-backlog hook` on your runner | A runner that reaches Plane, with `python3` and `gh` | Nothing exposed. A job waits in the queue (up to 24 h) while the runner is offline and runs when it comes back. Free today | One more machine to keep running |
-| **GitHub App + webhook receiver** | A small service on your server receives GitHub webhooks and runs the hook logic. The App is installed on the organization | An inbound HTTPS endpoint GitHub can reach: a public reverse proxy, or a tunnel such as Cloudflare Tunnel or Hookdeck | No runner, near-instant, and one install covers every repository. The App's short-lived token replaces `GITHUB_TOKEN` and personal tokens. The same service could also receive **Plane webhooks**, so a spec written in the card description could move the card to Grilled | A service to write and run, and an exposed endpoint. GitHub does not redeliver a failed delivery on its own, so a reconcile job is needed |
+| **GitHub App + webhook receiver** | A small service on your server receives GitHub webhooks and runs the hook logic. The App is installed on the organization | An inbound HTTPS endpoint GitHub can reach: a public reverse proxy, or a tunnel such as Cloudflare Tunnel or Hookdeck | No runner, near-instant, and one install covers every repository. The App's short-lived token replaces `GITHUB_TOKEN` and personal tokens. | A service to write and run, and an exposed endpoint. GitHub does not redeliver a failed delivery on its own, so a reconcile job is needed |
 | **Plain repository or organization webhook + receiver** | Same as above, with a shared HMAC secret instead of an App | Same as above, plus a personal token to delete claim refs | Simpler than an App | Personal tokens to manage, coarse permissions |
 | **Polling from your server** | A scheduled job asks GitHub what changed (branches, PRs, merges) and reconciles the board, like the board check but allowed to move cards | Outbound HTTPS only | No inbound port, no runner, nothing exposed | Moves lag by the polling interval. It spends GitHub API budget (5,000 requests an hour per token; ETag-cached answers are free). Events must be inferred from a state diff |
 | **GitHub-hosted runners** | The same workflow on `ubuntu-latest`, calling Plane over the internet | Plane reachable from the internet, or through Tailscale or Cloudflare Access inside the job | Nothing to host | Bills Actions minutes on private repositories, and Plane is exposed: the cost this provider exists to avoid |
@@ -110,7 +110,7 @@ The hooks run as GitHub Actions on a self-hosted runner because this needs nothi
 
 A self-hosted automation tool such as n8n could stand in for the receiver without code, but its flows would copy the `wa-backlog` rules and drift from them.
 
-If the runner becomes a burden, or the card-description spec gap matters, the GitHub App receiver is the next step. `wa-backlog hook --event <name> --payload <file>` already takes a GitHub event name and payload. A receiver would check the webhook signature, pass the body in, and provide the context the Actions environment gives today (`GITHUB_*` variables and a token). A handler for Plane webhooks would be new code.
+If the runner becomes a burden, the GitHub App receiver is the next step. `wa-backlog hook --event <name> --payload <file>` already takes a GitHub event name and payload. A receiver would check the webhook signature, pass the body in, and provide the context the Actions environment gives today (`GITHUB_*` variables and a token).
 
 ## 4. Run `/wa-setup`
 
@@ -158,7 +158,7 @@ stateDiagram-v2
 4. Commits it (`task: grill WA-42 login-apple`) and pushes, once, at the end.
 5. The hook finds the task file at the pushed commit, moves the card to Grilled, drops the grilling claim and comments `✅ grilled` with a permalink to the spec. The skill waits for that move (seconds with the runner online) and tells you if it doesn't come.
 
-Only that task file counts as a spec. **Acceptance criteria written in the card description do not move the card:** the hooks run on GitHub events and never see a Plane edit.
+Only that task file counts as a spec. **Acceptance criteria written in the card description do not move the card:** the hooks run on GitHub events and never see a Plane edit. This is by design, not a gap: a ticket that should be Grilled gets its task file pushed, and a card without one stays in Todo. Nobody drags it to Grilled by hand.
 
 **`/wa-code WA-42`** claims `coding` (a Grilled card whose blocker is still open is refused unless you say yes), checks out the ticket branch and runs the normal pipeline. The round ends with a commit, a push and a **draft PR** whose body names the card under `## Ticket` with its link, never `Closes`:
 
@@ -247,6 +247,5 @@ The target is to run Plane CE and the hooks runner on the team's Mac Studio, nex
 
 ## Not built yet
 
-- Moving a card to Grilled from a spec in the card description (it would need a webhook relay from Plane).
 - Size.
 - Moving a local file backlog to Plane, or a Plane board back to GitHub.

@@ -117,7 +117,7 @@ sequenceDiagram
 
 Two details matter:
 
-- **The spec is the task file on the ticket branch**, not the card description. A spec written in the card description does not move the card to Grilled; the board check reports it as `spec-todo`. Plane webhooks can't reach a runner that only polls GitHub, so this is a v1 limitation.
+- **The spec is the task file on the ticket branch**, not the card description. A spec written in the card description does not move the card to Grilled; the board check reports it as `spec-todo`. This is by design: only a pushed task file grills a card, and a card without one stays in Todo.
 - **The PR names its ticket** by its branch (`wa/WA-42-…`). If the branch has another name (for example a cloud agent's own branch), exactly one card link in the PR body names the ticket. With two card links, the hook moves nothing and says so on the PR.
 
 ## Claims: why they stay on GitHub

@@ -35,7 +35,7 @@ A project can keep its backlog on a self-hosted Plane Community Edition server (
   - A milestone is a module, and the adapter enforces one module per ticket.
 - **Relations are add-only:** the Plane API can't remove one.
 - **Where hook logic lives:** it runs from the project's vendored script on the default branch, not from the tag. Hook fixes reach a project when `/wa-setup` refreshes that script.
-- **No `grilled` from the card description:** a spec written in the card description does not move the card to grilled (v1 limitation). The board check reports it.
+- **No `grilled` from the card description:** a spec written in the card description does not move the card to grilled, by design: only a pushed task file grills a card, and nobody moves it by hand. The board check reports it.
 - **Blocked coding claims (GitHub too):** `claim coding` refuses a grilled ticket with open blockers unless `--blocked-ok` is passed. That required board contract 2.3; this feature's BOARD.md sections bumped it to 2.4.
 - **Migration:**
   - The task file's `issue:` field takes the new key; there is no separate `card:` key.
