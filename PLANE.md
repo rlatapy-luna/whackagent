@@ -95,6 +95,23 @@ The hooks are a GitHub Actions workflow that must run where Plane is reachable, 
 
 On a **public** repository, GitHub advises against self-hosted runners. The workflow never runs pull requests from forks, but pushes to the repository still run on your machine.
 
+### Other ways to make Plane react to GitHub events
+
+The hooks run as GitHub Actions on a self-hosted runner because this needs nothing inbound: the runner only makes outbound calls to GitHub, Plane stays on a private network, and no Actions minutes are billed. These are the alternatives we considered. None of them is built.
+
+| Option | How it works | Needs | For | Against |
+|---|---|---|---|---|
+| **Actions on a self-hosted runner** (what ships) | The caller workflow calls `board-plane.yml`, which runs `wa-backlog hook` on your runner | A runner that reaches Plane, with `python3` and `gh` | Nothing exposed. A job waits in the queue (up to 24 h) while the runner is offline and runs when it comes back. Free today | One more machine to keep running |
+| **GitHub App + webhook receiver** | A small service on your server receives GitHub webhooks and runs the hook logic. The App is installed on the organization | An inbound HTTPS endpoint GitHub can reach: a public reverse proxy, or a tunnel such as Cloudflare Tunnel or Hookdeck | No runner, near-instant, and one install covers every repository. The App's short-lived token replaces `GITHUB_TOKEN` and personal tokens. The same service could also receive **Plane webhooks**, so a spec written in the card description could move the card to Grilled | A service to write and run, and an exposed endpoint. GitHub does not redeliver a failed delivery on its own, so a reconcile job is needed |
+| **Plain repository or organization webhook + receiver** | Same as above, with a shared HMAC secret instead of an App | Same as above, plus a personal token to delete claim refs | Simpler than an App | Personal tokens to manage, coarse permissions |
+| **Polling from your server** | A scheduled job asks GitHub what changed (branches, PRs, merges) and reconciles the board, like the board check but allowed to move cards | Outbound HTTPS only | No inbound port, no runner, nothing exposed | Moves lag by the polling interval. It spends GitHub API budget (5,000 requests an hour per token; ETag-cached answers are free). Events must be inferred from a state diff |
+| **GitHub-hosted runners** | The same workflow on `ubuntu-latest`, calling Plane over the internet | Plane reachable from the internet, or through Tailscale or Cloudflare Access inside the job | Nothing to host | Bills Actions minutes on private repositories, and Plane is exposed: the cost this provider exists to avoid |
+| **Plane's own GitHub integration** | Plane syncs issues and PRs itself | A commercial Plane edition. Community Edition does not ship it | Built in | Paid. It syncs Plane's way, knows nothing of whackagent's states and claims, and becomes a second writer. `wa-backlog check-integration` blocks it on purpose |
+
+A self-hosted automation tool such as n8n could stand in for the receiver without code, but its flows would copy the `wa-backlog` rules and drift from them.
+
+If the runner becomes a burden, or the card-description spec gap matters, the GitHub App receiver is the next step. `wa-backlog hook --event <name> --payload <file>` already takes a GitHub event name and payload. A receiver would check the webhook signature, pass the body in, and provide the context the Actions environment gives today (`GITHUB_*` variables and a token). A handler for Plane webhooks would be new code.
+
 ## 4. Run `/wa-setup`
 
 In the project, run `/wa-setup` (or `/wa-setup backlog` on a project already set up) and pick the Plane board when asked where the backlog lives. One step at a time, each confirmed:
