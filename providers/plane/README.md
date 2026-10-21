@@ -4,18 +4,45 @@
 
 ## Built so far
 
-`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, `milestones` (always `[]` for now), and the claim verbs: `claim`, `release` (with `--reset-to`), `claims`, `whoami`, plus `set-state` and `comment`, which the claims use. Every other verb that writes the board (`move`, `depend`, `link-pr`, sprints, milestones) exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own, so a pushed spec leaves the card in Grilling with its claim held.
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, `milestones` (always `[]` for now), the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend` and `cancel`. The verbs left (`link-pr`, sprints, milestones) exit 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own, so a pushed spec leaves the card in Grilling with its claim held.
 
 ### Claims
 
 Claims are the shared core's, unchanged: a git ref `refs/wa-claims/WA-42/<phase>` created over the GitHub REST API, where "Reference already exists" means taken (exit 3), with the claim-from rules and exit codes of `providers/CONTRACT.md`. Only the board writes go to Plane:
 
 - **State.** `PATCH work-items/<id>/ {"state", "sort_order"}`. The card keeps its priority: `sort_order` is sent unchanged with the state, the same as a GitHub Project, where a Status change keeps the item's place in its one order, so `list` order does not move. Plane 1.4.2 keeps `sort_order` on a state change anyway; sending it guards against a release that repositions. A claim whose state write fails deletes its ref again.
-- **Assignee.** The winning claim assigns the Plane user owning the API key (`GET users/me/`). Plane replaces the assignee list whole on `PATCH`, so the adapter reads the list fresh and writes it back with the user added; `release` removes only an assignment its claim recorded (trailer `assigned: <display name>`). `reserved` compares that user's display name with the card's assignees (workspace members, read once per run).
-- **Trail comment.** `POST work-items/<id>/comments/ {"comment_html"}`: paragraphs plus inline bold and code, enough for the claim trail (`🔒 grilling — agent · time`).
+- **Assignee.** The winning claim assigns the Plane user owning the API key (`GET users/me/`). Plane replaces the assignee list whole on `PATCH`, so the adapter reads the list fresh and writes it back with the user added; `release` removes only an assignment its claim recorded (trailer `assigned: <display name>`, which maps back to the key user's own id first). `reserved` compares that user's **id** with the card's assignee ids: Plane display names are not unique, and two users named alike must not see each other's cards as their own. Rows still show assignees by display name (workspace members, read once per run).
+- **Trail comment.** `POST work-items/<id>/comments/ {"comment_html"}` (see *Comments*).
 - **Accounts.** `whoami` prints `login` (the Plane display name that claims assign and `reserved` compares) and `vcs_login` (the GitHub login that writes the claim refs, branches and PRs). The claim owner shown by `claims` and exit 3 is the agent id, as on GitHub.
 
+A first coding round (`claim coding` from Grilled) on a card with an open blocker exits 4, as on GitHub (`providers/CONTRACT.md` → *Claim rules*): the core reads `blocked_by` (one relations call, one call per blocker), and a blocker counts open until its card sits in a completed or cancelled group state.
+
 Checked live on the rig and `whackagent-playground-plane`: six parallel `claim grilling` from Todo, then six `claim coding` from Grilled, each gave one exit 0 and five exit 3, the card in the winner's state with the key user assigned. Grilling and coding claimed at once on a Grilled card never both win. `release --reset-to grilled|review` moved the card back and deleted the ref, and a claim from a wrong state or on a canceled card exits 4.
+
+### Priority
+
+`sort_order` is one order over the whole board, the order `list` prints (`?order_by=sort_order`, sorted again client-side so ties keep the server's order). Each Plane column shows its slice of it, so a drag inside a column and `list` always agree. `move` writes one value, the one the web UI would write for that drop: `--top` the board's first value minus 65535, `--bottom` the last plus 65535, `--before n` / `--after n` the midpoint between the two neighbours. A state change keeps the value (see *Claims*). A gap under `1e-6` (about 50 midpoints in the same place) cannot take another midpoint: `move` then widens a window around the slot until its cards fit at least 1.0 apart between the window's two outer cards, rewrites only those cards, and inserts. The board is never renumbered as a whole.
+
+### Dependencies and cancel
+
+- `depend <n> --on <x>`: `POST work-items/<n>/relations/ {"relation_type": "blocked_by", "issues": [...]}`, after a `GET` of the same route to tell added from already there. Plane shows the relation on both cards. The API has no route to remove one, so a dependency added by mistake is removed in the Plane UI. A ticket cannot block itself (exit 2), and a blocker must be a card of this board.
+- `cancel <n>`: the card moves to the Canceled state (`WA_PLANE_STATES.canceled`, cancelled group), its `sort_order` kept, plus a `🚫 canceled — <reason>` comment. `list` hides it, `list --all` shows it with `state: null`, `closed` and `not_planned`, and claims on it exit 4. A card in Done (landed) or holding a claim exits 4.
+
+### Comments
+
+`comment_html` built from the text: paragraphs (line breaks kept), `-` / `*` and `1.` lists, inline bold, code and `[text](https://…)` links. Everything else stays plain text. Stdlib only, enough for the claim trail, release reasons and skill notes.
+
+### Checked live (issue 0009)
+
+On the rig and `whackagent-playground-plane`, with four throwaway cards:
+
+- `move WA-9 --top`, `move WA-6 --bottom`, `move WA-8 --before WA-1`, `move WA-7 --after WA-9` each gave the expected `list` order (values −65535, 161070, 32767.5, −32767.5). Moving relative to itself or to an unknown card exits 2.
+- The web UI's drag was not performed in a browser. Its exact write was replayed instead: `PATCH {"sort_order": 16383.75}` (midpoint of the two neighbours) and `PATCH {"sort_order": 131070}` (last + 65535). `list` showed both cards where the UI would.
+- Two cards set 1e-7 apart, then `move WA-9 --after WA-6`: two cards respaced (16383.75, 49151.25), WA-9 at 32767.5 between them, three PATCHes in all.
+- `depend WA-7 --on WA-6`, then `--on WA-6,WA-8`, reported added and already-there correctly. With WA-7 in Grilled, `claim WA-7 coding` exited 4 naming both blockers, then naming only WA-8 once WA-6 was Done, and won once WA-8 was canceled. `--blocked-ok` won on a card whose blocker was open. `claim grilling` from Grilled is never checked.
+- `cancel WA-8` moved it to Canceled; `list` hid it and `list --all` showed `not_planned: true`. A second `cancel` answered `already: true`; on a Done card and on a claimed card, exit 4.
+- A comment with a list, a link and code read back from `GET …/comments/` as `<p>…</p><ul><li><p>…<a href="…">#3</a></p></li>…</ul>`.
+- A second workspace user with the same display name as the key's user was assigned to a card: the previous script showed it `reserved: false`, this one `reserved: true`, and `claim` exited 3. With both users assigned, the claim won and `release` kept both assignments; on an unassigned card, `release` removed the key user again.
 
 ## Settings
 
@@ -36,13 +63,14 @@ The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the 
 | ticket id | work item key `<PROJECT>-<n>` (`WA-42`), looked up with `GET workspaces/<slug>/work-items/WA-42/`. A bare number or another project's key exits 2 |
 | title / summary | work item name / first line of its description (HTML, stored by `create` as one `<p>` per paragraph) |
 | state | Plane state, by id from `WA_PLANE_STATES`. Canceled (cancelled group) = `closed` + `not_planned`, `state: null`. A column no state maps to: `state: null`, `column: <name>` |
-| priority | `sort_order` inside the state, lower is higher; `list` reads `?order_by=sort_order`, paged 1000 rows a call |
+| priority | `sort_order`, one order over the board (each column shows its slice), lower is higher; `list` reads `?order_by=sort_order`, paged 1000 rows a call; `move` writes it like a UI drag (see *Priority*) |
 | create | `POST work-items/` with the todo state: Plane puts it at the bottom of Todo |
 | excluded | label `wa-ignore`; label `wa-sprint` marks a sprint root (both created by `provision`) |
-| reservation | assignees, by workspace display name; `reserved` when assigned to someone other than the key's user; a winning claim assigns the key's user |
+| reservation | assignees, compared by user id, shown by display name; `reserved` when assigned and the key's user is not among them; a winning claim assigns the key's user |
 | state change | `PATCH {state, sort_order}`, priority kept (see *Claims*) |
-| comment | work item comment, `comment_html` |
-| dependencies | relations `blocked_by`, read back in `get` |
+| comment | work item comment, `comment_html` (see *Comments*) |
+| dependencies | relations `blocked_by`: `depend` adds (never removes), `get` reads back |
+| cancel | Canceled state (cancelled group), priority kept |
 | web link | `<url>/<slug>/browse/WA-42/` |
 
 ## Provision
@@ -87,7 +115,7 @@ What this means for the adapter:
 - **The web UI** drags with the same arithmetic (checked in the 1.4.2 frontend bundle): dropping at the top writes the first card's value minus 65535, at the bottom the last card's value plus 65535, and between two cards their midpoint. Lower value means higher on the board.
 - **On a state change**, `sort_order` is kept as is (Todo → Grilling: 65535 → 65535). The card lands wherever that number falls in the new column, so the adapter must set it explicitly when the contract wants a position (for example, the bottom of `grilled`).
 - **Reading in priority order:** `GET <P>/work-items/?order_by=sort_order` returned `FC-1 FC-3 FC-2 FC-4`, which is the reordered sequence. Without `order_by` the list is newest first. The list does not filter by state server-side (`pql` and `filters` are refused on CE), so `list` sorts and filters client-side.
-- Midpoints halve the gap on each insert between the same two cards. After about 50 inserts in one gap, floats stop separating them. The adapter should renumber a column (spaced by 65535) when a gap gets too small.
+- Midpoints halve the gap on each insert between the same two cards. After about 50 inserts in one gap, floats stop separating them. `move` respaces the crowded cards when a gap gets too small (see *Priority*).
 
 ### Do relations and parent work items work?
 

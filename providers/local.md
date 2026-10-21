@@ -30,6 +30,7 @@ Same split as GitHub: `coding` = agent works now, `review` = human on turn. Loca
 | `release` | no-op |
 | `set-state` | edit frontmatter `status:` (+ move line to matching `{backlog}` section) |
 | `move` | reorder lines inside `{backlog}` section |
+| `cancel` | frontmatter `status: canceled`, line moved under **Canceled** in `{backlog}`, reason in `note:` |
 | `set-field` | edit frontmatter `size:` / `sprint:` / `milestone:` |
 | `close-milestone` | remove entry from `backlog.milestones` (tasks keep `milestone:`) |
 | `milestones` | config `backlog.milestones` (open) highest first, then `milestone:` values not in that list whose tasks aren't all `done`/`canceled` (closed); counts from task files, `done` = `status: done`/`canceled` |

@@ -1,4 +1,4 @@
-<!-- board-contract: 2.2 -->
+<!-- board-contract: 2.3 -->
 <!-- Installed by setup, its angle-bracket placeholders filled for this repository. Update through the setup PR, never by hand: the hooks,
      the board CLI and the PR template carry the same contract version. -->
 
@@ -56,15 +56,16 @@ Column names may differ on the Project; the board CLI always reports the six nam
 | see the board | `<board-cli> list [--state s,…] [--sprint x] [--milestone m]` |
 | read one ticket (state, branch, blockers, claims) | `<board-cli> get <n>` |
 | create a ticket | `<board-cli> create --title "…" --summary "…" [--size …] [--sprint …] [--note "…"]` |
-| take a ticket | `<board-cli> claim <n> grilling\|coding` |
+| take a ticket | `<board-cli> claim <n> grilling\|coding` (`--blocked-ok`: see *Dependencies*) |
 | give it back | `<board-cli> release <n> <phase> --reset-to <state> --reason "…"` |
 | repair a PR's link to its ticket (the workflow links it on its own) | `<board-cli> link-pr <n> <pr>` |
 | record a dependency | `<board-cli> depend <n> --on <x>[,<y>]` |
 | set size, sprint, milestone | `<board-cli> set-field <n> size\|sprint\|milestone <value>` |
 | leave a note on the ticket | `<board-cli> comment <n> "…"` |
+| cancel a ticket, on a human's word only | `<board-cli> cancel <n> --reason "…"` |
 | see live locks | `<board-cli> claims` |
 
-Exit codes: `0` ok · `1` error · `2` usage · **`3` taken** (someone else holds it, or it is assigned to another account; the owner is printed) · **`4` wrong state**. `3` and `4` are normal answers, not failures. Claiming a phase you already hold (same agent id) answers `0`.
+Exit codes: `0` ok · `1` error · `2` usage · **`3` taken** (someone else holds it, or it is assigned to another account; the owner is printed) · **`4` wrong state** (or, for `claim <n> coding` on a `grilled` ticket, a blocker still open; the blockers are named). `3` and `4` are normal answers, not failures. Claiming a phase you already hold (same agent id) answers `0`.
 
 ## Working a ticket
 
@@ -145,9 +146,10 @@ Never merge a ticket branch locally. The workflow sets `done`, drops the claim a
 
 ## Dependencies
 
-- Record them: `depend <n> --on <x>`. Read them: `get <n>` → `blocked_by`.
-- A blocker is **related** when it shares the ticket's sprint, or its track milestone (`get` → `sprint`, `milestone`). An **unrelated** blocker (other sprint or track, or none) never stacks: work the ticket from its own base as usual and add the body line `Blocked by #<x>: merge order is yours`.
-- Ticket with an open related blocker: wait, or **stack**: fork from the blocker's branch, PR base = that branch, then `<board-cli> stack <pr> --on <blocker pr>` puts the PR in the blocker's GitHub stack. Stacks are linear: when the blocker already has a PR on top (exit `4`), the PR stays chained on the blocker's branch with the body line `Stacked on #<pr>: merge it first`.
+- Record them: `depend <n> --on <x>`. Read them: `get <n>` → `blocked_by`. A blocker is **open** until it is done or canceled.
+- `claim <n> coding` on a `grilled` ticket with an open blocker answers `4`. Pass `--blocked-ok` only when you mean it: you stack on the blocker, or the blocker is unrelated and your human said to go ahead. A ticket already in `review` claims without the check.
+- A blocker is **related** when it shares the ticket's sprint, or its track milestone (`get` → `sprint`, `milestone`). An **unrelated** blocker (other sprint or track, or none) never stacks: work the ticket from its own base as usual (claim with `--blocked-ok`) and add the body line `Blocked by #<x>: merge order is yours`.
+- Ticket with an open related blocker: wait, or **stack**: claim with `--blocked-ok`, fork from the blocker's branch, PR base = that branch, then `<board-cli> stack <pr> --on <blocker pr>` puts the PR in the blocker's GitHub stack. Stacks are linear: when the blocker already has a PR on top (exit `4`), the PR stays chained on the blocker's branch with the body line `Stacked on #<pr>: merge it first`.
 - **Keep a stack linear.** GitHub refuses to merge a stack whose upper branch does not descend from the one below. A round that pushes to a ticket with PRs above it in its stack rebases each of them onto the new branch below: claim it `coding` first (exit `3` → leave it, say it needs a rebase), rebase only its own commits, push with `--force-with-lease`.
 - After a stacked PR merges, GitHub retargets the PRs above it and rebases their branches itself: start your next round from the remote branch, never push an older local copy over it.
 - **Never delete a branch by hand** while PRs are based on it: GitHub retargets them only when the branch is deleted by a merge. Deleting it later closes them.
@@ -179,4 +181,4 @@ Read those comments when you take a ticket, and fix what they name.
 
 ## Version
 
-This file carries `board-contract: 2.2` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when this file's version differs from its own: update them together with the setup PR, never one file by hand.
+This file carries `board-contract: 2.3` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when this file's version differs from its own: update them together with the setup PR, never one file by hand.

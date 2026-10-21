@@ -26,11 +26,13 @@ base method, which exits 2 with a clear message. A ticket id of the other board'
               get(number)                 one ticket, read fresh; a ticket missing from the board is added
               blocked_by(number)          blockers, [{number, state}]
               me()                        the account a claim assigns, `reserved` compares against
+              assigned_to_me(ticket)      that account already among the ticket's assignees
   Writing     set_state(ticket, state)    move the card to a state's column
               move(number, before, after, bottom)    priority: top when all empty
               set_size(ticket, size)
               assign(number, login) / unassign(number, login)    claim reservation; assign → success
               comment(number, text)
+              cancel(ticket)              closed as not planned: off the board, never claimable, not done
               create(title, body, milestone, size, sprint)    → {number, url, milestone}, card in todo
   Milestones  milestones()                release scopes, highest first, [{title, open, tickets, done}]
               close_milestone(title) / set_milestone(number, title)
@@ -51,6 +53,7 @@ import hashlib
 import datetime as dt
 import functools
 import html
+import itertools
 import json
 import os
 import shutil
@@ -74,7 +77,7 @@ CLAIM_NAMESPACE = "wa-claims"
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
 # Board contract this script implements: the project's BOARD.md, its PR template sections and its workflow
 # caller carry the same stamp. Installed and updated together by the setup PR.
-CONTRACT_VERSION = "2.2"
+CONTRACT_VERSION = "2.3"
 
 
 class Failure(Exception):
@@ -278,6 +281,9 @@ class Board:
     def me(self):
         raise self.unsupported("assignment")
 
+    def assigned_to_me(self, ticket):
+        return self.me() in ticket["assignees"]
+
     def set_state(self, ticket, state):
         raise self.unsupported("set-state")
 
@@ -295,6 +301,9 @@ class Board:
 
     def comment(self, number, text):
         raise self.unsupported("comment")
+
+    def cancel(self, ticket):
+        raise self.unsupported("cancel")
 
     def create(self, title, body, milestone=None, size=None, sprint=None):
         raise self.unsupported("create")
@@ -680,6 +689,10 @@ class GitHubBoard(Board):
     def comment(self, number, text):
         rest("POST", f"repos/{self.config['repo']}/issues/{number}/comments", {"body": text})
 
+    def cancel(self, ticket):
+        """Issue closed as not planned; the card keeps its column (the board check accepts any but a lock one)."""
+        rest("PATCH", f"repos/{self.config['repo']}/issues/{ticket['number']}", {"state": "closed", "state_reason": "not_planned"})
+
     def create(self, title, body, milestone=None, size=None, sprint=None):
         # No milestone: the highest open milestone, so new work lands in the scope being planned,
         # never in the current or a past one. "" = none. Resolved first: a bad title creates nothing.
@@ -953,6 +966,12 @@ PLANE_PAGE = 1000  # per_page ceiling of Plane's paginator
 PLANE_TRIES = 5
 # Plane's own per-key throttle defaults to 60/minute; the provider requires API_KEY_RATE_LIMIT=1000000/second.
 PLANE_LIFTED = 1000  # X-RateLimit-Remaining above this = limit lifted
+# Priority = sort_order, lower = higher. The web UI drops a card at the top at first − 65535, at the bottom at
+# last + 65535, between two cards at their midpoint; `move` does the same. Midpoints halve the gap each time:
+# once a gap is under PLANE_MIN_GAP, the cards around it are respaced at least PLANE_MIN_STEP apart.
+PLANE_STEP = 65535
+PLANE_MIN_GAP = 1e-6
+PLANE_MIN_STEP = 1.0
 
 
 def plane_call(url, method, path, body=None, missing=()):
@@ -1016,11 +1035,37 @@ def html_of(markdown):
     return "".join("<p>" + "<br>".join(html.escape(line) for line in p.splitlines()) + "</p>" for p in paragraphs) or "<p></p>"
 
 
+def inline_html(text):
+    """One line of Markdown → HTML: escaped, `code` kept literal, **bold** and [text](https://…) links."""
+    parts = re.split(r"(`[^`]+`)", text)
+    out = []
+    for index, part in enumerate(parts):
+        if index % 2:
+            out.append(f"<code>{html.escape(part[1:-1])}</code>")
+            continue
+        part = html.escape(part)
+        part = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", part)
+        out.append(re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', part))
+    return "".join(out)
+
+
+LIST_ITEM = {"ul": re.compile(r"\s*[-*]\s+"), "ol": re.compile(r"\s*\d+[.)]\s+")}
+
+
 def comment_html(markdown):
-    """Comment → Plane comment HTML: paragraphs as html_of, plus inline **bold** and `code` (the claim trail)."""
-    markup = html_of(markdown)
-    markup = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", markup)
-    return re.sub(r"`([^`]+)`", r"<code>\1</code>", markup)
+    """Comment → Plane comment HTML: paragraphs (line breaks kept), `-` / `1.` lists, inline as inline_html.
+    Enough for the claim trail, release reasons and skill notes; anything else shows as plain text."""
+    blocks = []
+    for paragraph in re.split(r"\n\s*\n", (markdown or "").strip()):
+        kind = lambda line: next((k for k, item in LIST_ITEM.items() if item.match(line)), "p")
+        for block, lines in itertools.groupby(paragraph.splitlines(), key=kind):
+            lines = list(lines)
+            if block == "p":
+                blocks.append("<p>" + "<br>".join(inline_html(line) for line in lines) + "</p>")
+            else:
+                items = "".join(f"<li><p>{inline_html(LIST_ITEM[block].sub('', line, 1))}</p></li>" for line in lines)
+                blocks.append(f"<{block}>{items}</{block}>")
+    return "".join(b for b in blocks if b != "<p></p>") or "<p></p>"
 
 
 def text_of(markup):
@@ -1099,14 +1144,15 @@ def ensure_plane_labels(url, base):
 
 class PlaneBoard(Board):
     """Plane CE project: ticket = work item, id = its key "WA-42", state = Plane state (ids in WA_PLANE_STATES,
-    plus Canceled), priority = sort_order within the state (lower = higher), excluded = label wa-ignore.
-    No size (Plane CE estimates are UI-only). Claims (state, assignee, trail comment) and create write the
-    board; move, sprints, milestones, dependencies and PR links: not built yet. Account = the Plane user owning
-    the API key (display name), not the GitHub login that writes claim refs, branches and PRs."""
+    plus Canceled), priority = sort_order (lower = higher, one order over the board, so each column shows it
+    too), excluded = label wa-ignore, blocked by = relation blocked_by, canceled = Canceled state. No size
+    (Plane CE estimates are UI-only). Sprints, milestones and PR links: not built yet. Account = the Plane user
+    owning the API key (shown by display name, compared by id), not the GitHub login that writes claim refs,
+    branches and PRs."""
 
     name = "a Plane"
-    # Contract operations later issues build (fields, sprints, milestones, hooks): "not yet", not "never".
-    PENDING = {"move", "close-milestone", "milestone", "split", "sprint", "depend", "link-pr"}
+    # Contract operations later issues build (sprints, milestones, hooks): "not yet", not "never".
+    PENDING = {"close-milestone", "milestone", "split", "sprint", "link-pr"}
 
     def __init__(self, config):
         super().__init__(config)
@@ -1197,17 +1243,22 @@ class PlaneBoard(Board):
             "not_planned": group == "cancelled",
             "ignored": bool(labels & set(config["label_ids"].values())),
             "assignees": assignees,
-            # Assigned to someone else: a human reserved it, no agent of another account may claim it.
-            "reserved": bool(assignees) and self.me() not in assignees,
+            # Assigned to someone else: a human reserved it, no agent of another account may claim it. Compared
+            # by user id: display names are not unique.
+            "reserved": bool(item.get("assignees")) and self.user()["id"] not in item["assignees"],
             "claims": [],  # the core fills it in, here so the key keeps its place in the output
             "url": self.ticket_url(key),
             "item_id": item["id"],
         }
 
-    def tickets(self):
-        """Priority order: Plane's sort_order (lower = higher on the board), drafts and archived cards left out."""
+    def board_items(self):
+        """Every card of the board, priority order (sort_order, lower = higher), drafts and archived cards left out.
+        Sorted here too: ties keep the server's order, so `list` and `move` see the same sequence."""
         items = plane_all(self.config["plane_url"], f"{self.base()}/work-items/?order_by=sort_order")
-        return [self.to_ticket(i) for i in items if not i.get("is_draft") and not i.get("archived_at")]
+        return sorted((i for i in items if not i.get("is_draft") and not i.get("archived_at")), key=lambda i: i["sort_order"])
+
+    def tickets(self):
+        return [self.to_ticket(i) for i in self.board_items()]
 
     def item(self, number):
         if number in self.items:
@@ -1247,6 +1298,9 @@ class PlaneBoard(Board):
 
     def me(self):
         return self.user()["display_name"]
+
+    def assigned_to_me(self, ticket):
+        return self.user()["id"] in (self.item(ticket["number"]).get("assignees") or [])
 
     def member_id(self, login):
         if login == self.me():
@@ -1295,6 +1349,94 @@ class PlaneBoard(Board):
 
     def comment(self, number, text):
         self.api("POST", f"{self.base()}/work-items/{self.item(number)['id']}/comments/", {"comment_html": comment_html(text)})
+
+    def cancel(self, ticket):
+        """Card to the Canceled column (cancelled group: closed + not_planned), priority kept like any state change."""
+        self.set_state(ticket, "canceled")
+
+    def set_order(self, item, value):
+        self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {"sort_order": value})
+
+    def move(self, number, before=None, after=None, bottom=False):
+        """Priority = sort_order over the whole board, the order `list` reads: one PATCH, the value the web UI
+        would write for that drop (top: first − 65535, bottom: last + 65535, between: midpoint). A gap too
+        small for a midpoint respaces the cards around it first (respace)."""
+        items = self.board_items()
+        keys = [self.key(i) for i in items]
+        for n in filter(None, [number, before, after]):
+            if n not in keys:
+                raise Failure(f"{n} is not on the board", EXIT_USAGE)
+        if number in (before, after):
+            raise Failure(f"{number} cannot move relative to itself", EXIT_USAGE)
+        card = items[keys.index(number)]
+        order = [i for i in items if i is not card]
+        rest_keys = [self.key(i) for i in order]
+        if bottom:
+            at = len(order)
+        elif after:
+            at = rest_keys.index(after) + 1
+        elif before:
+            at = rest_keys.index(before)
+        else:
+            at = 0
+        low = order[at - 1]["sort_order"] if at > 0 else None
+        high = order[at]["sort_order"] if at < len(order) else None
+        if low is None and high is None:
+            return  # alone on the board
+        if low is None:
+            value = high - PLANE_STEP
+        elif high is None:
+            value = low + PLANE_STEP
+        elif high - low > PLANE_MIN_GAP:
+            value = (low + high) / 2
+        else:
+            value = self.respace(order, at, number)
+        self.set_order(card, value)
+
+    def respace(self, order, at, number):
+        """Cards crowded around slot `at` (gap under PLANE_MIN_GAP, after ~50 midpoints in one place): widen a
+        window around the slot until its cards plus the moved one fit PLANE_MIN_STEP apart between the window's
+        two outer cards (past the board's ends: first − 65535 / last + 65535), PATCH the cards inside, return
+        the moved card's value. Only the crowded cluster is written, never the whole board."""
+        def edge(i):
+            if i < 0:
+                return order[0]["sort_order"] - PLANE_STEP
+            if i >= len(order):
+                return order[-1]["sort_order"] + PLANE_STEP
+            return order[i]["sort_order"]
+
+        low, high = at - 1, at  # outer cards, kept; the cards strictly between them move
+        while True:
+            step = (edge(high) - edge(low)) / (high - low + 1)
+            if step >= PLANE_MIN_STEP or (low < 0 and high >= len(order)):
+                break
+            low, high = max(low - 1, -1), min(high + 1, len(order))
+        inside = order[low + 1:high]
+        slots = inside[:at - low - 1] + [None] + inside[at - low - 1:]
+        value = None
+        for index, item in enumerate(slots, 1):
+            target = edge(low) + step * index
+            if item is None:
+                value = target
+            else:
+                self.set_order(item, target)
+        note(f"respaced {len(inside)} card(s) around {number}: sort_order gap was under {PLANE_MIN_GAP}")
+        return value
+
+    def depend(self, number, blockers):
+        """Relations `blocked_by` (Plane shows them on both cards). Plane stores a relation once, so posting it again
+        is harmless; read first anyway to tell added from already there. No API route removes one: the Plane UI does."""
+        blockers = list(dict.fromkeys(blockers))
+        if number in blockers:
+            raise Failure(f"{number} cannot block itself", EXIT_USAGE)
+        item = self.item(number)
+        ids = {b: self.item(b)["id"] for b in blockers}  # each blocker exists on this board, or exit
+        path = f"{self.base()}/work-items/{item['id']}/relations/"
+        have = {r["issue_id"] for r in (self.api("GET", path) or {}).get("blocked_by", [])}
+        added = [b for b in blockers if ids[b] not in have]
+        if added:
+            self.api("POST", path, {"relation_type": "blocked_by", "issues": [ids[b] for b in added]})
+        return added, [b for b in blockers if ids[b] in have]
 
     def set_size(self, ticket, size):
         raise Failure("size has no meaning on a Plane board (Plane CE cannot create estimates over its API)", EXIT_USAGE)
@@ -1574,11 +1716,20 @@ def op_claim(args):
     if ticket["state"] not in CLAIM_FROM[phase]:
         where = ticket["state"] or f"in column {ticket['column']!r}"
         raise Failure(f"{shown(args.number)} is {where}, {phase} needs {sorted(CLAIM_FROM[phase])}", EXIT_WRONG_STATE)
+    if phase == "coding" and ticket["state"] == "grilled" and not args.blocked_ok:
+        # First coding round only: a ticket in review already has its PR (fix rounds, stack cascades go on).
+        # Coding on an open blocker on purpose (stacked on it, or unrelated and approved) passes --blocked-ok.
+        blockers = [shown(b["number"]) for b in board.blocked_by(args.number) if b["state"] == "open"]
+        if blockers:
+            raise Failure(
+                f"{shown(args.number)} is blocked by {', '.join(blockers)} (open) — land {'it' if len(blockers) == 1 else 'them'}"
+                " first, or claim with --blocked-ok to stack on it or code it anyway", EXIT_WRONG_STATE,
+            )
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     # The winner assigns its account, so other accounts' agents see the ticket reserved. Recorded
     # in the claim so `release` gives back only an assignment this claim made.
     login = board.me()
-    assigning = login not in ticket["assignees"]
+    assigning = not board.assigned_to_me(ticket)
     trailer = f"assigned: {login}\n" if assigning else ""
     commit = rest(
         "POST",
@@ -1648,6 +1799,25 @@ def op_set_state(args):
 def op_move(args):
     open_board().move(args.number, before=args.before, after=args.after, bottom=args.bottom)
     emit({"number": args.number, "moved": True})
+
+
+def op_cancel(args):
+    """Ticket closed as not planned: off the board, never claimable, never counted done. Humans decide it:
+    skills run it on the user's yes. A claimed ticket is released first; a landed one stays done."""
+    board = open_board()
+    number = args.number
+    ticket = find(board, number, with_owners=False)
+    if ticket["not_planned"]:
+        emit({"number": number, "canceled": True, "already": True})
+        return
+    if ticket["closed"]:
+        raise Failure(f"{shown(number)} is closed (landed), not canceled", EXIT_WRONG_STATE)
+    if ticket["claims"]:
+        held = ", ".join(c["phase"] for c in ticket["claims"])
+        raise Failure(f"{shown(number)} is claimed ({held}) — release it first", EXIT_WRONG_STATE)
+    board.cancel(ticket)
+    board.comment(number, "🚫 **canceled**" + (f" — {args.reason}" if args.reason else ""))
+    emit({"number": number, "canceled": True})
 
 
 def op_milestones(args):
@@ -2029,6 +2199,7 @@ def parser():
     s.add_argument("number", type=ticket_id)
     s.add_argument("phase", choices=sorted(CLAIM_FROM))
     s.add_argument("--agent")
+    s.add_argument("--blocked-ok", action="store_true", help="coding despite an open blocker (stacked on it, or approved)")
     s.set_defaults(func=op_claim)
 
     s = sub.add_parser("release")
@@ -2051,6 +2222,11 @@ def parser():
     where.add_argument("--before", type=ticket_id)
     where.add_argument("--after", type=ticket_id)
     s.set_defaults(func=op_move)
+
+    s = sub.add_parser("cancel", help="close a ticket as not planned (on a human's word)")
+    s.add_argument("number", type=ticket_id)
+    s.add_argument("--reason")
+    s.set_defaults(func=op_cancel)
 
     s = sub.add_parser("set-field")
     s.add_argument("number", type=ticket_id)
@@ -2076,7 +2252,7 @@ def parser():
     text.add_argument("--body-file", help="read the text from a file, - = stdin (multi-line comments)")
     s.set_defaults(func=op_comment)
 
-    s = sub.add_parser("depend", help="ticket is blocked by others (issue Relationships)")
+    s = sub.add_parser("depend", help="ticket is blocked by others (GitHub issue Relationships, Plane relations)")
     s.add_argument("number", type=ticket_id)
     s.add_argument("--on", required=True, type=lambda v: [ticket_id(x) for x in v.split(",") if x], help="blocker ids, comma-separated")
     s.set_defaults(func=op_depend)

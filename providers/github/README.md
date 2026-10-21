@@ -75,6 +75,7 @@ Custom `branch.prefix` → edit `branches:` filter in workflow to match.
 - **Project item list lags** writes by 1–3 min (GitHub indexing). `list` may miss brand-new tickets; `get`/`claim` read through issue — always current.
 - Claim race: N agents claim same ticket → exactly one exit 0, rest exit 3 with owner (tested 6-way). Only `Reference already exists` counts as taken; any other ref error surfaces as-is.
 - Columns outside the six states (board's own `Blocked`, default `In Progress`) are kept by provision (unless named in `--prune-status` and empty) with their colors/descriptions, and left alone by script and hooks: `state: null`, `column: <name>`, not claimable.
-- Closed issues (canceled) hidden from `list`, never claimable. Split parent = sprint root, off board.
+- Closed issues (canceled) hidden from `list`, never claimable. `cancel` = issue closed `not planned` + reason comment (the card's column stays as GitHub leaves it; `not_planned` decides). Split parent = sprint root, off board.
+- `claim coding` from `grilled` with open blocker (`blocked_by`, one REST call, only on that claim) → exit 4 unless `--blocked-ok` (stack, or unrelated blocker approved).
 - Right after someone moves a card by hand, a read may see previous column for a second or two (GitHub replica lag).
 - Organization project: works with same PAT scopes; GitHub App path (not tied to one person) not built yet.

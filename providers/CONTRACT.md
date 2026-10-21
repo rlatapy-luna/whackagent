@@ -8,7 +8,7 @@ Config picks provider: `backlog.provider: local | github | plane` in `.whackagen
 |---|---|---|
 | `local` | prompt-implemented, files — `providers/local.md` | no — one agent, one checkout |
 | `github` | script `providers/wa-backlog` (`GitHubBoard`; `providers/github/wa-backlog` links to it) + board workflow — `providers/github/README.md` | yes — atomic claims, hooks drive state |
-| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | claims yes (atomic, same refs); hooks not built yet |
+| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | claims yes (atomic, same refs); priority, dependencies, comments, cancel yes; hooks, sprints, milestones not built yet |
 
 ## States
 
@@ -48,16 +48,17 @@ All print JSON on stdout, messages on stderr.
 | `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,closed,not_planned,assignees,reserved,claims,url}]` (`not_planned`: closed as not planned = canceled), `review` rows add `phase` (sub-phase, *Who's on turn*; null unknown); draft rows `{draft:true,title}` only when unfiltered |
 | `get <id>` | one ticket + its branch + its sub-phase + its blockers | object, `branch` null before grilling pushed, `phase` null without task file, `blocked_by: [{number,state}]` |
 | `create --title --summary [--size] [--sprint] [--milestone m] [--note]` | new ticket in `todo`, bottom of board; milestone per *Milestones* below | `{number,url,state,milestone}` |
-| `claim <id> grilling\|coding [--agent a]` | **atomic lock**, then state → phase, assign current account (trackers with assignees), trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state** |
+| `claim <id> grilling\|coding [--agent a] [--blocked-ok]` | **atomic lock**, then state → phase, assign current account (trackers with assignees), trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state**, or `coding` from `grilled` with open blocker (*Claim rules*) |
 | `release <id> <phase> [--reset-to s] [--reason r]` | drop lock, undo assignment that claim made, optional state reset, trail comment | object |
 | `set-state <id> <state>` | raw state write — setup/migration/manual repair only | object |
-| `move <id> --top\|--bottom\|--before n\|--after n` | reprioritize | object |
+| `move <id> --top\|--bottom\|--before n\|--after n` | reprioritize — one order over whole board, the one `list` prints | object |
+| `cancel <id> [--reason r]` | closed as not planned (`not_planned: true`): off board, never claimable, never `done`; trail comment. **On human's word only.** Already canceled → `already: true`. Landed or claimed → exit 4 | `{number,canceled}` |
 | `set-field <id> size <quickwin\|medium\|large>` / `set-field <id> sprint <name\|"">` / `set-field <id> milestone <title\|"">` | fields; sprint created on first use, milestone must be known to `milestones` (never created) | object |
 | `milestones` | release scopes, **highest first** (*Milestones*) — open ones, then closed ones still holding open tickets | `[{title,open,tickets,done}]` — `tickets` total, `done` closed (landed or canceled) |
 | `close-milestone <title>` | close shipped milestone — **`/wa-release` only, on user's yes** | `{title,open:false}`; unknown → exit 2 |
 | `split <id>` | ticket too big → becomes **root of sprint** named after its title (kebab-case), leaves board; children join via `create --sprint <name>`. Unclaimed, open, not in sprint, name free — else exit 4 (title with no letter or digit: exit 2) | `{number,sprint}` |
 | `comment <id> <text>` | human-facing trail | object |
-| `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent | object |
+| `depend <id> --on <id>[,<id>…]` | ticket blocked by others — dependency graph visible on tracker. Idempotent. Add-only: no verb removes one (human does, on tracker) | object |
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |
 | `branch <id>` | remote branch carrying ticket | `{branch}` |
 | `whoami [--agent a]` | agent id used for claims (`WA_AGENT` env, else `<host>:<worktree>`), plus tracker account | `{agent,login}` — `login` null when tracker has no accounts; board whose accounts aren't the code host's (Plane) adds `vcs_login` (account writing claim refs, branches, PRs) |
@@ -67,6 +68,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 
 ## Claim rules
 
 - `grilling` claimable from `todo`, or from `grilled` (re-grill: spec rewritten on same branch, push hook moves it back). `coding` claimable from `grilled` or `review` (fix round on open PR). Both claimed on one `grilled` ticket at once → never both win. Closed ticket, or ticket in column outside the six states (`state: null`, `column: "Blocked"`) → exit 4, never touched.
+- **Open blocker → no first coding round.** `claim <id> coding` from `grilled` with any blocker open (`get` → `blocked_by`, `state: open`; done or canceled blocker blocks nothing) → exit 4, blockers named. `--blocked-ok` claims anyway — only on purpose: stacked on blocker, or unrelated blocker user approved (**BOARD.md → Dependencies**). `coding` from `review` (PR open: fix round, stack cascade) and `grilling` never checked.
 - **Assigned to another account → reserved.** Tracker with assignees: ticket assigned to someone other than current account → exit 3, owner = assignee(s), `assigned: true`. Unassigned or assigned to current account → normal rules. `list` / `get` rows carry `assignees` + `reserved`. Tracker without assignees (local) → never reserved.
 - **Winning claim assigns current account** when not already assignee — ticket then reserved against other accounts for rest of its life (hooks never unassign). `release` removes that assignment only when its claim made it; assignment a human made stays.
 - Lost claim (exit 3) → never retry same ticket, never steal. Next ticket, or report owner to user.

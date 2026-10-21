@@ -149,7 +149,7 @@ Asked early: files or GitHub Project. Choosing GitHub:
 
 `wa-backlog create` opens an issue in `todo`, at the **bottom** of the board, in the highest open milestone (by version order of titles), with your idea or spec excerpt as the issue body. Dependencies become issue relationships (`wa-backlog depend`). No claim, no branch, no task file yet: grilling creates those.
 
-Prioritization is **never automatic** under GitHub, because the board order is shared with humans and other agents. Only `/wa-task` with no argument proposes a new order, and it's applied (`wa-backlog move`) on your yes. Canceling a ticket = closing the issue as "not planned", on your yes.
+Prioritization is **never automatic** under GitHub, because the board order is shared with humans and other agents. Only `/wa-task` with no argument proposes a new order, and it's applied (`wa-backlog move`) on your yes. Canceling a ticket = `wa-backlog cancel <n> --reason "…"`, which closes the issue as "not planned" with the reason as a comment, on your yes.
 
 ### `/wa-grill #12`
 
@@ -163,7 +163,7 @@ Abort → `release --reset-to todo`, and the empty remote branch is deleted. **R
 
 ### `/wa-code #12`
 
-Without an argument, it picks the top unclaimed `grilled` ticket. A ticket with an open blocker in its sprint or track is never coded from the base (wait, or let `/wa-autopilot` stack it); an unrelated open blocker gets a warning, and on your yes the PR says `Blocked by #<x>: merge order is yours`. It claims `coding`, checks out the existing ticket branch (never creates a new one: the spec lives there), and runs the normal pipeline. Once the task is broken into bricks, they're posted as one issue comment, one line per brick (a later round that re-plans posts a new comment; the issue body is never edited). The round ends with commit, push and a draft PR; the hook moves the ticket to `review`. The first push of a ticket asks for a one-line confirmation; later rounds push without asking.
+Without an argument, it picks the top unclaimed `grilled` ticket. A ticket with an open blocker in its sprint or track is never coded from the base (wait, or let `/wa-autopilot` stack it); an unrelated open blocker gets a warning, and on your yes the PR says `Blocked by #<x>: merge order is yours`. The script backs this up: `claim <n> coding` on a `grilled` ticket with an open blocker exits 4 unless `--blocked-ok` is passed, which `/wa-code` does only after your yes and `/wa-autopilot` only when it stacks the ticket or the blocker is unrelated. It claims `coding`, checks out the existing ticket branch (never creates a new one: the spec lives there), and runs the normal pipeline. Once the task is broken into bricks, they're posted as one issue comment, one line per brick (a later round that re-plans posts a new comment; the issue body is never edited). The round ends with commit, push and a draft PR; the hook moves the ticket to `review`. The first push of a ticket asks for a one-line confirmation; later rounds push without asking.
 
 ### `/wa-feedback #12 <notes>`
 

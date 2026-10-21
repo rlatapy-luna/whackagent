@@ -154,7 +154,7 @@ sequenceDiagram
     Note over A,G: CONFLICTING → rebase ticket range,<br/>rebuild, push --force-with-lease, check again
 ```
 
-- **Claim first.** Exit 3 → someone mid-round: name owner, stop, never steal. Exit 4 → wrong state.
+- **Claim first.** Exit 3 → someone mid-round: name owner, stop, never steal. Exit 4 → wrong state, or `coding` from `grilled` with open blocker (`--blocked-ok` = stack on it, or unrelated + human's yes).
 - **No push mid-round.** Push to open PR = `synchronize` = round over, claim dropped.
 - **Conflicting PR fires nothing.** GitHub runs no `pull_request` workflow on conflict: ticket stuck in `coding` until rebase.
 - **Draft ↔ ready moves nothing.** `ready_for_review` comments only. Clean `/wa-validate` marks ready. `/wa-feedback` on ready PR flips it back to draft first.
