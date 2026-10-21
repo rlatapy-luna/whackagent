@@ -4,6 +4,8 @@ How the Plane backlog provider (`backlog.provider: plane`) plugs into the whole 
 
 The Plane provider keeps the board in a project on your own **Plane Community Edition** server, while code, branches, claims and pull requests stay on GitHub. It is the GitHub provider with the board swapped out: the same claims, the same agent rounds, the same PRs, the same `BOARD.md` contract, the same six states. Only where the cards live changes. Plane CE is free and self-hosted, so board traffic costs no GitHub API calls, and the hooks run on your own runner, so no Actions minutes are billed.
 
+For the pieces and the event flow in diagrams (components, card states, a ticket's life, claims, the hook pipeline, migration), read [docs/plane-architecture.md](docs/plane-architecture.md).
+
 > **Experimental.** The whole loop works and was tested end to end on a real Plane server and repository, but it has seen far less use than the GitHub board. Report what breaks.
 
 This guide assumes you know the GitHub flow; [GITHUB.md](GITHUB.md) explains the parts both boards share (agent rounds, PR bodies, stacked PRs, squash merges and the ticket range) in more depth. For the script-level details (every verb's Plane mapping, the hooks, the verified Plane API behavior), see [`providers/plane/README.md`](providers/plane/README.md).

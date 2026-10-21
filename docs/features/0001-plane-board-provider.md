@@ -22,7 +22,7 @@ A project can keep its backlog on a self-hosted Plane Community Edition server (
 - **Maintainer tooling:**
   - `scripts/plane-rig/` runs a local Plane CE v1.4.2 rig with bootstrap, fact checks and recorded payloads.
   - Playgrounds: `rlatapy-luna/whackagent-playground-plane` (runner label `whackagent-plane`) and `rlatapy-luna/whackagent-playground-migrate` (Plane project `MIG`).
-- **Docs:** `PLANE.md`, `providers/README.md` (guide to adding a board tool), `providers/plane/README.md` (verified API facts) and a Plane section in `WORKFLOW.md`.
+- **Docs:** `PLANE.md`, `docs/plane-architecture.md` (pieces and event flow in mermaid diagrams), `providers/README.md` (guide to adding a board tool), `providers/plane/README.md` (verified API facts) and a Plane section in `WORKFLOW.md`.
 
 ## Notable decisions
 
