@@ -4,6 +4,12 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Experimental Plane board: `backlog.provider: plane` keeps the backlog in a project on your own Plane Community Edition server while code, branches and PRs stay on GitHub. `/wa-setup` asks for the Plane URL, workspace and project and provisions the states (six board states plus Canceled, in board order, Todo default) and labels, again and again without duplicates; settings go to repository variables, the API key stays in `PLANE_API_KEY` (agents) and the `WA_PLANE_API_KEY` Actions secret (hooks). `/wa-task` creates cards in `todo`, `/wa-board` and the backlog pane show them with their Plane key (`WA-42`), in Plane's card order. The server must lift Plane's per-key rate limit (`API_KEY_RATE_LIMIT=1000000/second`). Claims, hooks, sprints, milestones and size are not built yet.
+- New config key `vcs.provider` (only value `github`, the default): the code host under a `github` or `plane` backlog. Configs without it behave as before; `/wa-setup` reconfigure offers it.
+- `wa-backlog` refuses a ticket id of the other board's shape (`WA-42` on a GitHub board, `12` on a Plane board) with a clear message instead of an API error.
+
 ## [1.6.0] - 2026-10-20
 
 ### Added

@@ -8,13 +8,13 @@ model: haiku
 
 Dashboard. Lift lid on backlog, point next move.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `blockers.md` · arg given → + `sprints.md` `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `branch.tracks` non-empty → + `tracks.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `blockers.md` · arg given → + `sprints.md` `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md`.
 
 ## Do
 
 0. **Read arg.** None → whole backlog. Sprint name (`/wa-board login-refacto`) or milestone title (`/wa-board 0.3.0`) → **filtered view**: only its tasks, plus its progress line. Resolve per **reference/sprints.md** / **reference/milestones.md**; unknown name → say so, list known sprints and milestones, stop.
 1. Read `.whackagent/config.md` (respect discussion language). Missing → tell user run `/wa-setup`, stop.
-2. Read `{backlog}` + referenced task files (need each task `summary`, `size`, `grilled`, `sprint`, `milestone`, `blocked_by`) + provider `milestones` verb. **GitHub provider** → `wa-backlog list` (+ `--sprint` / `--milestone` when filtered), `wa-backlog milestones` and `wa-backlog claims` instead; see *GitHub board* below.
+2. Read `{backlog}` + referenced task files (need each task `summary`, `size`, `grilled`, `sprint`, `milestone`, `blocked_by`) + provider `milestones` verb. **GitHub or Plane provider** → `wa-backlog list` (+ `--sprint` / `--milestone` when filtered), `wa-backlog milestones` and `wa-backlog claims` instead; see *GitHub board* below.
 3. Render backlog as **list**, one section per status (see **reference/display.md → Display format**), priority order within each.
 4. Suggest exactly **one** next action, by state (filtered run → scope suggestion to sprint or milestone). Task with ⛔ never suggested: take next one down (**reference/blockers.md**):
    - something in `validated` → reviewed, wait user retest: `/wa-close <slug>` to finish (or `/wa-feedback` if retest found something). Highest precedence — one step from done.
@@ -33,6 +33,8 @@ Same list format, sections by contract state, render order: **📥 Todo → 🔥
 - `📝 drafts` — Project draft items: not tickets, convert to issue on GitHub.
 
 **Review section splits draft vs ready** — `gh pr list --json number,headRefName,isDraft`: draft → `🧪 draft #<pr>` (your test), ready → `🔀 ready #<pr>` (your test, then merge — GitHub or `/wa-close`).
+
+**Plane board** (**reference/board-plane.md**) — same list, same next action. Canceled = Canceled column (`not_planned: true`). No size icon (Plane rows carry none), no `📝 drafts` block. Ids `WA-<n>` as is.
 
 Next action (GitHub, table **providers/CONTRACT.md** → *Who's on turn*; `list` rows in `review` carry `phase`), first match wins: `review` + ready → test, then merge on GitHub or `/wa-close <#>` (merges on your yes) · `review` + draft → `/wa-feedback <#> <notes>` or `/wa-validate <#>` (marks it ready) · unclaimed `grilled` on top → `/wa-code <#>` · else top `todo` → `/wa-grill <#>` · several unclaimed `grilled` → mention `/wa-autopilot` as option. Never suggest ticket someone else holds — claimed by other agent, or `reserved`.
 

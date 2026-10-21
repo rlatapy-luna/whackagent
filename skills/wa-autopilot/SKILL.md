@@ -8,7 +8,7 @@ model: opus
 
 `/wa-code` unattended, over batch. Same PM role, same pipeline, one addition: **independent tasks run parallel, each in own git worktree.** Give batch, walk away, read report.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `worktrees.md` `commits.md` `blockers.md` · arg names sprint or task has `sprint:` → + `sprints.md` · arg names milestone → + `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` · `backlog.provider: github` → + `board-github.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `worktrees.md` `commits.md` `blockers.md` · arg names sprint or task has `sprint:` → + `sprints.md` · arg names milestone → + `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 

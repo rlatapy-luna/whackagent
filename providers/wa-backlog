@@ -11,15 +11,17 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 Shared core (same for every board): CLI, verbs, states, claim-from rules, exit codes, claims (git refs
 on the GitHub repo), ticket branches and task phases, pull requests, merge, stacks, screenshots and
 the contract check. Everything the board tool owns sits behind `Board`, picked by `backlog.provider`
-in .whackagent/config.md (only `github`, a GitHub Project v2, exists; anything else falls back to it).
+in .whackagent/config.md: `github` (a GitHub Project v2) or `plane` (a Plane Community Edition project,
+experimental); anything else falls back to GitHub. The Plane API key comes from env PLANE_API_KEY only.
 
 Board interface: one adapter class per board tool. Tickets are dicts: number (the ticket id: an issue
 number, or a board key "WA-42"), title, summary, state, column, size, sprint, milestone, closed,
 not_planned, ignored, assignees, reserved, claims (filled by the core), url, item_id; a card that is
 not a ticket is {"draft": True, "title", "item_id"}. An operation a tool has no meaning for keeps the
-base method, which exits 2 with a clear message.
+base method, which exits 2 with a clear message. A ticket id of the other board's shape exits 2 too.
 
-  Reading     settings(repo, variables)   board ids resolved from the repo variables, cached with the config
+  Reading     check_id(number)            refuse an id of the wrong shape before any call (12 vs "WA-42")
+              settings(repo, variables)   board ids resolved from the repo variables, cached with the config
               tickets()                   every card, priority order (`list`, `claims` filter it)
               get(number)                 one ticket, read fresh; a ticket missing from the board is added
               blocked_by(number)          blockers, [{number, state}]
@@ -48,6 +50,7 @@ import concurrent.futures
 import hashlib
 import datetime as dt
 import functools
+import html
 import json
 import os
 import shutil
@@ -56,6 +59,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from urllib.parse import quote
 
@@ -252,6 +257,10 @@ class Board:
     @classmethod
     def unsupported(cls, operation):
         return Failure(f"{operation} has no meaning on {cls.name} board", EXIT_USAGE)
+
+    @classmethod
+    def check_id(cls, number):
+        pass
 
     @classmethod
     def settings(cls, repo, variables):
@@ -485,6 +494,11 @@ class GitHubBoard(Board):
     size = Size option, sprint = wa-sprint parent issue, milestone = repo milestone."""
 
     name = "a GitHub"
+
+    @classmethod
+    def check_id(cls, number):
+        if not isinstance(number, int):
+            raise Failure(f"tickets on a GitHub board are issue numbers (12), not {number}", EXIT_USAGE)
 
     @classmethod
     def settings(cls, repo, variables):
@@ -809,10 +823,14 @@ class GitHubBoard(Board):
         owner = args.owner or repo.split("/")[0]
         owner_kind, owner_id = owner_node(owner)
         created = False
+        if not args.title and not args.project:
+            raise Failure("pass --title (new project) or --project <number> (adopt)", EXIT_USAGE)
         if args.project:
             if args.template:
                 raise Failure("--template copies into a new project: pass it with --title, not --project", EXIT_USAGE)
-            number = args.project
+            if not str(args.project).isdigit():
+                raise Failure(f"--project expects a GitHub project number, got {args.project!r}", EXIT_USAGE)
+            number = int(args.project)
         elif args.template:
             source_owner, _, source_number = args.template.rpartition("/")
             source_owner = source_owner or owner
@@ -915,7 +933,386 @@ class GitHubBoard(Board):
         return [{"number": n["number"], "title": n["title"], "url": n["url"]} for n in nodes if n["template"] and not n["closed"]]
 
 
-BOARDS = {"github": GitHubBoard}
+# ---------------------------------------------------------------- Plane board (Plane Community Edition)
+
+# Contract states + canceled, board order. State → (name provision gives a state it creates, Plane group, color).
+PLANE_STATES = {
+    "todo": ("Todo", "unstarted", "#60646C"),
+    "grilling": ("Grilling", "started", "#8E4EC6"),
+    "grilled": ("Grilled", "started", "#3E63DD"),
+    "coding": ("Coding", "started", "#F59E0B"),
+    "review": ("Review", "started", "#E5484D"),
+    "done": ("Done", "completed", "#46A758"),
+    "canceled": ("Canceled", "cancelled", "#9AA4BC"),
+}
+# Plane's seed name, adopted before a state is created (a new project carries "Cancelled").
+PLANE_STATE_ALIASES = {"canceled": ["Cancelled"]}
+PLANE_LABELS = {IGNORE_LABEL: "#9AA4BC", SPRINT_LABEL: "#3E63DD"}
+PLANE_KEY_ENV = "PLANE_API_KEY"  # agents: environment only; hooks: Actions secret WA_PLANE_API_KEY
+PLANE_PAGE = 1000  # per_page ceiling of Plane's paginator
+PLANE_TRIES = 5
+# Plane's own per-key throttle defaults to 60/minute; the provider requires API_KEY_RATE_LIMIT=1000000/second.
+PLANE_LIFTED = 1000  # X-RateLimit-Remaining above this = limit lifted
+
+
+def plane_call(url, method, path, body=None, missing=()):
+    """(data, headers) of one /api/v1 call. HTTP 429 → sleep Retry-After, retry (bounded); `missing` codes → None."""
+    key = os.environ.get(PLANE_KEY_ENV)
+    if not key:
+        raise Failure(f"{PLANE_KEY_ENV} not set — export the Plane API key in this shell (never in the repo or config)")
+    request = urllib.request.Request(
+        f"{url.rstrip('/')}/api/v1/{path.lstrip('/')}",
+        data=json.dumps(body).encode() if body is not None else None,
+        method=method,
+        headers={"X-API-Key": key, "Content-Type": "application/json", "Accept": "application/json"},
+    )
+    for attempt in range(PLANE_TRIES):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                raw = response.read()
+                return (json.loads(raw) if raw else None), response.headers
+        except urllib.error.HTTPError as error:
+            raw = error.read()
+            if error.code == 429 and attempt < PLANE_TRIES - 1:
+                retry = error.headers.get("Retry-After") or ""
+                wait = min(int(retry) if retry.isdigit() else 10, 60)
+                note(f"Plane rate limit hit, retry in {wait}s — lift it: API_KEY_RATE_LIMIT=1000000/second on the server")
+                time.sleep(wait)
+                continue
+            if error.code in missing:
+                return None, error.headers
+            try:
+                reason = json.loads(raw)
+                reason = reason.get("error") or reason.get("detail") or reason
+            except ValueError:
+                reason = raw.decode(errors="replace")[:200]
+            raise Failure(f"Plane {method} {path}: HTTP {error.code} {reason}")
+        except urllib.error.URLError as error:
+            raise Failure(f"Plane unreachable at {url}: {error.reason}")
+    raise Failure(f"Plane {method} {path}: still rate limited after {PLANE_TRIES} tries")
+
+
+def plane_api(url, method, path, body=None, missing=()):
+    return plane_call(url, method, path, body, missing)[0]
+
+
+def plane_all(url, path):
+    """Every row of a list endpoint: a bare list, or cursor pages of {results} (PLANE_PAGE rows each)."""
+    rows, cursor = [], None
+    sep = "&" if "?" in path else "?"
+    while True:
+        page = plane_api(url, "GET", f"{path}{sep}per_page={PLANE_PAGE}" + (f"&cursor={cursor}" if cursor else ""))
+        if isinstance(page, list):
+            return page
+        rows += page.get("results", [])
+        if not page.get("next_page_results"):
+            return rows
+        cursor = page["next_cursor"]
+
+
+def html_of(markdown):
+    """Ticket body → Plane description (stored as HTML): one <p> per paragraph, line breaks kept."""
+    paragraphs = [p for p in re.split(r"\n\s*\n", (markdown or "").strip()) if p.strip()]
+    return "".join("<p>" + "<br>".join(html.escape(line) for line in p.splitlines()) + "</p>" for p in paragraphs) or "<p></p>"
+
+
+def text_of(markup):
+    """Plane description → plain text, one line per block."""
+    text = re.sub(r"<br\s*/?>|</(?:p|div|li|h\d|pre|blockquote)>", "\n", markup or "", flags=re.I)
+    return html.unescape(re.sub(r"<[^>]+>", "", text))
+
+
+def ensure_plane_states(url, base, names, prune):
+    """Make the project carry the seven states (six contract states + canceled) in their Plane groups, in board
+    order, Todo the default. Adopts a state by name (`names` overrides, else default name, then Plane's seed
+    alias), creates the missing ones. Never renames or deletes a state on its own: extra columns stay and
+    are reported; `prune` names extras to delete, and one still holding cards stays (Plane refuses).
+    Returns ({state: id}, report)."""
+    path = f"{base}/states/"
+    have = plane_all(url, path)
+    by_name = {s["name"]: s for s in have}
+    report = {"created": [], "updated": [], "removed": [], "extra": [], "held": {}, "default_changed": False}
+    ids = {}
+    for index, (state, (default_name, group, color)) in enumerate(PLANE_STATES.items(), 1):
+        name = names.get(state, default_name)
+        found = by_name.get(name)
+        if not found and state not in names:
+            found = next((by_name[a] for a in PLANE_STATE_ALIASES.get(state, []) if a in by_name), None)
+        want = {"group": group, "sequence": index * 10000}
+        if not found:
+            # POST ignores `sequence` (appends at the end): the PATCH below puts it in place.
+            found = plane_api(url, "POST", path, {"name": name, "color": color, **want})
+            report["created"].append(name)
+        changes = {k: v for k, v in want.items() if found.get(k) != v}
+        if changes:
+            found = plane_api(url, "PATCH", f"{path}{found['id']}/", changes)
+            if found["name"] not in report["created"]:
+                report["updated"].append(found["name"])
+        ids[state] = found["id"]
+    # A card created in the Plane UI without a state lands in the default one: todo. PATCH default=true does not
+    # clear the previous default (Plane 1.4.2 bug), so every other default is cleared by hand.
+    current = {s["id"]: s for s in plane_all(url, path)}
+    if not current[ids["todo"]].get("default"):
+        plane_api(url, "PATCH", f"{path}{ids['todo']}/", {"default": True})
+        report["default_changed"] = True
+    for state in current.values():
+        if state["id"] != ids["todo"] and state.get("default"):
+            plane_api(url, "PATCH", f"{path}{state['id']}/", {"default": False})
+            report["default_changed"] = True
+    extras = [s for s in current.values() if s["id"] not in ids.values()]
+    named = set(prune or [])
+    ours = {current[i]["name"] for i in ids.values()}
+    if named & ours:
+        raise Failure(f"--prune-status names a state column: {sorted(named & ours)}", EXIT_USAGE)
+    doomed = [s for s in extras if s["name"] in named]
+    for state in doomed:
+        plane_api(url, "DELETE", f"{path}{state['id']}/", missing=(400,))  # 400: not empty, Plane keeps it
+    left = {s["id"] for s in plane_all(url, path)} if doomed else set()
+    report["removed"] = [s["name"] for s in doomed if s["id"] not in left]
+    held_ids = [s["id"] for s in doomed if s["id"] in left]
+    if held_ids:
+        project_key = plane_api(url, "GET", f"{base}/")["identifier"]
+        for item in plane_all(url, f"{base}/work-items/"):
+            if item["state"] in held_ids:
+                report["held"].setdefault(current[item["state"]]["name"], []).append(f"{project_key}-{item['sequence_id']}")
+    report["extra"] = [s["name"] for s in sorted(extras, key=lambda s: s["sequence"]) if s["name"] not in report["removed"]]
+    return ids, report
+
+
+def ensure_plane_labels(url, base):
+    """Labels the board reads: wa-ignore (not a ticket), wa-sprint (sprint root, off the board). Returns created names."""
+    have = {l["name"] for l in plane_all(url, f"{base}/labels/")}
+    created = []
+    for name, color in PLANE_LABELS.items():
+        if name not in have:
+            plane_api(url, "POST", f"{base}/labels/", {"name": name, "color": color}, missing=(409,))
+            created.append(name)
+    return created
+
+
+class PlaneBoard(Board):
+    """Plane CE project: ticket = work item, id = its key "WA-42", state = Plane state (ids in WA_PLANE_STATES,
+    plus Canceled), priority = sort_order within the state (lower = higher), excluded = label wa-ignore.
+    No size (Plane CE estimates are UI-only). Writes beyond create, sprints, milestones: not built yet."""
+
+    name = "a Plane"
+    # Contract operations later issues build (claims, fields, sprints, milestones, hooks): "not yet", not "never".
+    PENDING = {"set-state", "move", "assignment", "comment", "close-milestone", "milestone", "split", "sprint", "depend", "link-pr"}
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.items = {}  # key → work item read this run
+        self.members = None
+
+    @classmethod
+    def unsupported(cls, operation):
+        if operation in cls.PENDING:
+            return Failure(f"{operation} is not built yet on a Plane board (experimental provider)", EXIT_USAGE)
+        return super().unsupported(operation)
+
+    @classmethod
+    def check_id(cls, number):
+        if not isinstance(number, str):
+            raise Failure(f"tickets on a Plane board are keys like WA-42, not {number}", EXIT_USAGE)
+
+    @classmethod
+    def settings(cls, repo, variables):
+        needed = ["WA_PLANE_URL", "WA_PLANE_WORKSPACE", "WA_PLANE_PROJECT_ID", "WA_PLANE_STATES"]
+        missing = [v for v in needed if v not in variables]
+        if missing:
+            raise Failure(f"{repo} has no {', '.join(missing)} variable — run /wa-setup backlog (provision)")
+        url, slug, project_id = variables["WA_PLANE_URL"].rstrip("/"), variables["WA_PLANE_WORKSPACE"], variables["WA_PLANE_PROJECT_ID"]
+        base = f"workspaces/{slug}/projects/{project_id}"
+        project = plane_api(url, "GET", f"{base}/")
+        states = plane_all(url, f"{base}/states/")
+        labels = plane_all(url, f"{base}/labels/")
+        state_ids = json.loads(variables["WA_PLANE_STATES"])
+        known = {s["id"] for s in states}
+        lost = [s for s in PLANE_STATES if state_ids.get(s) not in known]
+        if lost:
+            raise Failure(f"Plane states missing for {lost} — run provision again")
+        return {
+            "plane_url": url,
+            "workspace": slug,
+            "project_id": project_id,
+            "project_key": project["identifier"],
+            "project_url": f"{url}/{slug}/projects/{project_id}/issues/",
+            "state_ids": {s: state_ids[s] for s in PLANE_STATES},
+            "state_names": {s["id"]: s["name"] for s in states},  # every column, extras included
+            "state_groups": {s["id"]: s["group"] for s in states},
+            "label_ids": {l["name"]: l["id"] for l in labels if l["name"] in PLANE_LABELS},
+        }
+
+    def base(self):
+        return f"workspaces/{self.config['workspace']}/projects/{self.config['project_id']}"
+
+    def api(self, method, path, body=None, missing=()):
+        return plane_api(self.config["plane_url"], method, path, body, missing)
+
+    # ------------------------------------------------ reading
+
+    def key(self, item):
+        return f"{self.config['project_key']}-{item['sequence_id']}"
+
+    def logins(self, ids):
+        if not ids:
+            return []
+        if self.members is None:
+            rows = self.api("GET", f"workspaces/{self.config['workspace']}/members/")
+            self.members = {m["id"]: m["display_name"] for m in (rows or [])}
+        return [self.members.get(i, i) for i in ids]
+
+    def to_ticket(self, item):
+        config = self.config
+        state_id = item["state"]
+        if state_id not in config["state_names"]:
+            raise StaleCache(f"unknown Plane state {state_id}")
+        state = {i: s for s, i in config["state_ids"].items()}.get(state_id)
+        group = config["state_groups"][state_id]
+        labels = set(item.get("labels") or [])
+        assignees = self.logins(item.get("assignees") or [])
+        key = self.key(item)
+        self.items[key] = item
+        return {
+            "number": key,
+            "title": item["name"],
+            "summary": summary_of(text_of(item.get("description_html"))),
+            "state": state if state in STATES else None,  # canceled: no contract state, closed + not_planned
+            "column": config["state_names"][state_id],
+            "size": None,
+            "sprint": None,
+            "milestone": None,
+            "closed": group in ("completed", "cancelled"),
+            "not_planned": group == "cancelled",
+            "ignored": bool(labels & set(config["label_ids"].values())),
+            "assignees": assignees,
+            # Assigned to someone else: a human reserved it, no agent of another account may claim it.
+            "reserved": bool(assignees) and self.me() not in assignees,
+            "claims": [],  # the core fills it in, here so the key keeps its place in the output
+            "url": self.ticket_url(key),
+            "item_id": item["id"],
+        }
+
+    def tickets(self):
+        """Priority order: Plane's sort_order (lower = higher on the board), drafts and archived cards left out."""
+        items = plane_all(self.config["plane_url"], f"{self.base()}/work-items/?order_by=sort_order")
+        return [self.to_ticket(i) for i in items if not i.get("is_draft") and not i.get("archived_at")]
+
+    def item(self, number):
+        if number in self.items:
+            return self.items[number]
+        key = self.config["project_key"]
+        if number.rsplit("-", 1)[0] != key:
+            raise Failure(f"{number} is not on this board: its tickets are {key}-<n>", EXIT_USAGE)
+        item = self.api("GET", f"workspaces/{self.config['workspace']}/work-items/{number}/", missing=(404,))
+        if not item or item.get("project") != self.config["project_id"]:
+            raise Failure(f"{number} does not exist")
+        return item
+
+    def get(self, number):
+        ticket = self.to_ticket(self.item(number))
+        ids = set(self.items[number].get("labels") or [])
+        if self.config["label_ids"].get(SPRINT_LABEL) in ids:
+            raise Failure(f"{number} is sprint {ticket['title']!r}, not a ticket", EXIT_WRONG_STATE)
+        if self.config["label_ids"].get(IGNORE_LABEL) in ids:
+            raise Failure(f"{number} is labeled {IGNORE_LABEL}, not a ticket", EXIT_WRONG_STATE)
+        return ticket
+
+    def blocked_by(self, number):
+        relations = self.api("GET", f"{self.base()}/work-items/{self.item(number)['id']}/relations/") or {}
+        rows = []
+        for blocker in relations.get("blocked_by", []):
+            if blocker["project_id"] != self.config["project_id"]:
+                continue  # another project's card: not a ticket of this board
+            item = self.api("GET", f"{self.base()}/work-items/{blocker['issue_id']}/")
+            group = self.config["state_groups"].get(item["state"])
+            rows.append({"number": self.key(item), "state": "closed" if group in ("completed", "cancelled") else "open"})
+        return rows
+
+    @functools.cache
+    def me(self):
+        return self.api("GET", "users/me/")["display_name"]
+
+    def ticket_url(self, number):
+        return f"{self.config['plane_url']}/{self.config['workspace']}/browse/{number}/"
+
+    # ------------------------------------------------ writing
+
+    def set_size(self, ticket, size):
+        raise Failure("size has no meaning on a Plane board (Plane CE cannot create estimates over its API)", EXIT_USAGE)
+
+    def create(self, title, body, milestone=None, size=None, sprint=None):
+        if sprint:
+            raise self.unsupported("sprint")
+        if milestone:
+            raise self.unsupported("milestone")
+        if size:
+            note(f"size {size} not stored: a Plane board has no size")
+        # Explicit todo state: Plane puts the card at the bottom of that column (highest sort_order + 10000).
+        item = self.api("POST", f"{self.base()}/work-items/", {
+            "name": title, "description_html": html_of(body), "state": self.config["state_ids"]["todo"],
+        })
+        key = self.key(item)
+        return {"number": key, "url": self.ticket_url(key), "milestone": None}
+
+    def milestones(self):
+        return []  # Plane modules: not built yet; a board without milestones answers []
+
+    # ------------------------------------------------ other
+
+    @classmethod
+    def provision(cls, args, repo):
+        if args.title or args.template:
+            raise Failure("a Plane project is adopted, never created here: create it in Plane, then pass --project", EXIT_USAGE)
+        if not (args.plane_url and args.workspace and args.project):
+            raise Failure("Plane provision needs --plane-url, --workspace and --project <identifier or id>", EXIT_USAGE)
+        url, slug = args.plane_url.rstrip("/"), args.workspace
+        projects = plane_all(url, f"workspaces/{slug}/projects/")
+        project = next((p for p in projects if args.project in (p["identifier"], p["id"])), None)
+        if not project:
+            known = ", ".join(p["identifier"] for p in projects) or "none"
+            raise Failure(f"no Plane project {args.project!r} in workspace {slug} (projects: {known})", EXIT_USAGE)
+        base = f"workspaces/{slug}/projects/{project['id']}"
+        names = {}
+        for pair in args.state or []:
+            state, _, name = pair.partition("=")
+            if state not in PLANE_STATES:
+                raise Failure(f"unknown state {state!r}, expected one of {list(PLANE_STATES)}", EXIT_USAGE)
+            names[state] = name
+        state_ids, report = ensure_plane_states(url, base, names, args.prune_status)
+        labels_created = ensure_plane_labels(url, base)
+        prepare_repo(repo)
+        variables = {
+            "WA_PLANE_URL": url,
+            "WA_PLANE_WORKSPACE": slug,
+            "WA_PLANE_PROJECT_ID": project["id"],
+            "WA_PLANE_STATES": json.dumps(state_ids),
+            **code_variables(args),
+        }
+        set_variables(repo, variables)
+        config = load(refresh=True)
+        secret = gh(["secret", "list", "--repo", repo, "--json", "name", "--jq", ".[].name"], check=False).stdout.split()
+        remaining = plane_call(url, "GET", "users/me/")[1].get("X-RateLimit-Remaining")
+        return {
+            "project_url": config["project_url"],
+            "project_key": project["identifier"],
+            "project_id": project["id"],
+            "states_created": report["created"],
+            "states_updated": report["updated"],
+            "states_removed": report["removed"],
+            "states_extra": report["extra"],
+            "states_held": report["held"],
+            "default_state_changed": report["default_changed"],
+            "labels_created": labels_created,
+            "state_ids": state_ids,
+            "variables": variables,
+            "secret_WA_PLANE_API_KEY": "WA_PLANE_API_KEY" in secret,
+            "api_rate_limit_remaining": int(remaining) if (remaining or "").isdigit() else None,
+            "api_rate_limit_lifted": (remaining or "").isdigit() and int(remaining) > PLANE_LIFTED,
+        }
+
+
+BOARDS = {"github": GitHubBoard, "plane": PlaneBoard}
 
 
 # ---------------------------------------------------------------- claims and branches (code host)
@@ -1537,7 +1934,7 @@ def op_merge(args):
 
 
 def parser():
-    p = argparse.ArgumentParser(prog="wa-backlog", description="whackagent backlog provider (GitHub code host, board per backlog.provider)")
+    p = argparse.ArgumentParser(prog="wa-backlog", description="whackagent backlog provider (GitHub code host, board per backlog.provider: github, plane)")
     sub = p.add_subparsers(dest="op", required=True)
 
     s = sub.add_parser("config", help="print resolved settings")
@@ -1662,23 +2059,25 @@ def parser():
     s.add_argument("number", type=ticket_id)
     s.set_defaults(func=op_branch)
 
-    s = sub.add_parser("provision", help="create or adopt the project, fields, repo variables")
-    target = s.add_mutually_exclusive_group(required=True)
-    target.add_argument("--title", help="create a new project with this title")
-    target.add_argument("--project", type=int, help="adopt an existing project number")
-    s.add_argument("--owner", help="project owner login (default: repo owner)")
+    s = sub.add_parser("provision", help="create or adopt the board (GitHub: project + fields; Plane: states + labels), repo variables")
+    target = s.add_mutually_exclusive_group()
+    target.add_argument("--title", help="GitHub: create a new project with this title")
+    target.add_argument("--project", help="adopt an existing project: GitHub project number, Plane project identifier (WA) or id")
+    s.add_argument("--plane-url", help="Plane: server URL (https://plane.example.com)")
+    s.add_argument("--workspace", help="Plane: workspace slug")
+    s.add_argument("--owner", help="GitHub: project owner login (default: repo owner)")
     s.add_argument(
         "--template", metavar="[OWNER/]NUMBER", help="with --title: copy this project template (views, fields, workflows)"
     )
     s.add_argument("--status-field", default="Status")
     s.add_argument("--size-field", default="Size")
-    s.add_argument("--state", action="append", metavar="STATE=OPTION", help="map a state onto an existing option")
+    s.add_argument("--state", action="append", metavar="STATE=OPTION", help="map a state onto an existing option (Plane: state name)")
     s.add_argument(
         "--prune-status",
         action="append",
         metavar="OPTION",
         help="drop this Status option (no state maps to it, no card on it), repeatable; reorders states into "
-        "lifecycle order, extras after (new non-template boards drop every extra)",
+        "lifecycle order, extras after (new non-template boards drop every extra). Plane: drop this extra state",
     )
     s.add_argument("--tasks-path", default=".whackagent/tasks")
     s.add_argument("--branch-prefix", default="wa/")
@@ -1706,10 +2105,22 @@ def check_contract():
              " — update both through the setup PR")
 
 
+def check_ids(args):
+    """Ticket ids of the other board's shape (12 on Plane, WA-42 on GitHub) stop here, before any call."""
+    board = board_class()
+    ids = [getattr(args, name, None) for name in ("number", "before", "after")]
+    if isinstance(getattr(args, "on", None), list):  # depend --on; stack --on is a PR number
+        ids += args.on
+    for number in ids:
+        if number is not None:
+            board.check_id(number)
+
+
 def main():
     args = parser().parse_args()
     check_contract()
     try:
+        check_ids(args)
         try:
             args.func(args)
         except StaleCache:

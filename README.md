@@ -191,6 +191,8 @@ pr:
 | `build.test_command` | `""` | Test command; empty uses the build tool's own test task |
 | `verify.target` | `local` | Where the runtime check runs: `simulator`, `emulator`, `device`, `browser` or `local` |
 | `branch.checkout_next` | `true` | After `/wa-close`, check out the next task's branch (with `branch.per_task` and `commit.auto_commit_after_validation`) |
+| `backlog.provider` | `local` | Where tickets live: `local` (files), `github` (GitHub Project, [below](#shared-backlog-on-github)), or `plane` (self-hosted Plane CE project, code on GitHub, **experimental**, [below](#board-on-plane-experimental)) |
+| `vcs.provider` | `github` | Code host (branches, PRs, claims) under a `github` or `plane` backlog. `github` is the only value; a config without the key behaves the same |
 
 ## Typical flow
 
@@ -331,7 +333,7 @@ Updates the wiki. `/wa-close` runs it on every close (under the GitHub provider,
 
 ## Shared backlog on GitHub
 
-By default the backlog is files in your repo, for one agent at a time. Set `backlog.provider: github` (asked at `/wa-setup`) and it moves to a **GitHub Project**, so several agents in different worktrees, or on different machines, share one board without taking the same ticket.
+By default the backlog is files in your repo, for one agent at a time. Set `backlog.provider: github` (asked at `/wa-setup`) and it moves to a **GitHub Project** (or, experimental, to a Plane board: [Board on Plane](#board-on-plane-experimental)), so several agents in different worktrees, or on different machines, share one board without taking the same ticket.
 
 The board doesn't require whackagent behind it. `/wa-setup` installs a **`BOARD.md`** contract in the project, plus pointers to it in `AGENTS.md`, `CLAUDE.md` and the Copilot and Cursor instruction files, a copy of the board CLI, and board sections in the PR template. Any dev, using any agent or work loop, follows that one file and the board stays right. See [GITHUB.md → One board, any work loop](GITHUB.md#one-board-any-work-loop).
 
@@ -357,6 +359,16 @@ A closed-unmerged PR sends the ticket back to `grilled`.
 - **Workflow at a glance:** [WORKFLOW.md](WORKFLOW.md), short notes and diagrams: board states, whose turn it is, any work loop, the whackagent loop, merge, hook events.
 - **Full walkthrough:** [GITHUB.md](GITHUB.md) explains what every command does on GitHub, the agent round, PRs, sprints, stacking and the gotchas.
 - **Another tracker** (Jira, Linear, Trello, Notion) means a new folder under `providers/` implementing the same contract (`providers/CONTRACT.md`); the skills don't change.
+
+### Board on Plane (experimental)
+
+Set `backlog.provider: plane` and the board lives in a project on your own **Plane Community Edition** server, while code, branches and pull requests stay on GitHub. Tickets are Plane work items, shown everywhere with their Plane key (`WA-42`): the branch is `wa/WA-42-<slug>` and the task file `WA-42-<slug>.md`. Card order inside a state column is priority, so reordering cards in Plane steers what comes next.
+
+- **Setup:** `/wa-setup backlog` asks for the Plane URL, workspace and project (create the project in Plane first), then `wa-backlog provision` adds the seven states (the six board states plus Canceled) in board order, makes Todo the default, adds the `wa-ignore` and `wa-sprint` labels and writes the settings to repository variables (`WA_PLANE_URL`, `WA_PLANE_WORKSPACE`, `WA_PLANE_PROJECT_ID`, `WA_PLANE_STATES`). It never renames or deletes a column on its own; it lists the extra ones and drops only those you name. Running it again changes nothing.
+- **API key:** an environment variable `PLANE_API_KEY` on each machine running agents, and the Actions secret `WA_PLANE_API_KEY` for the hooks. It is never written to the repository or the config.
+- **Rate limit:** Plane throttles each API key to 60 requests per minute by default. The provider requires `API_KEY_RATE_LIMIT=1000000/second` in the server's `plane.env` (recreate the `api` container after changing it). On a server left at the default, the script waits and retries, so the board is slow, not broken.
+- **What works today:** `/wa-task` creates cards in `todo`, `/wa-board` and the backlog pane show the board. Claims and agent rounds, the hooks that move `grilled`, `review` and `done`, sprints, milestones and size are not built yet; those commands stop with a clear message. Plane CE cannot create estimates over its API, so a Plane board has no size.
+- **Facts the adapter is built on:** [providers/plane/README.md](providers/plane/README.md).
 
 ## File tree created in your project
 

@@ -135,6 +135,44 @@ test('board key ids: WA-42 row, its task file named after the branch, Task tab',
   await ui.unmount()
 })
 
+test('plane board: WA-<n> rows through wa-backlog, provider named, no GitHub issue call', async ($, on) => {
+  const ok = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+  const rows = [
+    { number: 'WA-2', title: 'Export CSV', summary: 'S', state: 'todo', column: 'Todo', size: null, assignees: [], reserved: false, claims: [] },
+    { number: 'WA-1', title: 'Login Apple', summary: 'S', state: 'todo', column: 'Todo', size: null, assignees: [], reserved: false, claims: [] },
+    { number: 'WA-3', title: 'Dropped', summary: 'S', state: null, column: 'Canceled', closed: true, not_planned: true, assignees: [], reserved: false, claims: [] },
+  ]
+  const commands: string[] = []
+  on('session.root', () => ({ value: '/p' }))
+  on('session.start', () => ({ cwd: '/p' }))
+  on('command.register', () => ({ value: { command: 'wa-pane' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('fs.read', ($, e) =>
+    e.path === '/p/.whackagent/config.md'
+      ? { value: '---\nbacklog:\n  provider: plane\nvcs:\n  provider: github\n---\n' }
+      : { deny: `ENOENT ${e.path}` },
+  )
+  on('fs.stat', () => ({ deny: 'ENOENT' }))
+  on('process.run', ($, e) => {
+    const command = e.argv.join(' ')
+    commands.push(command)
+    if (command.includes('wa-backlog list')) return ok(JSON.stringify(rows))
+    if (command.includes('wa-backlog milestones')) return ok('[]')
+    if (command.startsWith('gh pr list')) return ok('[]')
+    if (command.includes('rev-parse --abbrev-ref')) return ok('main')
+    return ok(command.startsWith('git') ? '' : '{}')
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  for (const text of [/Export CSV/, /Login Apple/, /WA-2/, /WA-1/]) expect(await ui.find({ type: 'Text', text })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'provider: plane' })).toBeDefined()
+  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  expect(commands.some(command => command.startsWith('gh issue'))).toBe(false)
+  await ui.unmount()
+})
+
 test('+N more under Done shows every task, show less folds it back', async ($, on) => {
   const slugs = ['t1', 't2', 't3', 't4', 't5']
   const files: Record<string, string> = {

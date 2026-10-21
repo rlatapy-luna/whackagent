@@ -38,6 +38,8 @@ const SUGGEST_DELAY_MS = 300
 const TAB_TITLE_LENGTH = 18
 const NAME_TOOL = 'name_session'
 const NAME_TOOL_CALL = 'mcp__whackagent__name_session'
+// backlog.provider values whose tickets come from `wa-backlog list`; any other value reads the local backlog.
+const TICKET_BOARDS = ['github', 'plane']
 const GITHUB_MARK = '<svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"/></svg>'
 
 const board = atom({ plugin: 'whackagent', key: 'board' } as const, { kind: 'loading' } as Board)
@@ -134,7 +136,7 @@ async function loadLocal($: EngineInterface, at: Checkout, configText: string, c
 
 // endregion
 
-// region GitHub provider
+// region Ticket boards (GitHub, Plane): rows from `wa-backlog list`, code on GitHub
 
 async function runJson($: EngineInterface, argv: readonly string[], root: string, label: string): Promise<unknown> {
   const result = await $.process.run(argv, { cwd: root, timeoutMs: 60_000 })
@@ -178,7 +180,7 @@ async function githubFocus(
   const ticket = (await runJson($, ['python3', script, 'get', number], at.root, 'wa-backlog get').catch(() => ({}))) as {
     blocked_by?: { number: TicketId; state: string }[]
   }
-  if (file && file.bricks.length === 0) {
+  if (file && file.bricks.length === 0 && config.provider === 'github') {
     const issue = (await runJson($, ['gh', 'issue', 'view', number, '--json', 'comments'], at.root, 'gh issue view').catch(
       () => ({}),
     )) as { comments?: { body: string }[] }
@@ -216,6 +218,7 @@ async function refreshFocusFiles($: EngineInterface) {
 async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, isForced: boolean) {
   if (!isForced) return refreshFocusFiles($)
   const script = `${$.plugin.root}/providers/wa-backlog`
+  const isGithubBoard = config.provider === 'github'
   const [rows, milestones, pulls, refs, sprints] = await Promise.all([
     runJson($, ['python3', script, 'list', '--all', '--owners'], at.root, 'wa-backlog list'),
     runJson($, ['python3', script, 'milestones'], at.root, 'wa-backlog milestones'),
@@ -223,9 +226,11 @@ async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, is
       () => [],
     ),
     ticketRefs($, at, config.branchPrefix),
-    runJson($, ['gh', 'issue', 'list', '--label', 'wa-sprint', '--state', 'open', '--json', 'number,title,milestone', '--limit', '100'], at.root, 'gh issue list').catch(
-      () => [],
-    ),
+    isGithubBoard
+      ? runJson($, ['gh', 'issue', 'list', '--label', 'wa-sprint', '--state', 'open', '--json', 'number,title,milestone', '--limit', '100'], at.root, 'gh issue list').catch(
+          () => [],
+        )
+      : [],
   ])
   const { tickets, drafts } = toTickets(rows as Record<string, unknown>[], pulls as PullRequest[], config.branchPrefix)
   const counts = (milestones as { title: string; open: boolean; tickets: number; done: number }[]).map(
@@ -249,6 +254,7 @@ async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, is
   )
   const next: Board = {
     kind: 'github',
+    provider: config.provider,
     tickets,
     drafts,
     milestones: counts,
@@ -281,7 +287,7 @@ async function load($: EngineInterface, isForced: boolean): Promise<{ next: Boar
   }
   const config = parseConfig(configText)
   const at = await checkout($, root)
-  return config.provider === 'github' ? loadGithub($, at, config, isForced) : loadLocal($, at, configText, config)
+  return TICKET_BOARDS.includes(config.provider) ? loadGithub($, at, config, isForced) : loadLocal($, at, configText, config)
 }
 
 async function refresh($: EngineInterface, isForced = false): Promise<Board> {
@@ -430,7 +436,7 @@ export const register: Register = (on, options) => {
 
     const surface = e.surface
     const logo =
-      current.kind === 'github' && surface !== 'terminal'
+      current.kind === 'github' && current.provider === 'github' && surface !== 'terminal'
         ? (() => {
             const { Svg } = $.ui.resolve({ ...e, surface })
             return <Svg source={GITHUB_MARK} alt="GitHub" width={16} height={16} />
@@ -505,7 +511,7 @@ export const register: Register = (on, options) => {
             hotkey="b"
             onPress={() => void update($, boardHidden, isHidden => !isHidden)}
           />
-          {logo ?? <Text dimColor>{`provider: ${current.kind}`}</Text>}
+          {logo ?? <Text dimColor>{`provider: ${current.kind === 'github' ? current.provider : current.kind}`}</Text>}
           {view.milestone !== '' && <Text dimColor>{`· milestone: ${view.milestone}`}</Text>}
         </Box>
         {isBoardHidden ? (

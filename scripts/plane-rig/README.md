@@ -37,7 +37,7 @@ eval "$(scripts/plane-rig/rig env)" # export PLANE_URL PLANE_WORKSPACE PLANE_PRO
   - An API key labelled `whackagent-rig`.
 - The public API covers the project, its features and the states. The rest goes through `python manage.py shell` in the `api` container: the admin user, the workspace and the API key, because the API cannot create them, and the estimate, because 1.4.2 does not mount `/api/v1` estimates. Details are in `providers/plane/README.md`.
 - The key never leaves `.env.local`, apart from the playground secret below. Never commit it. After `reset`, bootstrap makes a new key: run `rig playground` again.
-- The Plane rate limit is the upstream default, 60 requests per minute per key (`API_KEY_RATE_LIMIT` in `plane.env`). `factcheck` alone uses most of a minute's budget, and it waits out the limit around its 100-request probe (`--skip-rate` skips the probe).
+- The Plane rate limit is lifted to `1000000/second` (`API_KEY_RATE_LIMIT` in `plane.env`), the setting the provider requires; the upstream default is 60 requests per minute per key. `factcheck` waits out a limit around its 100-request probe (`--skip-rate` skips the probe).
 - To upgrade Plane, fetch `deployments/cli/community/docker-compose.yml` at the new tag, reapply the changes listed in the compose header, bump `APP_RELEASE`, then run `rig up`, `rig bootstrap` and `factcheck`, and update the provider README.
 
 ## Playground repository and runner
@@ -45,7 +45,7 @@ eval "$(scripts/plane-rig/rig env)" # export PLANE_URL PLANE_WORKSPACE PLANE_PRO
 The playground is `rlatapy-luna/whackagent-playground-plane` (private). Never use `rlatapy-luna/whackagent-playground`: it now redirects to a real team repository. Every `rig` command that writes to GitHub first checks `gh api repos/rlatapy-luna/whackagent-playground-plane --jq .full_name` and refuses on any other answer. Do the same check by hand before any other live write.
 
 ```sh
-scripts/plane-rig/rig playground        # secret PLANE_API_KEY + variables PLANE_URL PLANE_WORKSPACE PLANE_PROJECT_ID
+scripts/plane-rig/rig playground        # secret WA_PLANE_API_KEY + variables WA_PLANE_URL WA_PLANE_WORKSPACE WA_PLANE_PROJECT_ID
 scripts/plane-rig/rig runner register   # once: download runner, register it with label whackagent-plane
 scripts/plane-rig/rig runner start      # background ./run.sh, log in ~/actions-runner-whackagent/rig-run.log
 scripts/plane-rig/rig runner stop

@@ -7,7 +7,7 @@ description: Grill one task until clear — interview down design tree, architec
 
 One task, fuzzy → grilled: decisions settled, acceptance criteria written, ready for `/wa-code`. Clarity before code. Tasks come from **`/wa-task`**, which creates them and suggests this command — never starts it.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `task-types.md` `blockers.md` · arg is display index → + `display.md` · `backlog.provider` ≠ `local` → + `code-github.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `branch.worktree: true` → + `worktrees.md` · `branch.tracks` non-empty → + `tracks.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `task-types.md` `blockers.md` · arg is display index → + `display.md` · `backlog.provider` ≠ `local` → + `code-github.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.worktree: true` → + `worktrees.md` · `branch.tracks` non-empty → + `tracks.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 

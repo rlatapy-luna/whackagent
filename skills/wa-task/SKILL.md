@@ -7,7 +7,7 @@ description: Create tasks from idea or spec, cutting large specs, then re-priori
 
 Idea or spec → task(s) in backlog, ordered. **Creates, cuts, places — never grills, never starts `/wa-grill`**: run ends on suggestion, user launches `/wa-grill` — it clarifies one task at a time.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `display.md` `paths.md` `milestones.md` `task-types.md` `blockers.md` · task gets `sprint:` (split, user names one) → + `sprints.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `branch.tracks` non-empty → + `tracks.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `display.md` `paths.md` `milestones.md` `task-types.md` `blockers.md` · task gets `sprint:` (split, user names one) → + `sprints.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -22,7 +22,7 @@ Owns three things: **creating** task, **cutting** spec too large for one task (*
    - Bare arg matches **live sprint**, no task slug → ambiguous, ask which (recommend: new task inside that sprint, since `/wa-task` creates): `login-refacto is a sprint. New task inside it (recommended), or do you want the view? → /wa-board login-refacto`.
    - `release <id>` → stale-claim cleanup (*GitHub provider*).
    - **No arg → prioritization only.** Skip to step 5, whole backlog in scope, full pass (see *Explicit run* there).
-1. **Context.** Read `.whackagent/config.md`, `{wiki}/index.md`, backlog (`{backlog}`, or `wa-backlog list` under GitHub — **reference/board-github.md**). `{…}` paths per **reference/paths.md**. Idea or spec block already covered by task → say so, reuse, never duplicate. Note live sprints.
+1. **Context.** Read `.whackagent/config.md`, `{wiki}/index.md`, backlog (`{backlog}`, or `wa-backlog list` under GitHub or Plane — **reference/board-github.md**, **reference/board-plane.md**). `{…}` paths per **reference/paths.md**. Idea or spec block already covered by task → say so, reuse, never duplicate. Note live sprints.
 2. **Title first.** Distill request into SHORT explicit title — feature clear one glance ("Login Apple", not "improve auth"). Rules: **reference/voice.md → Titles and summaries** — label ≤ 5 words, never a narrative sentence, never a metaphor, tech terms untranslated. Slug = kebab-case title (`login-apple`).
    - **Glossary** — `{wiki}/glossary.md` exists → title, summary, context use its terms, never a `Never` word. User names thing it lacks → propose row *"add `+ Term — means` to glossary? (recommended: yes — grill, code and PR then use same word)"*, on yes add `Glossary: + <row>` line to `## Context / Decisions` (`/wa-wiki` writes it). Absent → skip.
 3. **Write task file** at `{tasks}/<slug>.md` from `${CLAUDE_PLUGIN_ROOT}/templates/task.md`:
@@ -107,6 +107,7 @@ What grill starts from — `/wa-grill` reads it instead of re-asking what spec a
 
 - **Create** → `wa-backlog create --title … --summary … [--size] [--sprint] [--milestone] --note "<idea or spec excerpt>"` (note = issue body) instead of steps 3–4, then `wa-backlog depend <id> --on <x>` per dependency. Ticket lands `todo`, bottom of board, milestone per **reference/milestones.md** (track: `--milestone <track>` on user's yes). **No claim, no branch, no task file** — `/wa-grill` makes them; `ported-from:` / `lands:` go in `--note`, grill copies them to task file. `type` not stored yet (no task file): grill infers it (**reference/task-types.md**).
 - **Prioritization (step 5) under GitHub:** **not automatic.** Board order shared with humans and other agents — new ticket lands bottom of `todo`, full stop. Only explicit `/wa-task` (no arg): re-read `wa-backlog list` just before writing, show proposed order, apply with `wa-backlog move` **only on user yes**. Cancel = close issue `not planned` with reason comment, on yes.
+- **Plane board** (`backlog.provider: plane`, experimental, **reference/board-plane.md**) — same section, card instead of issue: `create` without `--size`, `--sprint`, `--milestone` (not stored or not built yet), id `WA-<n>`. Reorder = user drags cards in Plane (`move` not built yet). Cancel = user moves card to Canceled in Plane.
 - **`/wa-task release <id>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <id> <phase> --reset-to <todo|grilled|review> --reason "stale: <age>, no push"` (`coding` → `review` when PR open, else `grilled`; `grilling` → `grilled` when spec already exists — issue body criteria or task file on branch —, else `todo`). Never on own initiative, never to take ticket another live agent holds.
 
 ## Sprints

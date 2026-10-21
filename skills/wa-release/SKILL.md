@@ -7,7 +7,7 @@ description: Ship one milestone — check its tasks landed, then walk project's 
 
 **Milestone ready to ship.** `/wa-release` check scope landed, then follow **project's** release flow — the one written down, not one Claude know from elsewhere. Every app ship different (store, registry, deploy, tag, nothing). Guessing = shipping wrong thing.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `provider.md` `milestones.md` `commits.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `branch.tracks` non-empty → + `tracks.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `provider.md` `milestones.md` `commits.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md`.
 
 Wording (screen + reports): **reference/voice.md**. Every question: recommendation + one-line reason, **wa-grill → Question format**. Milestone rules: **reference/milestones.md**.
 

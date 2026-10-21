@@ -17,10 +17,10 @@ jobs:
     steps:
       - name: Reach the local Plane API
         env:
-          PLANE_API_KEY: ${{ secrets.PLANE_API_KEY }}
-          PLANE_URL: ${{ vars.PLANE_URL }}
-          PLANE_WORKSPACE: ${{ vars.PLANE_WORKSPACE }}
-          PLANE_PROJECT_ID: ${{ vars.PLANE_PROJECT_ID }}
+          PLANE_API_KEY: ${{ secrets.WA_PLANE_API_KEY }}
+          PLANE_URL: ${{ vars.WA_PLANE_URL }}
+          PLANE_WORKSPACE: ${{ vars.WA_PLANE_WORKSPACE }}
+          PLANE_PROJECT_ID: ${{ vars.WA_PLANE_PROJECT_ID }}
         run: |
           set -eu
           base="$PLANE_URL/api/v1/workspaces/$PLANE_WORKSPACE/projects/$PLANE_PROJECT_ID"

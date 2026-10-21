@@ -84,6 +84,12 @@ test('config reads paths, provider, milestones and tracks', async () => {
   })
 })
 
+test('plane provider read from backlog, vcs.provider never mistaken for it', async () => {
+  const plane = '---\nbacklog:\n  provider: plane              # experimental\nvcs:\n  provider: github\n---\n'
+  expect(parseConfig(plane).provider).toBe('plane')
+  expect(parseConfig('---\nvcs:\n  provider: github\n---\n').provider).toBe('local')
+})
+
 test('missing config keys fall back to defaults', async () => {
   expect(parseConfig('---\nyagni: strict\n---\n').backlog).toBe('.whackagent/BACKLOG.md')
 })
@@ -681,6 +687,28 @@ test('board key ids (WA-42): rows, PR match, actions, sprint tag, active ids', a
   expect(ticketActions(tickets[0]!).map(one => one.command)).toEqual(['/wa-feedback WA-42 ', '/wa-validate WA-42', '/wa-autopilot WA-42'])
   expect(view.sprints[0]?.tags.map(tag => tag.text)).toEqual(['WA-7'])
   expect(activeGithubIds(tickets, 'WA-4')).toEqual(['WA-4'])
+})
+
+test('plane rows (wa-backlog list): list order kept per state, Canceled column = canceled, no size', async () => {
+  const { tickets } = toTickets(
+    [
+      row({ number: 'WA-2', state: 'todo', size: null }),
+      row({ number: 'WA-1', state: 'todo', size: null }),
+      row({ number: 'WA-5', state: 'grilled', size: null }),
+      row({ number: 'WA-3', state: null, column: 'Canceled', closed: true, not_planned: true, size: null }),
+      row({ number: 'WA-6', state: null, column: 'Backlog', size: null }),
+    ],
+    [],
+    'wa/',
+  )
+  expect(tickets.map(ticket => [ticket.number, ticket.state, ticket.size])).toEqual([
+    ['WA-2', 'todo', ''],
+    ['WA-1', 'todo', ''],
+    ['WA-5', 'grilled', ''],
+    ['WA-3', 'canceled', ''],
+  ])
+  const view = githubView(tickets, [], [], [], '', [], [])
+  expect(view.sections.flatMap(section => section.rows).map(one => one.key)).toEqual(['WA-2', 'WA-1', 'WA-5'])
 })
 
 test('board key ids (WA-42): branch and task file name map to the ticket, slug digits never do', async () => {

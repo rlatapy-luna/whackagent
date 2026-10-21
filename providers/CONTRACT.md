@@ -2,12 +2,13 @@
 
 Where tickets live and how their state moves. **Implementer view**, for whoever builds a provider. Worker-facing rules of GitHub board — what any agent or tool must do, whatever its loop — live in `templates/BOARD.md`, installed in each project as `BOARD.md`; they win on conflict. Skills speak **only** verbs below — never tracker terms (issue, card, column, GraphQL). New tracker (Jira, Linear, Trello, Notion) = new folder under `providers/` implementing same verbs, same states, same exit codes.
 
-Config picks provider: `backlog.provider: local | github` in `.whackagent/config.md`. Missing → `local`.
+Config picks provider: `backlog.provider: local | github | plane` in `.whackagent/config.md`. Missing → `local`. Code host of non-local board: `vcs.provider` (only `github`, missing → `github`).
 
 | Provider | Implementation | Multi-agent |
 |---|---|---|
 | `local` | prompt-implemented, files — `providers/local.md` | no — one agent, one checkout |
 | `github` | script `providers/wa-backlog` (`GitHubBoard`; `providers/github/wa-backlog` links to it) + board workflow — `providers/github/README.md` | yes — atomic claims, hooks drive state |
+| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | planned — claims and hooks not built yet |
 
 ## States
 

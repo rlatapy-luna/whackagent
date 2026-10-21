@@ -1,6 +1,6 @@
 ## GitHub code host
 
-Code on GitHub: branches, PRs, claims, merges, screenshots, stacks. Holds for every non-`local` board — today `backlog.provider: github`. Board part, per provider: `github` → **reference/board-github.md**.
+Code on GitHub (`vcs.provider: github`, only value): branches, PRs, claims, merges, screenshots, stacks. Holds for every non-`local` board — `backlog.provider: github` or `plane`. Board part, per provider: `github` → **reference/board-github.md** · `plane` → **reference/board-plane.md**.
 
 - **Backlog script** — `${CLAUDE_PLUGIN_ROOT}/providers/github/wa-backlog <verb>` for **every** backlog read or write, run from repo root. Details: `providers/github/README.md`.
 - **Board rules = project's `BOARD.md`** (source `${CLAUDE_PLUGIN_ROOT}/templates/BOARD.md` while project has none): read once per run, it wins — other devs' agents follow same file, whatever their loop. Bullets below and in **reference/board-github.md** = whackagent's way of meeting it, plus whackagent-only parts (task file, `phase:`, PR body block, screenshots, worktrees).

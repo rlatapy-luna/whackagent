@@ -31,8 +31,11 @@ backlog:
   provider: local              # WHERE tickets live — providers/CONTRACT.md.
                                #   local  — {backlog} + task files, one agent (default).
                                #   github — GitHub Project + issues, many agents/worktrees.
-                               #     Settings in repo variables (wa-backlog provision), not here.
-                               #     Forces branch.per_task: true, branch.base = close.target
+                               #   plane  — self-hosted Plane CE project, code on GitHub
+                               #     (EXPERIMENTAL). Server needs API_KEY_RATE_LIMIT=1000000/second.
+                               #     API key: env PLANE_API_KEY + Actions secret WA_PLANE_API_KEY.
+                               #   github, plane: settings in repo variables (wa-backlog provision),
+                               #     not here. Forces branch.per_task: true, branch.base = close.target
                                #     (named branch). Ignores close.strategy for tickets:
                                #     /wa-validate marks PR ready, /wa-close merges it on your yes.
   milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
@@ -40,6 +43,11 @@ backlog:
                                # entry, so new work never grow current or past scope. You own list:
                                # add entry to open next scope, remove one when shipped (tasks keep
                                # their milestone:). Empty → tasks get no milestone.
+
+vcs:
+  provider: github             # WHERE code lives (branches, PRs, claims) under a non-local backlog.
+                               #   github — only value (default). Missing → github.
+                               # backlog.provider github implies it; local ignores it.
 
 release:
   doc:                         # WHERE project's release flow is written — `path` or `path#Heading`

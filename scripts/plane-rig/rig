@@ -412,19 +412,26 @@ def check_playground():
         raise Failure(f"repo identity check failed: {PLAYGROUND_REPO} resolves to {name}. Refusing.")
 
 
+# Provider names (providers/plane/README.md): secret for the hooks, variables shared with `wa-backlog provision`.
+PLAYGROUND_SECRET = "WA_PLANE_API_KEY"
+PLAYGROUND_VARIABLES = {"WA_PLANE_URL": "PLANE_URL", "WA_PLANE_WORKSPACE": "PLANE_WORKSPACE",
+                        "WA_PLANE_PROJECT_ID": "PLANE_PROJECT_ID"}
+
+
 def cmd_playground(_):
-    """Push the rig's Plane settings to the playground repo: API key secret + URL/workspace/project variables."""
+    """Push the rig's Plane settings to the playground repo: API key secret + URL/workspace/project variables.
+    `wa-backlog provision` writes the same variables plus the state ids."""
     check_playground()
     env = read_env(LOCAL_ENV)
     if not env.get("PLANE_API_KEY"):
         raise Failure("no API key yet: `rig bootstrap` first")
-    r = subprocess.run(["gh", "secret", "set", "PLANE_API_KEY", "-R", PLAYGROUND_REPO],
+    r = subprocess.run(["gh", "secret", "set", PLAYGROUND_SECRET, "-R", PLAYGROUND_REPO],
                        input=env["PLANE_API_KEY"], text=True, capture_output=True)
     if r.returncode != 0:
         raise Failure(f"gh secret set: {r.stderr.strip()}")
-    for k in ("PLANE_URL", "PLANE_WORKSPACE", "PLANE_PROJECT_ID"):
-        gh("variable", "set", k, "-R", PLAYGROUND_REPO, "-b", env[k])
-    print(f"{PLAYGROUND_REPO}: secret PLANE_API_KEY, variables PLANE_URL PLANE_WORKSPACE PLANE_PROJECT_ID set")
+    for name, local in PLAYGROUND_VARIABLES.items():
+        gh("variable", "set", name, "-R", PLAYGROUND_REPO, "-b", env[local])
+    print(f"{PLAYGROUND_REPO}: secret {PLAYGROUND_SECRET}, variables {' '.join(PLAYGROUND_VARIABLES)} set")
 
 
 def runner_pid():
@@ -519,7 +526,7 @@ def main():
                    ).set_defaults(fn=cmd_bootstrap)
     sub.add_parser("status", help="containers, version, bootstrap, runner").set_defaults(fn=cmd_status)
     sub.add_parser("env", help="print export lines for PLANE_* (eval it)").set_defaults(fn=cmd_env)
-    sub.add_parser("playground", help="push API key secret + PLANE_* variables to the playground repo"
+    sub.add_parser("playground", help="push API key secret + WA_PLANE_* variables to the playground repo"
                    ).set_defaults(fn=cmd_playground)
     run = sub.add_parser("runner", help="self-hosted Actions runner for the playground repo")
     rs = run.add_subparsers(dest="action", required=True)

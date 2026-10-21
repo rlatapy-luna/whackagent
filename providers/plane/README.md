@@ -1,6 +1,45 @@
 # Plane provider
 
-`backlog.provider: plane`, with GitHub as the code host. The board is a self-hosted **Plane Community Edition** project; branches, pull requests and claims stay on GitHub. Experimental, and not built yet: this file holds the facts the adapter is designed on. The local test rig is described in **scripts/plane-rig/README.md**.
+`backlog.provider: plane`, with GitHub as the code host (`vcs.provider: github`). The board is a self-hosted **Plane Community Edition** project; branches, pull requests and claims stay on GitHub. **Experimental.** The adapter is `PlaneBoard` in `providers/wa-backlog`, next to `GitHubBoard`, behind the same verbs. Skill-side rules: **reference/board-plane.md**. The local test rig is described in **scripts/plane-rig/README.md**.
+
+## Built so far
+
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, and `milestones` (always `[]` for now). Every other verb that writes the board (claims and state changes, `move`, `comment`, `depend`, `link-pr`, sprints, milestones) exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own.
+
+## Settings
+
+| Where | Name | Holds |
+|---|---|---|
+| repository variables, written by `provision` | `WA_PLANE_URL`, `WA_PLANE_WORKSPACE`, `WA_PLANE_PROJECT_ID` | server, workspace slug, project id |
+| | `WA_PLANE_STATES` | JSON `{state: Plane state id}` for the six board states plus `canceled`, so a state renamed in the UI still maps |
+| | `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_SPRINT_PREFIX`, `WA_STALE_AFTER_HOURS`, `WA_TRACKS` | code-host settings, same as the GitHub provider |
+| agent environment | `PLANE_API_KEY` | the API key (header `X-API-Key`). Never in the repo, the config or the cache |
+| Actions secret | `WA_PLANE_API_KEY` | the same key, for the hooks (not built yet) |
+
+The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the ids `settings` resolves: project key (`WA`), state names and groups, label ids. It is rebuilt when the variables change, when the board holds a state the cache doesn't know, or on `config --refresh`.
+
+## Mapping
+
+| Contract | Plane |
+|---|---|
+| ticket id | work item key `<PROJECT>-<n>` (`WA-42`), looked up with `GET workspaces/<slug>/work-items/WA-42/`. A bare number or another project's key exits 2 |
+| title / summary | work item name / first line of its description (HTML, stored by `create` as one `<p>` per paragraph) |
+| state | Plane state, by id from `WA_PLANE_STATES`. Canceled (cancelled group) = `closed` + `not_planned`, `state: null`. A column no state maps to: `state: null`, `column: <name>` |
+| priority | `sort_order` inside the state, lower is higher; `list` reads `?order_by=sort_order`, paged 1000 rows a call |
+| create | `POST work-items/` with the todo state: Plane puts it at the bottom of Todo |
+| excluded | label `wa-ignore`; label `wa-sprint` marks a sprint root (both created by `provision`) |
+| reservation | assignees, by workspace display name; `reserved` when assigned to someone other than the key's user |
+| dependencies | relations `blocked_by`, read back in `get` |
+| web link | `<url>/<slug>/browse/WA-42/` |
+
+## Provision
+
+`wa-backlog provision --plane-url <url> --workspace <slug> --project <identifier or id>` (plus the code-host flags of the GitHub provider). It adopts an existing project, never creates one. Idempotent: a second run reports nothing created or updated and leaves states, labels and variables byte-for-byte the same.
+
+- **States:** adopts each of Todo, Grilling, Grilled, Coding, Review, Done, Canceled by name (`--state grilled="Ready for dev"` maps another name; Plane's seed `Cancelled` is adopted as Canceled, not renamed), creates the missing ones, sets their group and their order (sequence 10000 … 70000), and makes Todo the default (clearing any other default, the Plane bug below).
+- **Never removes on its own.** Columns no state maps to (Plane's seed `Backlog` and `In Progress`, team columns) stay and are listed in `states_extra`. `--prune-status <name>` deletes a named one; one still holding cards stays (Plane refuses) and is listed in `states_held` with its cards.
+- **Labels:** `wa-ignore`, `wa-sprint`.
+- **Report:** also `secret_WA_PLANE_API_KEY` (hooks secret present) and `api_rate_limit_lifted` (read from `X-RateLimit-Remaining`).
 
 ## Verified API facts
 

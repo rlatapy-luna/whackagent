@@ -65,7 +65,10 @@ export type Board =
   | { kind: 'error'; message: string }
   | { kind: 'local'; tasks: BoardTask[]; milestones: string[]; tracks: string[]; active: TaskFocus[]; here: string }
   | {
+      /** every ticket board (`backlog.provider` github or plane): rows from `wa-backlog list` */
       kind: 'github'
+      /** `backlog.provider`: github, plane */
+      provider: string
       tickets: GithubTicket[]
       drafts: string[]
       milestones: MilestoneCount[]
