@@ -41,6 +41,7 @@ base method, which exits 2 with a clear message. A ticket id of the other board'
   Other       depend(number, blockers)    → (added, already there)
               link_pr(number, pr)         the pull request linked on the ticket (GitHub: closing link, Plane: card link)
               provision(args, repo)       create or adopt the board, write the repo variables → report
+              check_integration(args, repo)    the tool's own GitHub sync off? (single writer) → report
               templates(owner)            board templates provision can copy
               ticket_url(number)
 """
@@ -77,7 +78,7 @@ CLAIM_NAMESPACE = "wa-claims"
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
 # Board contract this script implements: the project's BOARD.md, its PR template sections and its workflow
 # caller carry the same stamp. Installed and updated together by the setup PR.
-CONTRACT_VERSION = "2.3"
+CONTRACT_VERSION = "2.4"
 
 
 class Failure(Exception):
@@ -344,6 +345,10 @@ class Board:
     @classmethod
     def templates(cls, owner):
         raise cls.unsupported("templates")
+
+    @classmethod
+    def check_integration(cls, args, repo):
+        raise cls.unsupported("check-integration")
 
     def ticket_url(self, number):
         raise self.unsupported("ticket url")
@@ -974,6 +979,14 @@ PLANE_PAGE = 1000  # per_page ceiling of Plane's paginator
 PLANE_TRIES = 5
 # Plane's own per-key throttle defaults to 60/minute; the provider requires API_KEY_RATE_LIMIT=1000000/second.
 PLANE_LIFTED = 1000  # X-RateLimit-Remaining above this = limit lifted
+# Single writer: Plane's own GitHub integration (commercial editions) would move cards from GitHub events too. CE
+# mounts no integration route (404 on this list, providers/plane/README.md); a list naming GitHub = installed.
+PLANE_COMMUNITY = "PLANE_COMMUNITY"
+PLANE_INTEGRATIONS = "api/workspaces/{slug}/workspace-integrations/"
+PLANE_INTEGRATION_FIX = (
+    "turn Plane's GitHub integration off before going on: in Plane, workspace Settings → Integrations → GitHub → "
+    "disconnect or uninstall it (workspace admin; labels differ between editions), then run check-integration again"
+)
 # Priority = sort_order, lower = higher. The web UI drops a card at the top at first − 65535, at the bottom at
 # last + 65535, between two cards at their midpoint; `move` does the same. Midpoints halve the gap each time:
 # once a gap is under PLANE_MIN_GAP, the cards around it are respaced at least PLANE_MIN_STEP apart.
@@ -1038,6 +1051,27 @@ def plane_all(url, path):
         if not page.get("next_page_results"):
             return rows
         cursor = page["next_cursor"]
+
+
+def plane_probe(url, path, key=None):
+    """(HTTP status, JSON body or None) of one GET on any Plane route, outside /api/v1, no retry: 404 = no route."""
+    headers = {"Accept": "application/json"}
+    if key:
+        headers["X-API-Key"] = key
+    request = urllib.request.Request(f"{url.rstrip('/')}/{path.lstrip('/')}", headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            status, raw, kind = response.status, response.read(), response.headers.get("Content-Type") or ""
+    except urllib.error.HTTPError as error:
+        status, raw, kind = error.code, error.read(), error.headers.get("Content-Type") or ""
+    except urllib.error.URLError as error:
+        raise Failure(f"Plane unreachable at {url}: {error.reason}")
+    if "json" not in kind:  # the web app answers unknown non-API paths with its HTML page
+        return status, None
+    try:
+        return status, json.loads(raw) if raw else None
+    except ValueError:
+        return status, None
 
 
 def html_of(markdown):
@@ -1774,6 +1808,48 @@ class PlaneBoard(Board):
             "api_rate_limit_lifted": (remaining or "").isdigit() and int(remaining) > PLANE_LIFTED,
         }
 
+    @classmethod
+    def check_integration(cls, args, repo):
+        """Plane's GitHub integration: on (installed for the workspace), off (none listed, or no integration
+        route on Community Edition), unknown (route unreadable with an API key, or absent on another edition)."""
+        url, slug = args.plane_url, args.workspace
+        if not (url and slug):
+            variables = repo_variables(repo)
+            url, slug = url or variables.get("WA_PLANE_URL"), slug or variables.get("WA_PLANE_WORKSPACE")
+        if not (url and slug):
+            raise Failure("check-integration needs --plane-url and --workspace (or the WA_PLANE_* variables)", EXIT_USAGE)
+        key = os.environ.get(PLANE_KEY_ENV)
+        if not key:
+            raise Failure(f"{PLANE_KEY_ENV} not set — export the Plane API key in this shell (never in the repo or config)")
+        _, instance = plane_probe(url, "api/instances/")
+        edition = ((instance or {}).get("instance") or {}).get("edition") if isinstance(instance, dict) else None
+        route = PLANE_INTEGRATIONS.format(slug=slug)
+        status, rows = plane_probe(url, route, key)
+        if isinstance(rows, dict):
+            rows = rows.get("results")
+        installed = []
+        for row in rows if isinstance(rows, list) else []:
+            detail = row.get("integration_detail") or row.get("integration") or {}
+            names = [row.get("provider"), row.get("title")]
+            if isinstance(detail, dict):
+                names += [detail.get("provider"), detail.get("title")]
+            if any("github" in str(name).lower() for name in names if name):
+                installed.append(next(str(n) for n in names if n))
+        if installed:
+            found, reason = "on", f"workspace {slug} has the GitHub integration installed"
+        elif status == 200 and isinstance(rows, list):
+            found, reason = "off", f"workspace {slug} lists no GitHub integration"
+        elif status == 404 and edition == PLANE_COMMUNITY:
+            found, reason = "off", "Plane Community Edition ships no GitHub integration (no integration route)"
+        else:
+            found = "unknown"
+            reason = f"integration list answered HTTP {status} on edition {edition or 'unknown'}: check it in Plane by hand"
+        report = {"github_integration": found, "edition": edition, "probe": {"route": route, "status": status},
+                  "installed": installed, "reason": reason}
+        if found != "off":
+            report["fix"] = PLANE_INTEGRATION_FIX
+        return report
+
 
 BOARDS = {"github": GitHubBoard, "plane": PlaneBoard}
 
@@ -2195,7 +2271,13 @@ def op_branch(args):
 
 def op_provision(args):
     repo = current_repo()
-    emit(board_class().provision(args, repo))
+    # --plane-url names the board before setup writes the config (first setup has none yet)
+    emit((PlaneBoard if args.plane_url else board_class()).provision(args, repo))
+
+
+def op_check_integration(args):
+    board = PlaneBoard if args.plane_url else board_class()
+    emit(board.check_integration(args, None if args.plane_url and args.workspace else current_repo()))
 
 
 def op_templates(args):
@@ -3094,6 +3176,11 @@ def parser():
     s.add_argument("--stale-after-hours", type=int, default=24)
     s.add_argument("--track", action="append", metavar="MILESTONE", help="branch.tracks key: never a default milestone")
     s.set_defaults(func=op_provision)
+
+    s = sub.add_parser("check-integration", help="Plane: is Plane's own GitHub integration off (single writer)?")
+    s.add_argument("--plane-url", help="Plane server URL (default: WA_PLANE_URL)")
+    s.add_argument("--workspace", help="Plane workspace slug (default: WA_PLANE_WORKSPACE)")
+    s.set_defaults(func=op_check_integration)
 
     s = sub.add_parser("hook", help="board hooks for a non-GitHub board: one GitHub event (Actions env, or --event/--payload)")
     s.add_argument("--event", help="event name (default: GITHUB_EVENT_NAME)")

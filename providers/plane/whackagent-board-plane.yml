@@ -1,4 +1,4 @@
-# whackagent Plane board hooks — template version: 1 · board-contract: 2.3
+# whackagent Plane board hooks — template version: 1 · board-contract: 2.4
 # Installed by /wa-setup from the whackagent plugin (providers/plane/whackagent-board-plane.yml).
 # Caller only: the logic lives in rlatapy-luna/whackagent and updates itself through the `hooks-v2` tag,
 # so this file changes only when its triggers, permissions or secrets do (/wa-setup backlog offers it).

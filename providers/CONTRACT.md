@@ -1,6 +1,6 @@
 # Backlog provider contract
 
-Where tickets live and how their state moves. **Implementer view**, for whoever builds a provider. Worker-facing rules of GitHub board — what any agent or tool must do, whatever its loop — live in `templates/BOARD.md`, installed in each project as `BOARD.md`; they win on conflict. Skills speak **only** verbs below — never tracker terms (issue, card, column, GraphQL). New tracker (Jira, Linear, Trello, Notion) = new folder under `providers/` implementing same verbs, same states, same exit codes.
+Where tickets live and how their state moves. **Implementer view**, for whoever builds a provider. Worker-facing rules of a shared board (GitHub, Plane) — what any agent or tool must do, whatever its loop — live in `templates/BOARD.md`, installed in each project as `BOARD.md`: shared rules, identical for every tool, plus one `This board: <tool>` section kept by setup (`<!-- board-tool: <tool> -->` blocks). They win on conflict. Contract version: `board-contract: 2.4`, stamped in every board file (BOARD.md, pointer block, PR template sections, hooks callers) and = script `CONTRACT_VERSION`; script warns when project's BOARD.md differs. Skills speak **only** verbs below — never tracker terms (issue, card, column, GraphQL). New tracker (Jira, Linear, Trello, Notion) = new folder under `providers/` implementing same verbs, same states, same exit codes.
 
 Config picks provider: `backlog.provider: local | github | plane` in `.whackagent/config.md`. Missing → `local`. Code host of non-local board: `vcs.provider` (only `github`, missing → `github`).
 
@@ -8,7 +8,7 @@ Config picks provider: `backlog.provider: local | github | plane` in `.whackagen
 |---|---|---|
 | `local` | prompt-implemented, files — `providers/local.md` | no — one agent, one checkout |
 | `github` | script `providers/wa-backlog` (`GitHubBoard`; `providers/github/wa-backlog` links to it) + board workflow — `providers/github/README.md` | yes — atomic claims, hooks drive state |
-| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | claims yes (atomic, same refs); priority, dependencies, comments, cancel, sprints (parent + cycle), milestones (modules) yes; hooks (`wa-backlog hook`, self-hosted runner): spec push → `grilled`, PR opened / round pushed → `review`, merged → `done`, closed unmerged → `grilled`, sprint root closed on landing yes; PR = card link (ticket from branch, else card link in PR body) yes; report-only board check (schedule, one card comment per problem) yes |
+| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | claims yes (atomic, same refs); priority, dependencies, comments, cancel, sprints (parent + cycle), milestones (modules) yes; hooks (`wa-backlog hook`, self-hosted runner): spec push → `grilled`, PR opened / round pushed → `review`, merged → `done`, closed unmerged → `grilled`, sprint root closed on landing yes; PR = card link (ticket from branch, else card link in PR body) yes; report-only board check (schedule, one card comment per problem) yes; `BOARD.md` Plane section yes; single-writer guard (`check-integration`: Plane's own GitHub integration off) yes; spec in card description → `grilled` no (task file only); size no |
 
 ## States
 
@@ -18,7 +18,7 @@ Shared lifecycle, provider-neutral names. Provider maps them onto its own column
 |---|---|---|
 | `todo` | ticket exists, not grilled | creation (agent or human on tracker UI) |
 | `grilling` | **locked** — one agent grilling it (first grill, or re-grill) | agent `claim <id> grilling` |
-| `grilled` | spec written, ready to code | **data**: acceptance criteria in issue body (edit by a writer), or ticket branch holds spec file (hook) |
+| `grilled` | spec written, ready to code | **data**: acceptance criteria in issue body (edit by a writer; GitHub only — Plane card description never counts), or ticket branch holds spec file (hook) |
 | `coding` | **locked, transient** — one agent working a round (code, feedback, validate, close) | agent `claim <id> coding` |
 | `review` | change proposed (PR open, draft or not) — humans on turn: test (draft) or merge (ready) | **data**: PR opened, or agent round pushed to it (hook) |
 | `done` | change landed | **data**: PR merged (hook) |
@@ -62,6 +62,7 @@ All print JSON on stdout, messages on stderr.
 | `claims` | every live lock: owner, since, branch, last activity, `stale` | array |
 | `branch <id>` | remote branch carrying ticket | `{branch}` |
 | `whoami [--agent a]` | agent id used for claims (`WA_AGENT` env, else `<host>:<worktree>`), plus tracker account | `{agent,login}` — `login` null when tracker has no accounts; board whose accounts aren't the code host's (Plane) adds `vcs_login` (account writing claim refs, branches, PRs) |
+| `check-integration [--plane-url u --workspace w]` | Plane only, setup guard: is Plane's own GitHub integration off (single writer)? Flags default to `WA_PLANE_URL` / `WA_PLANE_WORKSPACE`. GitHub board: exit 2 | `{github_integration: off\|on\|unknown, edition, probe: {route,status}, installed, reason, fix?}` — `off`: none listed, or Community Edition (no integration route); `on`: listed for workspace; `unknown`: list unreadable with API key, or absent on other edition (human checks in Plane); `fix` unless `off` |
 | `hook [--event e --payload f]` | board hooks of a non-GitHub board — **hooks workflow only** (or local replay): one GitHub event (`GITHUB_EVENT_NAME`/`GITHUB_EVENT_PATH`) → data-driven state writes; agents never run it. GitHub board: its hooks live in `board.yml`, exit 2 | `{event,ticket,action,reason}` (board check `schedule` / `workflow_dispatch`: + `violations` `[{ticket,kind,problem,comment}]`, `resolved`); event without rule → no-op, exit 0 |
 
 Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state. Treat 3 and 4 as normal outcomes, not failures: pick next ticket or tell user.

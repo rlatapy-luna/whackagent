@@ -4,7 +4,7 @@
 
 ## Built so far
 
-`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). `link-pr` (repair: adds the PR as a link on the card). `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. Hooks: `hook` moves a card to Grilled when its spec is pushed, and to Review, Done or back to Grilled on pull request events, linking the PR on the card, and a scheduled board check reports contract breaks on the cards without moving any (see *Hooks*).
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). `link-pr` (repair: adds the PR as a link on the card). `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. Hooks: `hook` moves a card to Grilled when its spec is pushed, and to Review, Done or back to Grilled on pull request events, linking the PR on the card, and a scheduled board check reports contract breaks on the cards without moving any (see *Hooks*). `check-integration` is the setup guard for the single-writer rule, and `BOARD.md` has a Plane section (see *Board contract*).
 
 ### Claims
 
@@ -216,6 +216,18 @@ The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the 
 - **Features:** switches the project's cycles and modules on when off (`features_enabled`).
 - **Report:** also `secret_WA_PLANE_API_KEY` (hooks secret present) and `api_rate_limit_lifted` (read from `X-RateLimit-Remaining`).
 
+## Board contract
+
+The project's `BOARD.md` is rendered from `templates/BOARD.md` for `plane`: the shared rules, identical for every board tool, plus the `This board: Plane` section (where the board is, the columns, what counts as a spec, the card link, sprints, modules, relations, the single writer, the runner, the board check). Setup keeps the `<!-- board-tool: plane -->` blocks of `BOARD.md` and of the PR template sections, drops the GitHub ones, and installs the pointer blocks, all in the setup PR beside the caller. The stamp is `board-contract: 2.4`, the script's `CONTRACT_VERSION`. A project set up before the section existed has no `BOARD.md`: `/wa-setup` reconfigure offers it.
+
+## Single-writer guard
+
+`wa-backlog check-integration [--plane-url <url> --workspace <slug>]` (defaults: the `WA_PLANE_*` variables; needs `PLANE_API_KEY`). `/wa-setup` runs it before `provision` and stops while the answer is `on`.
+
+- Reads the edition from `GET /api/instances/` (public), then `GET /api/workspaces/<slug>/workspace-integrations/` with the API key. Only a JSON answer counts: the web app answers unknown paths such as `/silo/…` with its HTML page and a 200.
+- `on`: the list names a GitHub integration. `off`: the list names none, or the route is absent (404) on `PLANE_COMMUNITY`. `unknown`: any other answer, such as a 401 or a 404 on another edition, where the integration may live in a separate service the API key cannot read. Setup then asks the user to look in Plane. `fix` (not on `off`) says where to turn it off.
+- Checked live (issue 0012) on the rig: `off`, edition `PLANE_COMMUNITY`, route 404, both with flags and from a playground clone through the variables. The `on`, `unknown` and other-integration answers were checked only against a local stub server answering in the legacy list shape (`integration_detail.provider`), **not against a real Plane with the integration installed**: no commercial edition was available. The route and the shape on a commercial server are unverified.
+
 ## Verified API facts
 
 Checked on 2026-10-21 against Plane CE **v1.4.2** (`edition: PLANE_COMMUNITY`, latest stable self-host release at the time), started by `scripts/plane-rig/rig`, with a workspace API key (`X-API-Key`) on the public REST API `/api/v1/`. Every observation below can be replayed with `scripts/plane-rig/factcheck`, which works in a throwaway project `FC` and prints one line per check. `<P>` stands for `workspaces/<slug>/projects/<project id>`.
@@ -272,7 +284,7 @@ What this means for the adapter:
 - `is_github_enabled` in `/api/instances/` is the GitHub **OAuth sign-in** switch (`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`), which does not sync issues or PRs. It is `false` on the rig.
 - The web bundle still ships the integration i18n strings and a `syncGithubRepository` client call, but the backend answers 404.
 
-So the single-writer rule holds by default on CE. Setup should still check it, because a Plane Commercial server could have the integration enabled.
+So the single-writer rule holds by default on CE. Setup still checks it (*Single-writer guard*), because a Plane Commercial server could have the integration enabled.
 
 ### Does CE apply API rate limits?
 

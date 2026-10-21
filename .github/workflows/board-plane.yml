@@ -1,4 +1,4 @@
-# whackagent board hooks for a Plane board — reusable logic, board contract 2.3 (templates/BOARD.md).
+# whackagent board hooks for a Plane board — reusable logic, board contract 2.4 (templates/BOARD.md).
 # Projects never copy this file: their caller (providers/plane/whackagent-board-plane.yml, installed by /wa-setup)
 # holds the triggers, permissions and concurrency, and runs this through
 # `uses: rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`. Each release moves `hooks-v2`, so
