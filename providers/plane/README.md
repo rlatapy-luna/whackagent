@@ -4,7 +4,7 @@
 
 ## Built so far
 
-`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, `milestones` (always `[]` for now), the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend` and `cancel`. The verbs left (`link-pr`, sprints, milestones) exit 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own, so a pushed spec leaves the card in Grilling with its claim held.
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). The verb left, `link-pr`, exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own, so a pushed spec leaves the card in Grilling with its claim held.
 
 ### Claims
 
@@ -28,6 +28,31 @@ Checked live on the rig and `whackagent-playground-plane`: six parallel `claim g
 - `depend <n> --on <x>`: `POST work-items/<n>/relations/ {"relation_type": "blocked_by", "issues": [...]}`, after a `GET` of the same route to tell added from already there. Plane shows the relation on both cards. The API has no route to remove one, so a dependency added by mistake is removed in the Plane UI. A ticket cannot block itself (exit 2), and a blocker must be a card of this board.
 - `cancel <n>`: the card moves to the Canceled state (`WA_PLANE_STATES.canceled`, cancelled group), its `sort_order` kept, plus a `🚫 canceled — <reason>` comment. `list` hides it, `list --all` shows it with `state: null`, `closed` and `not_planned`, and claims on it exit 4. A card in Done (landed) or holding a claim exits 4.
 
+### Sprints and milestones
+
+Neither needs a paid Plane feature: a sprint is a parent work item plus a cycle, a milestone is a module (Plane's paid Milestones are not used). `provision` switches the project's cycles and modules on (`PATCH <P>/ {"cycle_view": true, "module_view": true}`, only when one is off) and reports what it switched in `features_enabled`.
+
+- **Sprint truth = the parent.** A sprint is the work item labeled `wa-sprint` whose name in kebab-case is the sprint name (`sprint_name`, the same rule as GitHub); its tickets are its children (`parent`). A row's `sprint` is read from its parent, which `list` already holds (every card comes back in the one work-item list), so it costs no call; `get` reads the parent once. The root is not a ticket: `list` skips it, `get` and `claim` exit 4. Plane has no "off the board", so the root keeps its column.
+- **The cycle mirrors it**, so the split shows in Plane's cycle view. Cycle name = sprint name; it is created without dates (Plane takes both dates or none, and a dateless cycle never ends, so it always takes cards). A card is in one cycle at most, so adding it to the next sprint's cycle moves it out of the previous one. A card dropped in a cycle by hand without the parent is not in the sprint.
+- `split <id>`: refuses when another root has the same name (exit 4), adds the label (Plane replaces the label list whole, so the list is sent back with it), creates the cycle, comments `🌳 split`. Output `{number, sprint}`, as GitHub. Children come from `create --sprint <name> --milestone <parent's>`.
+- `set-field <id> sprint <name>`: root created on first use (labeled, in Todo; a root in Done or Canceled goes back to Todo, like GitHub reopening the parent issue), `PATCH {"parent": <root>}`, `POST <P>/cycles/<c>/cycle-issues/`. `""` sets `parent: null` and `DELETE`s the card from the old cycle. A card under a parent that is not a sprint root exits 4 (never replace a human's hierarchy).
+- **Milestone = module.** Humans create modules in Plane. `milestones` returns the GitHub shape and order: `[{title, open, tickets, done}]`, open modules highest first (`milestone_rank`: version order of names, then creation time), then closed ones still holding open cards. `tickets` = the module's `total_issues`, `done` = `completed_issues + cancelled_issues`; a module is closed when its status is `completed` or `cancelled` (CE statuses: backlog, planned, in-progress, paused, completed, cancelled). Archived modules are left out.
+- **One milestone per ticket.** Plane keeps a card in several modules (the v1 `module-issues` POST adds, never moves), so `set-field milestone` and `create --milestone` put the card in the target and `DELETE <P>/modules/<m>/module-issues/<id>/` from every other. A row shows its module; a card a human put in several shows the highest. `create` without `--milestone` picks the highest open module, never a track one; an unknown title exits 2 before anything is created.
+- `close-milestone <title>`: `PATCH <P>/modules/<m>/ {"status": "completed"}`. Archiving stays a human's call.
+- **Membership reads.** No work-item field names its cycle or modules on `/api/v1` (`expand` does not reach them), so a row's milestone comes from `GET <P>/modules/` once plus `GET <P>/modules/<m>/module-issues/?fields=id` per module holding cards (empty ones skipped, in parallel, read once per run).
+
+Plane calls per verb, measured on the rig with three modules holding cards (GitHub calls for claims and branches not counted, cached config):
+
+| Verb | Plane calls |
+|---|---|
+| `list` | 1 work-item list (per 1000 cards) + 1 modules + 1 per module holding cards (here 5); + members and `users/me` once when a card is assigned |
+| `get` | 1 card + 1 parent (child of a sprint) + 1 relations + 1 per blocker + 1 modules + 1 per module holding cards (here 8) |
+| `milestones` | 1 |
+| `close-milestone` | 2 |
+| `set-field milestone` | 1 card + 1 modules + 1 per module holding cards + 1 write per module changed (here 7) |
+| `create --sprint --milestone` | 1 modules + 1 create + 1 module add + 1 work-item list (roots) + 1 parent + 1 cycles + 1 cycle add (here 7; first use of a sprint adds the root and the cycle) |
+| `split` | 1 card + 1 modules + 1 per module holding cards (the ticket's row) + 1 work-item list (name clash) + 1 label + 1 cycles + 1 cycle create + 1 comment (here 10) |
+
 ### Comments
 
 `comment_html` built from the text: paragraphs (line breaks kept), `-` / `*` and `1.` lists, inline bold, code and `[text](https://…)` links. Everything else stays plain text. Stdlib only, enough for the claim trail, release reasons and skill notes.
@@ -43,6 +68,17 @@ On the rig and `whackagent-playground-plane`, with four throwaway cards:
 - `cancel WA-8` moved it to Canceled; `list` hid it and `list --all` showed `not_planned: true`. A second `cancel` answered `already: true`; on a Done card and on a claimed card, exit 4.
 - A comment with a list, a link and code read back from `GET …/comments/` as `<p>…</p><ul><li><p>…<a href="…">#3</a></p></li>…</ul>`.
 - A second workspace user with the same display name as the key's user was assigned to a card: the previous script showed it `reserved: false`, this one `reserved: true`, and `claim` exited 3. With both users assigned, the claim won and `release` kept both assignments; on an unassigned card, `release` removed the key user again.
+
+### Checked live (issue 0010)
+
+On the rig and `whackagent-playground-plane`:
+
+- `provision` with the project's cycles and modules switched off reported `features_enabled: ["cycles", "modules"]` and turned both on; a second run reported `[]` and changed nothing else.
+- `create` WA-10 "0010 Checkout revamp", `split WA-10` → `{"sprint": "0010-checkout-revamp"}`, root labeled `wa-sprint`, cycle `0010-checkout-revamp` created without dates; a second `split` and `get WA-10` exit 4. Three `create --sprint 0010-checkout-revamp` (WA-11 `--milestone 0.9.0`, WA-12 default, WA-13 `--milestone ""`) gave the parent WA-10 on each, the three cards in the cycle, and `list` / `list --sprint "0010 Checkout Revamp"` showed the three with their sprint and milestones `0.9.0`, `0.10.0` (highest open of `0.10.0`, `0.9.0`, `0.2.1`) and none.
+- `set-field WA-13 sprint ""` cleared the parent and took it out of the cycle; `set-field WA-13 sprint "0010 Side quest"` created root WA-14 and cycle `0010-side-quest`; moving WA-12 there and back moved it between the two cycles. A card under a plain parent exited 4; `split` of a ticket already in a sprint exited 4; `split` of a ticket titled like an existing sprint exited 4 naming the root.
+- `set-field WA-11 milestone 0.2.1` moved it out of `0.9.0`. WA-12 put in a second module through the API showed the highest in `get`; `set-field WA-12 milestone 0.9.0` left it in `0.9.0` only; `""` removed it from every module; an unknown title exited 2.
+- `depend WA-12 --on WA-11`: both `get` rows carry sprint `0010-checkout-revamp`, so the skills' same-sprint check sees a related blocker (stacking) instead of an unrelated one.
+- `/wa-release` close step replayed: WA-11 set to Done, `list --milestone 0.2.1 --all` showed it done, `milestones` showed `0.2.1` 1/1, `close-milestone 0.2.1` set the module `completed` and `milestones` dropped it; `0.9.0` closed while holding an open card stayed listed after the open modules with `open: false`. Same shape and order as `milestones` on the GitHub playground.
 
 ## Settings
 
@@ -66,6 +102,8 @@ The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the 
 | priority | `sort_order`, one order over the board (each column shows its slice), lower is higher; `list` reads `?order_by=sort_order`, paged 1000 rows a call; `move` writes it like a UI drag (see *Priority*) |
 | create | `POST work-items/` with the todo state: Plane puts it at the bottom of Todo |
 | excluded | label `wa-ignore`; label `wa-sprint` marks a sprint root (both created by `provision`) |
+| sprint | parent work item labeled `wa-sprint` (the truth, name in kebab-case) + cycle of the same name (Plane's view, no dates) |
+| milestone | module, one per ticket; closed = status `completed` or `cancelled` |
 | reservation | assignees, compared by user id, shown by display name; `reserved` when assigned and the key's user is not among them; a winning claim assigns the key's user |
 | state change | `PATCH {state, sort_order}`, priority kept (see *Claims*) |
 | comment | work item comment, `comment_html` (see *Comments*) |
@@ -80,6 +118,7 @@ The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the 
 - **States:** adopts each of Todo, Grilling, Grilled, Coding, Review, Done, Canceled by name (`--state grilled="Ready for dev"` maps another name; Plane's seed `Cancelled` is adopted as Canceled, not renamed), creates the missing ones, sets their group and their order (sequence 10000 … 70000), and makes Todo the default (clearing any other default, the Plane bug below).
 - **Never removes on its own.** Columns no state maps to (Plane's seed `Backlog` and `In Progress`, team columns) stay and are listed in `states_extra`. `--prune-status <name>` deletes a named one; one still holding cards stays (Plane refuses) and is listed in `states_held` with its cards.
 - **Labels:** `wa-ignore`, `wa-sprint`.
+- **Features:** switches the project's cycles and modules on when off (`features_enabled`).
 - **Report:** also `secret_WA_PLANE_API_KEY` (hooks secret present) and `api_rate_limit_lifted` (read from `X-RateLimit-Remaining`).
 
 ## Verified API facts
@@ -94,7 +133,7 @@ Checked on 2026-10-21 against Plane CE **v1.4.2** (`edition: PLANE_COMMUNITY`, l
 | Estimates | **No** | `GET` and `POST <P>/estimates/` → 404 `Page not found`. The view exists in the source (`plane/api/urls/estimate.py`) but 1.4.2 does not mount it. The app API (`/api/workspaces/…/estimates/`) is session-only: 401 with an API key. |
 | Estimate on a work item | **Yes**, by point id | `PATCH <P>/work-items/<id>/ {"estimate_point": "<point id>"}` → stored. `GET …?expand=estimate_point` returns the point object, so its value can be read back. |
 | Project estimate switch | **Yes** | `PATCH <P>/ {"estimate": "<estimate id>"}` → 200. |
-| Cycles | **Yes**, once enabled | `POST <P>/cycles/` without dates → 201. With the project's cycles off → 400 `Cycles are not enabled for this project`. |
+| Cycles | **Yes**, once enabled | `POST <P>/cycles/` without dates → 201 (dates are both or none: one alone → 400). With the project's cycles off → 400 `Cycles are not enabled for this project`; reads work either way. |
 | Modules | **Yes**, once enabled | `POST <P>/modules/` → 201, status `planned`. `PATCH status=completed` → 200, `POST <P>/modules/<id>/archive/` → 204. |
 | Project features | **Yes** | A new project has `cycle_view` and `module_view` false. `PATCH <P>/ {"cycle_view": true, "module_view": true}` → both true. |
 

@@ -18,7 +18,7 @@ Where sit: tasks → `/wa-close` each → *milestone complete* → **`/wa-releas
 1. **Resolve milestone.** Read `.whackagent/config.md` (`{…}` paths per **reference/paths.md**). Provider `milestones` verb (**reference/provider.md**).
    - Arg → match title (exact, then unique case-insensitive). Unknown → list milestones, stop. Track milestone (key of `branch.tracks`) → refuse: track ships through its landing task inside a release milestone (**reference/tracks.md**), stop. Closed → say `already closed — released?`; resume only if `{reports}/release-<milestone>.md` has unfinished steps (step 5), else stop.
    - No arg → list open milestones except tracks, highest last, with progress (`🎯 0.2.0 — 5/5 done`), recommend **lowest open** — highest is where new work lands, lowest is what ships next. Fully done one beats it only when user says so.
-   - No milestone at all → say release needs one (**reference/milestones.md**: local `backlog.milestones`, GitHub repo milestones), stop.
+   - No milestone at all → say release needs one (**reference/milestones.md**: local `backlog.milestones`, GitHub repo milestones, Plane modules), stop.
 2. **Readiness.** `list --milestone <m> --all`. Canceled / closed-not-done tickets don't count.
    - **Not done** → list them (**reference/display.md → Display format**, line 1). Ask, recommendation by state:
      - move leftovers to next open milestone (`set-field <id> milestone <next>`) — recommended when all `todo`/grilled: scope cut, release keeps its date;
@@ -31,7 +31,7 @@ Where sit: tasks → `/wa-close` each → *milestone complete* → **`/wa-releas
 3. **Find release flow** — *Release doc* below. Never proceed without one.
 4. **Plan block**, one yes before anything runs — *Plan block* below.
 5. **Walk steps**, one at a time — *Running steps* below. Resume: `{reports}/release-<milestone>.md` exists with unfinished steps → show done ones, resume at first open (recommend resume, never redo an outward step already recorded done).
-6. **Close milestone** — flow finished → ask `close-milestone <m>` (recommended yes: shipped scope stays closed, new tasks can't grow it). Only command that closes one, only on yes. Then no open milestone left → say new tasks get none until user opens next (local: add line under `backlog.milestones`; GitHub: create on GitHub).
+6. **Close milestone** — flow finished → ask `close-milestone <m>` (recommended yes: shipped scope stays closed, new tasks can't grow it). Only command that closes one, only on yes. Then no open milestone left → say new tasks get none until user opens next (local: add line under `backlog.milestones`; GitHub: create on GitHub; Plane: module in Plane).
 7. **Doc drift** — step done differently from doc, step missing, command changed → propose doc edit, applied on yes (commit per doc's own rules or left for user). Doc stays truth for next release.
 8. **Report** — four lines max: milestone + version, what shipped where, milestone closed or not, next (`/wa-board`).
 
@@ -87,6 +87,8 @@ version  : 0.2.0            (doc: version = milestone title)
 ## GitHub provider
 
 Same flow, provider verbs only (**reference/code-github.md**, **reference/board-github.md**). Readiness via `wa-backlog list --milestone <m> --all`; `close-milestone` through `wa-backlog`. Doc says open release PR / GitHub release → `gh` commands shown in plan as ⚠️, own yes each. Hooks untouched: release PR is not a ticket PR.
+
+**Plane board** (**reference/board-plane.md**) — same verbs: readiness via `wa-backlog list --milestone <m> --all` (module's cards), step 6 `close-milestone` sets module `completed`. Release doc's GitHub steps (release PR, GitHub release) unchanged — code stays on GitHub.
 
 ## Never
 

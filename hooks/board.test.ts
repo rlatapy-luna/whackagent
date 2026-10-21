@@ -711,6 +711,36 @@ test('plane rows (wa-backlog list): list order kept per state, Canceled column =
   expect(view.sections.flatMap(section => section.rows).map(one => one.key)).toEqual(['WA-2', 'WA-1', 'WA-5'])
 })
 
+test('plane sprints and milestones: sprint rows from list rows alone (roots never listed), module counts make the tabs', async () => {
+  const { tickets } = toTickets(
+    [
+      row({ number: 'WA-12', state: 'todo', size: null, sprint: 'checkout-revamp', milestone: '0.10.0' }),
+      row({ number: 'WA-13', state: 'grilled', size: null, sprint: 'side-quest', milestone: null }),
+      row({ number: 'WA-17', state: 'todo', size: null, milestone: '0.10.0' }),
+      row({ number: 'WA-11', state: 'done', closed: true, size: null, sprint: 'checkout-revamp', milestone: '0.2.1' }),
+    ],
+    [],
+    'wa/',
+  )
+  // `wa-backlog milestones` on Plane: modules, same rows and order as GitHub
+  const modules = [
+    { title: '0.10.0', isOpen: true, tickets: 2, done: 0 },
+    { title: '0.2.1', isOpen: true, tickets: 1, done: 1 },
+  ]
+  const view = githubView(tickets, [], modules, [], '', [], [])
+  expect(view.tabs).toEqual(['0.10.0'])
+  expect(view.filter).toBe('0.10.0')
+  expect(view.milestone).toBe('0.10.0')
+  expect(view.scopes).toEqual(['🎯 0.10.0 — 0/2 (2 todo) ← new tasks'])
+  expect(view.sections.flatMap(section => section.rows).map(one => one.key)).toEqual(['WA-12', 'WA-17'])
+  expect(
+    view.sprints.map(sprint => [sprint.title, sprint.tags.map(tag => tag.text), sprint.summary, (sprint.children ?? []).map(child => child.key)]),
+  ).toEqual([['checkout-revamp', [], '1/2 done (1 todo)', ['WA-12', 'WA-11']]])
+  const all = githubView(tickets, [], modules, [], ALL_TAB, [], [])
+  expect(all.sprints.map(sprint => sprint.title)).toEqual(['checkout-revamp', 'side-quest'])
+  expect(all.ready.map(ready => [ready.line, ready.action.command])).toEqual([['🎯 0.2.1 — 1/1 · ready to ship', '/wa-release 0.2.1']])
+})
+
 test('board key ids (WA-42): branch and task file name map to the ticket, slug digits never do', async () => {
   expect(branchTaskId('wa/WA-42-login-apple', 'wa/', 'github')).toBe('WA-42')
   expect(branchTaskId('wa/WA-42-login-apple', 'wa/', 'plane')).toBe('WA-42')

@@ -972,6 +972,9 @@ PLANE_LIFTED = 1000  # X-RateLimit-Remaining above this = limit lifted
 PLANE_STEP = 65535
 PLANE_MIN_GAP = 1e-6
 PLANE_MIN_STEP = 1.0
+# Milestone = module. Module statuses that mean closed (the others: backlog, planned, in-progress, paused = open).
+PLANE_CLOSED_MODULE = ("completed", "cancelled")
+PLANE_CLOSED_GROUPS = ("completed", "cancelled")  # state groups of a closed card: Done (landed), Canceled
 
 
 def plane_call(url, method, path, body=None, missing=()):
@@ -1145,19 +1148,23 @@ def ensure_plane_labels(url, base):
 class PlaneBoard(Board):
     """Plane CE project: ticket = work item, id = its key "WA-42", state = Plane state (ids in WA_PLANE_STATES,
     plus Canceled), priority = sort_order (lower = higher, one order over the board, so each column shows it
-    too), excluded = label wa-ignore, blocked by = relation blocked_by, canceled = Canceled state. No size
-    (Plane CE estimates are UI-only). Sprints, milestones and PR links: not built yet. Account = the Plane user
-    owning the API key (shown by display name, compared by id), not the GitHub login that writes claim refs,
-    branches and PRs."""
+    too), excluded = label wa-ignore, blocked by = relation blocked_by, canceled = Canceled state, sprint =
+    parent work item labeled wa-sprint (the truth) mirrored by a cycle of the same name (Plane's sprint view),
+    milestone = module (one per ticket, the adapter enforces it). No size (Plane CE estimates are UI-only). PR
+    links: not built yet. Account = the Plane user owning the API key (shown by display name, compared by id),
+    not the GitHub login that writes claim refs, branches and PRs."""
 
     name = "a Plane"
-    # Contract operations later issues build (sprints, milestones, hooks): "not yet", not "never".
-    PENDING = {"close-milestone", "milestone", "split", "sprint", "link-pr"}
+    # Contract operations later issues build (hooks, PR links): "not yet", not "never".
+    PENDING = {"link-pr"}
 
     def __init__(self, config):
         super().__init__(config)
         self.items = {}  # key → work item read this run
+        self.by_id = {}  # id → work item read this run (a child's parent is an id)
         self.members = None
+        self.module_rows = None  # modules (milestones) of the project, read once per run
+        self.module_items = None  # module id → ids of its work items, read once per run
 
     @classmethod
     def unsupported(cls, operation):
@@ -1209,6 +1216,11 @@ class PlaneBoard(Board):
     def key(self, item):
         return f"{self.config['project_key']}-{item['sequence_id']}"
 
+    def remember(self, item):
+        self.items[self.key(item)] = item
+        self.by_id[item["id"]] = item
+        return item
+
     def member_names(self):
         """{user id: display name} of the workspace, read once per run."""
         if self.members is None:
@@ -1229,7 +1241,7 @@ class PlaneBoard(Board):
         labels = set(item.get("labels") or [])
         assignees = self.logins(item.get("assignees") or [])
         key = self.key(item)
-        self.items[key] = item
+        self.remember(item)
         return {
             "number": key,
             "title": item["name"],
@@ -1237,9 +1249,9 @@ class PlaneBoard(Board):
             "state": state if state in STATES else None,  # canceled: no contract state, closed + not_planned
             "column": config["state_names"][state_id],
             "size": None,
-            "sprint": None,
-            "milestone": None,
-            "closed": group in ("completed", "cancelled"),
+            "sprint": self.sprint_of(item),
+            "milestone": self.milestone_of(item),
+            "closed": group in PLANE_CLOSED_GROUPS,
             "not_planned": group == "cancelled",
             "ignored": bool(labels & set(config["label_ids"].values())),
             "assignees": assignees,
@@ -1255,7 +1267,8 @@ class PlaneBoard(Board):
         """Every card of the board, priority order (sort_order, lower = higher), drafts and archived cards left out.
         Sorted here too: ties keep the server's order, so `list` and `move` see the same sequence."""
         items = plane_all(self.config["plane_url"], f"{self.base()}/work-items/?order_by=sort_order")
-        return sorted((i for i in items if not i.get("is_draft") and not i.get("archived_at")), key=lambda i: i["sort_order"])
+        items = sorted((i for i in items if not i.get("is_draft") and not i.get("archived_at")), key=lambda i: i["sort_order"])
+        return [self.remember(i) for i in items]  # sprint roots too: rows name their sprint without another call
 
     def tickets(self):
         return [self.to_ticket(i) for i in self.board_items()]
@@ -1288,8 +1301,72 @@ class PlaneBoard(Board):
                 continue  # another project's card: not a ticket of this board
             item = self.api("GET", f"{self.base()}/work-items/{blocker['issue_id']}/")
             group = self.config["state_groups"].get(item["state"])
-            rows.append({"number": self.key(item), "state": "closed" if group in ("completed", "cancelled") else "open"})
+            rows.append({"number": self.key(item), "state": "closed" if group in PLANE_CLOSED_GROUPS else "open"})
         return rows
+
+    # ------------------------------------------------ sprint and milestone of a card
+
+    def sprint_label(self):
+        label = self.config["label_ids"].get(SPRINT_LABEL)
+        if not label:
+            raise Failure(f"no {SPRINT_LABEL} label on the Plane project — run provision again")
+        return label
+
+    def is_root(self, item):
+        """Sprint root: a work item labeled wa-sprint, not a ticket."""
+        return self.config["label_ids"].get(SPRINT_LABEL) in (item.get("labels") or [])
+
+    def parent_of(self, item):
+        """The card's parent work item, None without one: from this run's reads (`list` holds every card), else one call."""
+        parent = item.get("parent")
+        if not parent:
+            return None
+        if parent not in self.by_id:
+            self.remember(self.api("GET", f"{self.base()}/work-items/{parent}/"))
+        return self.by_id[parent]
+
+    def sprint_of(self, item):
+        """Sprint = kebab-case name of the wa-sprint parent, as on GitHub. The parent is the truth, the cycle mirrors it."""
+        parent = self.parent_of(item)
+        return sprint_name(parent["name"]) if parent and self.is_root(parent) else None
+
+    def modules(self):
+        """Milestones = modules, archived ones left out, read once per run: [{id, title, open, tickets, done, number}].
+        `number` = creation time, the tie-break milestone_rank uses (GitHub: milestone number)."""
+        if self.module_rows is None:
+            self.module_rows = [
+                {
+                    "id": m["id"],
+                    "title": m["name"],
+                    "open": m.get("status") not in PLANE_CLOSED_MODULE,
+                    "tickets": m.get("total_issues") or 0,
+                    "done": (m.get("completed_issues") or 0) + (m.get("cancelled_issues") or 0),
+                    "number": m.get("created_at") or "",
+                }
+                for m in plane_all(self.config["plane_url"], f"{self.base()}/modules/")
+                if not m.get("archived_at")
+            ]
+        return self.module_rows
+
+    def module_members(self):
+        """{module id: work item ids}, read once per run: one call per module holding cards (empty ones skipped,
+        `?fields=id` keeps rows small), in parallel. No work item field names its modules."""
+        if self.module_items is None:
+            held = [m for m in self.modules() if m["tickets"]]
+            url = self.config["plane_url"]
+            ids = lambda m: {i["id"] for i in plane_all(url, f"{self.base()}/modules/{m['id']}/module-issues/?fields=id")}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                self.module_items = dict(zip([m["id"] for m in held], pool.map(ids, held)))
+        return self.module_items
+
+    def modules_of(self, item_id):
+        members = self.module_members()
+        return [m for m in self.modules() if item_id in members.get(m["id"], ())]
+
+    def milestone_of(self, item):
+        """The card's module. One per ticket (set_milestone enforces it); a card a human put in several shows the highest."""
+        held = self.modules_of(item["id"])
+        return max(held, key=milestone_rank)["title"] if held else None
 
     @functools.cache
     def user(self):
@@ -1317,10 +1394,9 @@ class PlaneBoard(Board):
         Project, where a Status change keeps the item's place in its one order; `list` order stays as it was.
         Sent explicitly so a Plane release that repositions on state change can't reorder the board behind us."""
         item = self.item(ticket["number"])
-        moved = self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {
+        self.remember(self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {
             "state": self.config["state_ids"][state], "sort_order": item["sort_order"],
-        })
-        self.items[ticket["number"]] = moved
+        }))
 
     def set_assignees(self, number, change):
         """Read the assignee ids fresh (a human may have just assigned someone), PATCH the changed list (Plane
@@ -1329,8 +1405,7 @@ class PlaneBoard(Board):
         ids = change(list(item.get("assignees") or []))
         if ids == item.get("assignees"):
             return ids
-        stored = self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {"assignees": ids})
-        self.items[number] = stored
+        stored = self.remember(self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {"assignees": ids}))
         return stored.get("assignees") or []
 
     def assign(self, number, login):
@@ -1442,21 +1517,134 @@ class PlaneBoard(Board):
         raise Failure("size has no meaning on a Plane board (Plane CE cannot create estimates over its API)", EXIT_USAGE)
 
     def create(self, title, body, milestone=None, size=None, sprint=None):
-        if sprint:
-            raise self.unsupported("sprint")
-        if milestone:
-            raise self.unsupported("milestone")
         if size:
             note(f"size {size} not stored: a Plane board has no size")
+        # No milestone: the highest open module, so new work lands in the scope being planned, never in the
+        # current or a past one. "" = none. Resolved first: a bad title creates nothing.
+        module = self.latest_module() if milestone is None else self.module(milestone)
         # Explicit todo state: Plane puts the card at the bottom of that column (highest sort_order + 10000).
-        item = self.api("POST", f"{self.base()}/work-items/", {
+        item = self.remember(self.api("POST", f"{self.base()}/work-items/", {
             "name": title, "description_html": html_of(body), "state": self.config["state_ids"]["todo"],
-        })
+        }))
         key = self.key(item)
-        return {"number": key, "url": self.ticket_url(key), "milestone": None}
+        if module:
+            self.api("POST", f"{self.base()}/modules/{module['id']}/module-issues/", {"issues": [item["id"]]})
+        if sprint:
+            self.set_sprint(key, sprint)
+        return {"number": key, "url": self.ticket_url(key), "milestone": module["title"] if module else None}
+
+    # ------------------------------------------------ milestones (modules)
+
+    def latest_module(self):
+        """Highest open module (milestone_rank), or None. Track milestones (branch.tracks) never: new work lands
+        on base, joining a track is the user's call."""
+        tracks = set(self.config.get("tracks", []))
+        opened = [m for m in self.modules() if m["open"] and m["title"] not in tracks]
+        return max(opened, key=milestone_rank) if opened else None
+
+    def module(self, title):
+        """Modules are made and closed by humans in Plane: an unknown title is an error, never created. "" = none."""
+        if not title:
+            return None
+        found = [m for m in self.modules() if m["title"] == title]
+        if not found:
+            raise Failure(f"no milestone {title!r} — create the module in Plane first", EXIT_USAGE)
+        return found[0]
 
     def milestones(self):
-        return []  # Plane modules: not built yet; a board without milestones answers []
+        """Same rows and order as GitHub: open modules highest first, then closed ones still holding open cards."""
+        highest_first = lambda ms: sorted(ms, key=milestone_rank, reverse=True)
+        rows = highest_first([m for m in self.modules() if m["open"]])
+        rows += [m for m in highest_first([m for m in self.modules() if not m["open"]]) if m["tickets"] > m["done"]]
+        return [{"title": m["title"], "open": m["open"], "tickets": m["tickets"], "done": m["done"]} for m in rows]
+
+    def close_milestone(self, title):
+        """Module status → completed (Plane CE's closed status; archive stays a human's call)."""
+        module = self.module(title)
+        if module is None:
+            raise Failure("milestone title required", EXIT_USAGE)
+        self.api("PATCH", f"{self.base()}/modules/{module['id']}/", {"status": "completed"})
+
+    def set_milestone(self, number, title):
+        """Card into that module and out of every other: Plane lets a work item sit in several, a ticket has one."""
+        target = self.module(title)
+        item_id = self.item(number)["id"]
+        base = self.base()
+        for module in self.modules_of(item_id):
+            if not target or module["id"] != target["id"]:
+                self.api("DELETE", f"{base}/modules/{module['id']}/module-issues/{item_id}/", missing=(404,))
+        if target and item_id not in self.module_members().get(target["id"], ()):
+            self.api("POST", f"{base}/modules/{target['id']}/module-issues/", {"issues": [item_id]})
+
+    # ------------------------------------------------ sprints (parent work item + cycle)
+
+    def sprint_roots(self, name):
+        return [i for i in self.board_items() if self.is_root(i) and sprint_name(i["name"]) == name]
+
+    def find_cycle(self, name):
+        cycles = plane_all(self.config["plane_url"], f"{self.base()}/cycles/")
+        return next((c["id"] for c in cycles if sprint_name(c["name"]) == name), None)
+
+    def sprint_cycle(self, name):
+        """Id of cycle <name>, Plane's view of the sprint, created on first use. No dates: Plane takes both or
+        none, and a dateless (draft) cycle never ends, so it always takes cards."""
+        found = self.find_cycle(name)
+        if found:
+            return found
+        return self.api("POST", f"{self.base()}/cycles/", {"name": name, "project_id": self.config["project_id"]})["id"]
+
+    def sprint_root(self, name):
+        """Sprint <name>'s root work item, created on first use (labeled wa-sprint, in todo). A closed one (sprint
+        landed before) goes back to todo: same name, same sprint."""
+        found = self.sprint_roots(name)
+        if found:
+            root = found[0]
+            if self.config["state_groups"].get(root["state"]) in PLANE_CLOSED_GROUPS:
+                self.set_state({"number": self.key(root)}, "todo")
+            return self.items[self.key(root)]
+        body = "Sprint: whackagent groups its tickets here as children; the cycle of the same name shows them."
+        return self.remember(self.api("POST", f"{self.base()}/work-items/", {
+            "name": name, "description_html": html_of(body), "state": self.config["state_ids"]["todo"],
+            "labels": [self.sprint_label()],
+        }))
+
+    def set_sprint(self, number, sprint):
+        """Make the ticket a child of sprint <sprint>'s root and put it in the sprint's cycle; "" detaches it from both."""
+        sprint = sprint_name(sprint)
+        item = self.item(number)
+        parent = self.parent_of(item)
+        if parent and not self.is_root(parent):  # one parent per work item: never replace a human's own hierarchy
+            raise Failure(f"{number} is already a child of {self.key(parent)} (not a sprint) — detach it first", EXIT_WRONG_STATE)
+        current = sprint_name(parent["name"]) if parent else None
+        if current == (sprint or None):
+            return
+        path = f"{self.base()}/work-items/{item['id']}/"
+        if not sprint:
+            self.remember(self.api("PATCH", path, {"parent": None}))
+            cycle = self.find_cycle(current)
+            if cycle:
+                self.api("DELETE", f"{self.base()}/cycles/{cycle}/cycle-issues/{item['id']}/", missing=(404,))
+            return
+        root = self.sprint_root(sprint)
+        self.remember(self.api("PATCH", path, {"parent": root["id"]}))
+        # A work item sits in one cycle at most: adding it moves it out of the previous sprint's cycle.
+        self.api("POST", f"{self.base()}/cycles/{self.sprint_cycle(sprint)}/cycle-issues/", {"issues": [item["id"]]})
+
+    def split(self, ticket, name):
+        """The work item becomes the sprint's root: labeled wa-sprint, so `list`, `get` and claims skip it. Plane has no
+        "off the board": it keeps its column. The sprint's cycle is created now, empty; children join both with
+        create --sprint. Key, history and module stay."""
+        number = ticket["number"]
+        clash = [r for r in self.sprint_roots(name) if self.key(r) != number]
+        if clash:
+            raise Failure(f"sprint {name!r} already exists ({self.key(clash[0])}) — retitle {number} first", EXIT_WRONG_STATE)
+        label = self.sprint_label()
+        item = self.item(number)
+        labels = list(item.get("labels") or [])
+        if label not in labels:  # Plane replaces the label list whole
+            self.remember(self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {"labels": labels + [label]}))
+        self.sprint_cycle(name)
+        self.comment(number, f"🌳 **split** — sprint `{name}`: its tickets are the children of this work item, in cycle `{name}`")
 
     # ------------------------------------------------ other
 
@@ -1473,6 +1661,10 @@ class PlaneBoard(Board):
             known = ", ".join(p["identifier"] for p in projects) or "none"
             raise Failure(f"no Plane project {args.project!r} in workspace {slug} (projects: {known})", EXIT_USAGE)
         base = f"workspaces/{slug}/projects/{project['id']}"
+        # Sprints are cycles, milestones are modules: both are project features, off in a new project.
+        features = [f for f, flag in (("cycles", "cycle_view"), ("modules", "module_view")) if not project.get(flag)]
+        if features:
+            plane_api(url, "PATCH", f"{base}/", {"cycle_view": True, "module_view": True})
         names = {}
         for pair in args.state or []:
             state, _, name = pair.partition("=")
@@ -1504,6 +1696,7 @@ class PlaneBoard(Board):
             "states_held": report["held"],
             "default_state_changed": report["default_changed"],
             "labels_created": labels_created,
+            "features_enabled": features,
             "state_ids": state_ids,
             "variables": variables,
             "secret_WA_PLANE_API_KEY": "WA_PLANE_API_KEY" in secret,
