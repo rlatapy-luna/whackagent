@@ -10,7 +10,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 
 Shared core (same for every board): CLI, verbs, states, claim-from rules, exit codes, claims (git refs
 on the GitHub repo), ticket branches and task phases, pull requests, merge, stacks, screenshots, the
-contract check and `hook`, the board hooks of a board other than GitHub (GitHub events → board writes). Everything the board tool owns sits behind `Board`, picked by `backlog.provider`
+contract check, `hook`, the board hooks of a board other than GitHub (GitHub events → board writes), and `migrate` (GitHub board → Plane). Everything the board tool owns sits behind `Board`, picked by `backlog.provider`
 in .whackagent/config.md: `github` (a GitHub Project v2) or `plane` (a Plane Community Edition project,
 experimental); anything else falls back to GitHub. The Plane API key comes from env PLANE_API_KEY only.
 
@@ -224,12 +224,16 @@ def load(refresh=False):
     cached = json.loads(path.read_text()) if path.exists() else None
     repo = cached["repo"] if cached else current_repo()
     variables = repo_variables(repo)
-    # a cache written before a code setting existed is rebuilt, never read with the setting missing
-    if cached and not refresh and cached.get("fingerprint") == fingerprint(variables) and set(code_settings(variables)) <= set(cached):
+    # a cache written before a code setting existed is rebuilt, never read with the setting missing; so is one of
+    # another board (backlog.provider switched, e.g. by migrate), the board's own ids differing
+    board = board_class()
+    fresh = cached and cached.get("fingerprint") == fingerprint(variables) and set(code_settings(variables)) <= set(cached)
+    if fresh and not refresh and cached.get("board", "GitHubBoard") == board.__name__:
         return cached
     config = {
         "repo": repo,
-        **board_class().settings(repo, variables),
+        "board": board.__name__,
+        **board.settings(repo, variables),
         "fingerprint": fingerprint(variables),
         **code_settings(variables),
     }
@@ -1786,11 +1790,12 @@ class PlaneBoard(Board):
             **code_variables(args),
         }
         set_variables(repo, variables)
-        config = load(refresh=True)
+        if board_class() is PlaneBoard:  # a GitHub board moving to Plane (migrate) keeps its GitHub cache until the switch
+            load(refresh=True)
         secret = gh(["secret", "list", "--repo", repo, "--json", "name", "--jq", ".[].name"], check=False).stdout.split()
         remaining = plane_call(url, "GET", "users/me/")[1].get("X-RateLimit-Remaining")
         return {
-            "project_url": config["project_url"],
+            "project_url": f"{url}/{slug}/projects/{project['id']}/issues/",
             "project_key": project["identifier"],
             "project_id": project["id"],
             "states_created": report["created"],
@@ -2282,6 +2287,486 @@ def op_check_integration(args):
 
 def op_templates(args):
     emit(board_class().templates(args.owner))
+
+
+# ---------------------------------------------------------------- migration (GitHub board → Plane)
+
+# `migrate` moves a GitHub-board project to Plane: run by /wa-setup reconfigure after `provision --plane-url …` wrote
+# the WA_PLANE_* variables. Dry run by default; --apply writes, --push (with --apply) pushes the renamed branches.
+# Every step is idempotent per ticket, keyed on what it left behind: card = Plane external id, comment = Plane external
+# id, branch = the new ref (local, then remote) and the old remote one gone, issue = marker comment + label + closed.
+# The setup PR (config, hooks caller swap, BOARD.md for plane) stays /wa-setup's, like every board file.
+MOVED_LABEL = "wa-moved"
+MOVED_SOURCE = "whackagent-migrate"  # external_source of every card and comment the migration creates
+MOVED_MARKER = "<!-- wa-moved -->"
+MIGRATE_FAIL_ENV = "WA_MIGRATE_FAIL_AFTER"  # maintainer test hook: fail after N writes, to prove a rerun resumes
+CLOSING = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b", re.I)
+SETUP_PR = [
+    "`.whackagent/config.md`: `backlog.provider: plane`",
+    "remove `.github/workflows/whackagent-board.yml` (GitHub board caller)",
+    "add `.github/workflows/whackagent-board-plane.yml` (Plane caller, `board-plane.yml@hooks-v2`)",
+    "`BOARD.md`, PR template sections and pointer blocks rendered for `plane`",
+    "`.github/board/wa-backlog` refreshed",
+]
+
+
+def rest_pages(path):
+    rows, sep = [], "&" if "?" in path else "?"
+    for page in itertools.count(1):
+        batch = rest("GET", f"{path}{sep}per_page=100&page={page}") or []
+        rows += batch
+        if len(batch) < 100:
+            return rows
+
+
+def git_run(*args, env=None, stdin=None):
+    proc = subprocess.run(["git", *args], capture_output=True, text=True, input=stdin, env={**os.environ, **(env or {})})
+    if proc.returncode != 0:
+        raise Failure(f"git {' '.join(args[:2])}: {proc.stderr.strip() or proc.stdout.strip()}")
+    return proc.stdout.strip()
+
+
+def local_ref(name):
+    proc = subprocess.run(["git", "rev-parse", "--verify", "--quiet", name], capture_output=True, text=True)
+    return proc.stdout.strip() or None
+
+
+def day(stamp):
+    return (stamp or "")[:10]
+
+
+class Migration:
+    """One migrate run: source = the GitHub board of the repo variables, target = the provisioned Plane project."""
+
+    def __init__(self, args):
+        repo = current_repo()
+        variables = repo_variables(repo)
+        code = code_settings(variables)
+        self.github = GitHubBoard({"repo": repo, **GitHubBoard.settings(repo, variables), **code})
+        self.plane = PlaneBoard({"repo": repo, **PlaneBoard.settings(repo, variables), **code})
+        target = self.plane.config
+        asked = {"--plane-url": (args.plane_url or "").rstrip("/") or None, "--workspace": args.workspace}
+        have = {"--plane-url": target["plane_url"], "--workspace": target["workspace"]}
+        wrong = [f for f, v in asked.items() if v and v != have[f]]
+        if args.project and args.project not in (target["project_key"], target["project_id"]):
+            wrong.append("--project")
+        if wrong:
+            raise Failure(f"{', '.join(wrong)} name another Plane project than the WA_PLANE_* variables "
+                          f"({target['project_key']}): run provision --plane-url … --project … for it first", EXIT_USAGE)
+        self.repo, self.apply, self.push = repo, args.apply, args.push
+        self.writes = 0
+        self.fail_after = int(os.environ.get(MIGRATE_FAIL_ENV) or 0)
+
+    def step(self, what):
+        """Count one write; the test hook fails the run right after the Nth."""
+        self.writes += 1
+        note(f"migrate: {what}")
+        if self.fail_after and self.writes >= self.fail_after:
+            raise Failure(f"injected failure after {self.writes} writes ({MIGRATE_FAIL_ENV}={self.fail_after}): rerun resumes")
+
+    def external_id(self, number):
+        return f"github:{self.repo}#{number}"
+
+    # ------------------------------------------------ plan
+
+    def gather(self):
+        github, plane, repo = self.github, self.plane, self.repo
+        prefix = github.config["branch_prefix"]
+        rows = github.tickets()
+        moved = {i["number"] for i in rest_pages(f"repos/{repo}/issues?labels={MOVED_LABEL}&state=all")}
+        self.cards = {i["external_id"]: i for i in plane.board_items() if i.get("external_source") == MOVED_SOURCE}
+        held = claims(github.config)
+        plan = {
+            "mode": "apply" if self.apply else "dry-run",
+            "source": {"repo": repo, "project_url": github.config["project_url"]},
+            "target": {k: plane.config[k] for k in ("plane_url", "workspace", "project_key", "project_url")},
+            "refused": [],
+            "tickets": [],
+            "modules": {},
+            "sprints": [],
+            "dependencies": [],
+            "not_copied": {"assignees": {}, "size": {}, "grilled_no_branch": [], "drafts": 0, "ignored": [], "done": 0,
+                           "canceled": 0, "not_on_board": []},
+            "archive": f"GitHub Project {github.config['project_url']} left untouched: read-only archive",
+            "setup_pr": SETUP_PR,
+        }
+        skipped = plan["not_copied"]
+        refused = plan["refused"]
+        tickets = []
+        for t in rows:
+            if t.get("draft"):
+                skipped["drafts"] += 1
+                continue
+            n = t["number"]
+            if t["ignored"]:
+                skipped["ignored"].append(f"#{n}")
+            elif n in moved or self.external_id(n) in self.cards:
+                tickets.append(t)  # moved by an earlier run: its remaining steps run again
+            elif t["closed"]:
+                skipped["canceled" if t["not_planned"] else "done"] += 1
+            elif t["state"] in ("todo", "grilled"):
+                tickets.append(t)
+            elif t["state"] == "done":
+                skipped["done"] += 1
+            else:
+                refused.append({"ticket": f"#{n}", "why": t["state"] or f"column {t['column']!r}, not a whackagent state"})
+        for number, phases in sorted(held.items(), key=lambda kv: str(kv[0])):
+            refused.append({"ticket": shown(number), "why": f"claim held ({', '.join(c['phase'] for c in phases)})"})
+        open_numbers = {t["number"] for t in tickets if not t["closed"]}
+        branch_ticket_re = re.compile(rf"{re.escape(prefix)}(\d+)-")
+        for pr in rest_pages(f"repos/{repo}/pulls?state=open"):
+            match = branch_ticket_re.match(pr["head"]["ref"])
+            named = {int(match.group(1))} if match else set()
+            named |= {int(x) for x in CLOSING.findall(visible_text(pr.get("body")))}
+            for n in sorted(named & open_numbers):
+                refused.append({"ticket": f"#{n}", "why": f"open PR #{pr['number']}"})
+        board_numbers = {t["number"] for t in rows if not t.get("draft")}
+        for issue in rest_pages(f"repos/{repo}/issues?state=open"):
+            labels = {l["name"] for l in issue["labels"]}
+            if "pull_request" not in issue and issue["number"] not in board_numbers and not labels & {IGNORE_LABEL, SPRINT_LABEL, MOVED_LABEL}:
+                skipped["not_on_board"].append(f"#{issue['number']}")
+        if refused:  # one row per ticket, every reason
+            merged = {}
+            for row in refused:
+                merged.setdefault(row["ticket"], []).append(row["why"])
+            plan["refused"] = [{"ticket": t, "why": "; ".join(dict.fromkeys(whys))} for t, whys in merged.items()]
+            self.plan = plan
+            return
+        self.plan, self.entries = plan, []
+        by_state = {i: s for s, i in plane.config["state_ids"].items()}
+        for position, t in enumerate(tickets, 1):
+            n = t["number"]
+            card = self.cards.get(self.external_id(n))
+            key = plane.key(card) if card else None
+            state = by_state.get(card["state"], "todo") if card else t["state"]
+            issue = rest("GET", f"repos/{repo}/issues/{n}")
+            comments = [c for c in rest_pages(f"repos/{repo}/issues/{n}/comments")
+                        if "<!-- board-check:" not in (c.get("body") or "") and MOVED_MARKER not in (c.get("body") or "")]
+            entry = {
+                "number": n, "key": key, "state": state, "title": t["title"], "sprint": t["sprint"], "milestone": t["milestone"],
+                "issue": issue, "comments": comments, "blocked_by": github.blocked_by(n), "position": position,
+                "old_branch": remote_branch(github.config, n), "new_branch": remote_branch(github.config, key) if key else None,
+            }
+            if t["assignees"]:
+                skipped["assignees"][f"#{n}"] = t["assignees"]
+            if t["size"]:
+                skipped["size"][f"#{n}"] = t["size"]
+            if state == "grilled" and not entry["old_branch"] and not entry["new_branch"]:
+                skipped["grilled_no_branch"].append(f"#{n}")
+            self.entries.append(entry)
+        self.plan_modules()
+        self.plan_sprints()
+        for entry in self.entries:
+            self.plan_ticket(entry)
+        self.plan_dependencies()
+        self.summarize()
+
+    def plan_modules(self):
+        titles = {e["milestone"] for e in self.entries if e["milestone"]}
+        milestones = self.github.repo_milestones("all")
+        want = [m for m in sorted(milestones, key=milestone_rank) if m["state"] == "open" or m["title"] in titles]
+        have = {m["title"] for m in self.plane.modules()}
+        self.plan["modules"] = {
+            "create": [{"title": m["title"], "closed": m["state"] == "closed"} for m in want if m["title"] not in have],
+            "existing": [m["title"] for m in want if m["title"] in have],
+        }
+
+    def plan_sprints(self):
+        self.sprint_parents = {}
+        for name in dict.fromkeys(e["sprint"] for e in self.entries if e["sprint"]):
+            parents = [i for i in self.github.sprint_issues(name) if i["state"] == "open"]
+            roots = self.plane.sprint_roots(name)
+            self.plan["sprints"].append({
+                "name": name, "plane_root": self.plane.key(roots[0]) if roots else None,
+                "close_parents": [f"#{i['number']}" for i in parents],
+            })
+            self.sprint_parents[name] = [i["number"] for i in parents]
+
+    def ticket_url(self, entry):
+        return self.plane.ticket_url(entry["key"]) if entry["key"] else None
+
+    def plan_ticket(self, entry):
+        config = self.github.config
+        prefix, tasks = config["branch_prefix"], config["tasks_path"].rstrip("/")
+        posted = set()
+        if entry["key"]:
+            path = f"{self.plane.base()}/work-items/{self.cards[self.external_id(entry['number'])]['id']}/comments/"
+            posted = {c.get("external_id") for c in plane_all(self.plane.config["plane_url"], path) if c.get("external_source") == MOVED_SOURCE}
+        todo_comments = [c for c in entry["comments"] if self.comment_id(entry, c) not in posted]
+        branch = None
+        old, new = entry["old_branch"], entry["new_branch"]
+        if old or new:
+            # slug after the id: wa/12-login → login, wa/MIG-3-login → login
+            slug = old.removeprefix(prefix).split("-", 1)[1] if old else new.removeprefix(prefix).split("-", 2)[2]
+            to = f"{prefix}{entry['key'] or self.plane.config['project_key'] + '-?'}-{slug}"
+            if new:
+                status = "delete old branch" if old else "done"
+            elif entry["key"] and local_ref(f"refs/heads/{to}"):
+                status = "push new branch, delete old one"
+            else:
+                status = "commit (spec commits squashed, task file renamed), then push new branch and delete old one"
+            branch = {"from": old, "to": to, "status": status,
+                      "task_file": {"from": f"{tasks}/{entry['number']}-{slug}.md", "to": f"{tasks}/{to.removeprefix(prefix)}.md"}}
+        issue = entry["issue"]
+        closed = issue["state"] == "closed" and MOVED_LABEL in [l["name"] for l in issue["labels"]]
+        entry["plan"] = {
+            "source": f"#{entry['number']}", "title": entry["title"], "state": entry["state"], "position": entry["position"],
+            "sprint": entry["sprint"], "milestone": entry["milestone"], "comments": len(entry["comments"]),
+            "blocked_by": [f"#{b['number']}" for b in entry["blocked_by"]],
+            "card": entry["key"] or "create",
+            "comments_to_post": len(todo_comments),
+            "branch": branch,
+            "issue": "done" if closed else "close as not planned, link comment, label wa-moved",
+        }
+        entry["todo_comments"] = todo_comments
+        self.plan["tickets"].append(entry["plan"])
+
+    def plan_dependencies(self):
+        moved = {e["number"] for e in self.entries}
+        for entry in self.entries:
+            if not entry["blocked_by"]:
+                continue
+            keep = [b["number"] for b in entry["blocked_by"] if b["number"] in moved]
+            dropped = [f"#{b['number']} ({b['state']}, not moved)" for b in entry["blocked_by"] if b["number"] not in moved]
+            self.plan["dependencies"].append({"ticket": f"#{entry['number']}", "on": [f"#{n}" for n in keep], "dropped": dropped})
+
+    def summarize(self):
+        tickets = self.plan["tickets"]
+        branches = [t["branch"] for t in tickets if t["branch"]]
+        self.plan["summary"] = {
+            "cards_to_create": sum(t["card"] == "create" for t in tickets),
+            "comments_to_post": sum(t["comments_to_post"] for t in tickets),
+            "branches_to_rename": sum(b["status"] != "done" for b in branches),
+            "issues_to_close": sum(t["issue"] != "done" for t in tickets) + sum(len(s["close_parents"]) for s in self.plan["sprints"]),
+            "modules_to_create": len(self.plan["modules"]["create"]),
+        }
+
+    def comment_id(self, entry, comment):
+        return f"{self.external_id(entry['number'])}/comment/{comment['id']}"
+
+    # ------------------------------------------------ apply
+
+    def run(self):
+        self.last = float("-inf")  # sort_order of the previous migrated card
+        self.ensure_modules()
+        for entry in self.entries:
+            self.ensure_card(entry)
+            self.ensure_order(entry)
+            self.ensure_fields(entry)
+            self.ensure_comments(entry)
+            self.ensure_branch(entry)
+            self.close_issue(entry["number"], entry["key"], f"ticket is now [{entry['key']}]({self.ticket_url(entry)})")
+            entry["plan"]["card"] = entry["key"]
+        self.ensure_dependencies()
+        for sprint in self.plan["sprints"]:
+            roots = self.plane.sprint_roots(sprint["name"])
+            root = self.plane.key(roots[0]) if roots else None
+            sprint["plane_root"] = root
+            for number in self.sprint_parents[sprint["name"]]:
+                link = f"sprint `{sprint['name']}` is now Plane sprint root [{root}]({self.plane.ticket_url(root)}) and cycle `{sprint['name']}`"
+                self.close_issue(number, root, link)
+        self.plan["result"] = {"writes": self.writes, "pushed": self.push}
+
+    def ensure_modules(self):
+        for module in self.plan["modules"]["create"]:
+            if module["title"] in {m["title"] for m in self.plane.modules()}:
+                continue
+            body = {"name": module["title"], **({"status": "completed"} if module["closed"] else {})}
+            self.plane.api("POST", f"{self.plane.base()}/modules/", body, missing=(400,))  # 400: name taken by a racing run
+            self.plane.module_rows = self.plane.module_items = None
+            self.step(f"module {module['title']}")
+
+    def ensure_card(self, entry):
+        if entry["key"]:
+            return
+        plane, issue = self.plane, entry["issue"]
+        external = self.external_id(entry["number"])
+        if not hasattr(self, "bottom"):
+            self.bottom = max([i["sort_order"] for i in plane.board_items()] or [0])
+        self.bottom = max(self.bottom, self.last) + PLANE_STEP
+        order = self.bottom  # honoured in an empty column only: ensure_order fixes the rest
+        text = (issue.get("body") or "").strip()
+        footer = f"↪ Moved from GitHub [{self.repo}#{entry['number']}]({issue['html_url']}), opened by @{issue['user']['login']} on {day(issue['created_at'])}."
+        body = {
+            "name": entry["title"], "description_html": comment_html(f"{text}\n\n{footer}" if text else footer),
+            "state": plane.config["state_ids"][entry["state"]], "sort_order": order,
+            "external_source": MOVED_SOURCE, "external_id": external,
+        }
+        item = plane.api("POST", f"{plane.base()}/work-items/", body, missing=(409,))
+        if item is None:  # 409: a racing run created it
+            item = plane.api("GET", f"{plane.base()}/work-items/?external_id={quote(external, safe='')}&external_source={MOVED_SOURCE}")
+        plane.remember(item)
+        self.cards[external] = item
+        entry["key"] = plane.key(item)
+        self.step(f"#{entry['number']} → card {entry['key']} ({entry['state']})")
+
+    def ensure_order(self, entry):
+        """Migrated cards keep the GitHub board order: each one below the previous (Plane drops a new card at the
+        bottom of its own column, so a Grilled card would land among the Todo ones). Checked on every run."""
+        item = self.plane.item(entry["key"])
+        if item["sort_order"] <= self.last:
+            value = self.last + PLANE_STEP
+            self.plane.remember(self.plane.api("PATCH", f"{self.plane.base()}/work-items/{item['id']}/", {"sort_order": value}))
+            self.step(f"{entry['key']} placed after the previous ticket")
+        self.last = self.plane.item(entry["key"])["sort_order"]
+
+    def ensure_fields(self, entry):
+        plane, key = self.plane, entry["key"]
+        item = plane.item(key)
+        if (plane.milestone_of(item) or None) != (entry["milestone"] or None) and entry["milestone"]:
+            plane.set_milestone(key, entry["milestone"])
+            self.step(f"{key} milestone {entry['milestone']}")
+        if entry["sprint"] and plane.sprint_of(item) != entry["sprint"]:
+            plane.set_sprint(key, entry["sprint"])
+            self.step(f"{key} sprint {entry['sprint']}")
+
+    def ensure_comments(self, entry):
+        plane = self.plane
+        path = f"{plane.base()}/work-items/{plane.item(entry['key'])['id']}/comments/"
+        posted = {c.get("external_id") for c in plane_all(plane.config["plane_url"], path) if c.get("external_source") == MOVED_SOURCE}
+        for comment in entry["comments"]:
+            external = self.comment_id(entry, comment)
+            if external in posted:
+                continue
+            header = f"**@{comment['user']['login']}** on GitHub, {day(comment['created_at'])} (originally posted there):"
+            plane.api("POST", path, {
+                "comment_html": comment_html(f"{header}\n\n{comment.get('body') or ''}"),
+                "created_at": comment["created_at"], "external_source": MOVED_SOURCE, "external_id": external,
+            }, missing=(409,))
+            self.step(f"{entry['key']} comment {comment['id']}")
+        entry["plan"]["comments_to_post"] = 0
+
+    def fork_point(self, tip):
+        """Base the ticket branch forked from: the remote branch (not a ticket branch) closest to its tip."""
+        prefix = self.github.config["branch_prefix"]
+        default = rest("GET", f"repos/{self.repo}")["default_branch"]
+        best = None
+        for ref in git_run("for-each-ref", "--format=%(refname)", "refs/remotes/origin/").splitlines():
+            name = ref.removeprefix("refs/remotes/origin/")
+            if name == "HEAD" or name.startswith(prefix):
+                continue
+            ahead = int(git_run("rev-list", "--count", f"{ref}..{tip}"))
+            if ahead and (best is None or (ahead, name != default) < best[:2]):
+                best = (ahead, name != default, ref)
+        if not best:
+            raise Failure(f"no base branch found for {tip[:7]}")
+        return git_run("merge-base", best[2], tip)
+
+    def moved_tree(self, entry, tip, slug):
+        """Tip's tree with the task file renamed to the new id and its `issue:` set to the card key."""
+        tasks = self.github.config["tasks_path"].rstrip("/")
+        names = git_run("ls-tree", "--name-only", tip, f"{tasks}/").splitlines()
+        old = next((p for p in names if p == f"{tasks}/{entry['number']}-{slug}.md"), None)
+        old = old or next((p for p in names if re.fullmatch(rf"{re.escape(tasks)}/{entry['number']}-.+\.md", p)), None)
+        if not old:
+            note(f"migrate: #{entry['number']}: no task file on its branch, branch renamed without one")
+            return git_run("rev-parse", f"{tip}^{{tree}}"), None
+        new = f"{tasks}/{entry['key']}-{old.rsplit('/', 1)[-1].split('-', 1)[1]}"
+        text = git_run("show", f"{tip}:{old}") + "\n"
+        text = re.sub(r"^issue:.*$", f"issue: {entry['key']}", text, count=1, flags=re.M)
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"GIT_INDEX_FILE": str(Path(tmp, "index"))}
+            git_run("read-tree", tip, env=env)
+            git_run("rm", "--cached", "--quiet", old, env=env)
+            blob = git_run("hash-object", "-w", "--stdin", stdin=text)
+            git_run("update-index", "--add", "--cacheinfo", f"100644,{blob},{new}", env=env)
+            return git_run("write-tree", env=env), new
+
+    def ensure_branch(self, entry):
+        """Renamed ticket branch: one commit (the ticket's spec commits squashed, task file moved) on the old branch's
+        fork point, so the ticket range (`task: grill <id>`) starts there. Local first; pushed, old branch deleted,
+        only with --push."""
+        branch = entry["plan"]["branch"]
+        if not branch or branch["status"] == "done":
+            return
+        prefix = self.github.config["branch_prefix"]
+        old = entry["old_branch"]
+        slug = old.removeprefix(prefix).split("-", 1)[1]
+        new = f"{prefix}{entry['key']}-{slug}"
+        branch["to"] = new
+        if not entry["new_branch"] and not local_ref(f"refs/heads/{new}"):
+            git_run("fetch", "--quiet", "origin")
+            tip = git_run("rev-parse", f"refs/remotes/origin/{old}")
+            tree, moved = self.moved_tree(entry, tip, slug)
+            branch["task_file"]["to"] = moved
+            base = self.fork_point(tip)
+            subjects = git_run("log", "--format=- %s", f"{base}..{tip}")
+            message = (f"task: grill {entry['key']} {slug}\n\nMoved from GitHub #{entry['number']} (branch {old} at {tip[:7]}) "
+                       f"to Plane {entry['key']}: its commits squashed, task file renamed, issue: {entry['key']}.\n\n{subjects}\n")
+            sha = git_run("commit-tree", tree, "-p", base, stdin=message)
+            git_run("update-ref", f"refs/heads/{new}", sha, "")
+            self.step(f"{old} → {new} committed locally ({sha[:7]})")
+        if not self.push:
+            branch["status"] = ("committed locally: " if not entry["new_branch"] else "") + "push and delete old branch on yes (--push)"
+            return
+        if not entry["new_branch"]:
+            git_run("push", "--quiet", "origin", f"refs/heads/{new}:refs/heads/{new}")
+            entry["new_branch"] = new
+            self.step(f"{new} pushed")
+        if remote_branch(self.github.config, entry["number"]):
+            git_run("push", "--quiet", "origin", "--delete", old)
+            self.step(f"{old} deleted")
+        branch["status"] = "done"
+
+    def ensure_label(self):
+        code, _ = rest("GET", f"repos/{self.repo}/labels/{MOVED_LABEL}", check=False)
+        if code != 0:
+            rest("POST", f"repos/{self.repo}/labels", {"name": MOVED_LABEL, "color": "9AA4BC",
+                                                      "description": "moved to the Plane board: closed here, worked there"})
+            self.step(f"label {MOVED_LABEL}")
+
+    def close_issue(self, number, key, text):
+        """GitHub issue closed as not planned, with a marker comment linking its Plane card and label wa-moved."""
+        repo = self.repo
+        if not getattr(self, "labeled", False):
+            self.ensure_label()
+            self.labeled = True
+        comments = rest_pages(f"repos/{repo}/issues/{number}/comments")
+        if not any(MOVED_MARKER in (c.get("body") or "") for c in comments):
+            rest("POST", f"repos/{repo}/issues/{number}/comments", {"body": f"{MOVED_MARKER}\n➡️ **moved to Plane** — {text}. "
+                 f"Closed here as not planned; the GitHub Project keeps it as a read-only archive."})
+            self.step(f"#{number} link comment → {key}")
+        issue = rest("GET", f"repos/{repo}/issues/{number}")
+        if MOVED_LABEL not in [l["name"] for l in issue["labels"]]:
+            rest("POST", f"repos/{repo}/issues/{number}/labels", {"labels": [MOVED_LABEL]})
+            self.step(f"#{number} labeled {MOVED_LABEL}")
+        if issue["state"] != "closed":
+            rest("PATCH", f"repos/{repo}/issues/{number}", {"state": "closed", "state_reason": "not_planned"})
+            self.step(f"#{number} closed as not planned")
+
+    def ensure_dependencies(self):
+        keys = {e["number"]: e["key"] for e in self.entries}
+        for row in self.plan["dependencies"]:
+            number = int(row["ticket"].lstrip("#"))
+            on = [keys[int(n.lstrip("#"))] for n in row["on"]]
+            if on:
+                added, _ = self.plane.depend(keys[number], on)
+                if added:
+                    self.step(f"{keys[number]} blocked by {', '.join(added)}")
+            row["plane"] = {"ticket": keys[number], "on": on}
+
+
+def op_migrate(args):
+    """GitHub board → Plane, dry run unless --apply (providers/plane/README.md → Migration)."""
+    if args.push and not args.apply:
+        raise Failure("--push goes with --apply (it pushes what the apply committed)", EXIT_USAGE)
+    migration = Migration(args)
+    migration.gather()
+    plan = migration.plan
+    if plan["refused"]:
+        emit(plan)
+        names = ", ".join(f"{r['ticket']} ({r['why']})" for r in plan["refused"])
+        raise Failure(f"migration refused, in-flight work: {names} — land, release or cancel it first", EXIT_WRONG_STATE)
+    if not args.apply:
+        emit(plan)
+        return
+    try:
+        migration.run()
+    except Failure as failure:
+        plan["failed"] = str(failure)
+        emit(plan)
+        raise
+    emit(plan)
 
 
 # ---------------------------------------------------------------- pull requests
@@ -3181,6 +3666,14 @@ def parser():
     s.add_argument("--plane-url", help="Plane server URL (default: WA_PLANE_URL)")
     s.add_argument("--workspace", help="Plane workspace slug (default: WA_PLANE_WORKSPACE)")
     s.set_defaults(func=op_check_integration)
+
+    s = sub.add_parser("migrate", help="move a GitHub-board project to the provisioned Plane project: dry run unless --apply")
+    s.add_argument("--plane-url", help="Plane server URL, checked against WA_PLANE_URL (provision writes it)")
+    s.add_argument("--workspace", help="Plane workspace slug, checked against WA_PLANE_WORKSPACE")
+    s.add_argument("--project", help="Plane project identifier or id, checked against WA_PLANE_PROJECT_ID")
+    s.add_argument("--apply", action="store_true", help="write: cards, comments, local branch commits, GitHub issues closed")
+    s.add_argument("--push", action="store_true", help="with --apply: push the renamed ticket branches, delete the old ones")
+    s.set_defaults(func=op_migrate)
 
     s = sub.add_parser("hook", help="board hooks for a non-GitHub board: one GitHub event (Actions env, or --event/--payload)")
     s.add_argument("--event", help="event name (default: GITHUB_EVENT_NAME)")
