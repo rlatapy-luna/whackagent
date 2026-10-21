@@ -13,6 +13,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Changed
 
+- `/wa-feedback` under a GitHub or Plane board now replies to every PR comment it took as feedback, once the round is pushed: a short explanation of what changed (or why not) plus the short SHA of the fix commit when there is one, and any precision you or the reviewer added on that comment during the round, signed with the AI tool and whackagent (`— Claude · whackagent`). Inline comments get the reply in their thread, conversation comments a quoting PR comment. It posts only on comments you wrote yourself; a reply to anyone else's comment is drafted in the chat, with a link to the comment, for you to post. It never resolves a thread: the reviewer does, after checking the fix.
 - GitHub and Plane boards: `wa-backlog claim <n> coding` on a `grilled` ticket whose blocker is still open now exits 4 and names the blockers, instead of starting the round. `--blocked-ok` claims anyway: `/wa-code` passes it only after you said yes to an unrelated blocker, `/wa-autopilot` only when it stacks the ticket on its blocker or the blocker is unrelated. Rounds on a ticket already in `review` (feedback, validate, stack rebases) are not checked. Board contract 2.3: `/wa-setup backlog` offers the PR that updates `BOARD.md` and the board files together, so other agents on the board learn the flag.
 
 ## [1.6.0] - 2026-10-20
