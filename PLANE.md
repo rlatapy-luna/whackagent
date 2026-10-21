@@ -247,5 +247,4 @@ The target is to run Plane CE and the hooks runner on the team's Mac Studio, nex
 
 ## Not built yet
 
-- Size.
 - Moving a local file backlog to Plane, or a Plane board back to GitHub.
