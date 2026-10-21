@@ -13,10 +13,11 @@ on the GitHub repo), ticket branches and task phases, pull requests, merge, stac
 the contract check. Everything the board tool owns sits behind `Board`, picked by `backlog.provider`
 in .whackagent/config.md (only `github`, a GitHub Project v2, exists; anything else falls back to it).
 
-Board interface: one adapter class per board tool. Tickets are dicts: number, title, summary, state,
-column, size, sprint, milestone, closed, not_planned, ignored, assignees, reserved, claims (filled by
-the core), url, item_id; a card that is not a ticket is {"draft": True, "title", "item_id"}. An
-operation a tool has no meaning for keeps the base method, which exits 2 with a clear message.
+Board interface: one adapter class per board tool. Tickets are dicts: number (the ticket id: an issue
+number, or a board key "WA-42"), title, summary, state, column, size, sprint, milestone, closed,
+not_planned, ignored, assignees, reserved, claims (filled by the core), url, item_id; a card that is
+not a ticket is {"draft": True, "title", "item_id"}. An operation a tool has no meaning for keeps the
+base method, which exits 2 with a clear message.
 
   Reading     settings(repo, variables)   board ids resolved from the repo variables, cached with the config
               tickets()                   every card, priority order (`list`, `claims` filter it)
@@ -925,6 +926,22 @@ def prepare_repo(repo):
     rest("PATCH", f"repos/{repo}", {"delete_branch_on_merge": True})
 
 
+# Ticket id: a GitHub issue number (int, shown #12) or a board key <PROJECT>-<n> (str, shown as is).
+# Branch <prefix><id>-<slug>, task file <id>-<slug>.md, claim ref refs/wa-claims/<id>/<phase>.
+TICKET_ID = re.compile(r"\d+|[A-Z][A-Z0-9]{0,11}-\d+")
+
+
+def ticket_id(text):
+    """Ticket id from the command line, a claim ref or a branch: "12" → 12, "WA-42" → "WA-42"."""
+    if not TICKET_ID.fullmatch(text):
+        raise ValueError(f"not a ticket id: {text!r}")
+    return int(text) if text.isdigit() else text
+
+
+def shown(number):
+    return f"#{number}" if isinstance(number, int) else number
+
+
 def claims(config, number=None):
     """Live claims, all of them or one ticket's. Map by number, or list when number given."""
     scope = f"{CLAIM_NAMESPACE}/{number}/" if number is not None else f"{CLAIM_NAMESPACE}/"
@@ -934,7 +951,7 @@ def claims(config, number=None):
     found = {}
     for ref in data:
         _, _, held_by, phase = ref["ref"].split("/", 3)
-        found.setdefault(int(held_by), []).append({"phase": phase, "sha": ref["object"]["sha"]})
+        found.setdefault(ticket_id(held_by), []).append({"phase": phase, "sha": ref["object"]["sha"]})
     return found if number is None else found.get(number, [])
 
 
@@ -1085,11 +1102,11 @@ def op_claim(args):
     phase = args.phase
     ticket = find(board, args.number, with_owners=False)
     if ticket["closed"]:
-        raise Failure(f"#{args.number} is closed", EXIT_WRONG_STATE)
+        raise Failure(f"{shown(args.number)} is closed", EXIT_WRONG_STATE)
     if ticket["reserved"]:
         who = ", ".join(f"@{a}" for a in ticket["assignees"])
         emit({"number": args.number, "phase": phase, "taken": True, "agent": who, "assigned": True})
-        raise Failure(f"#{args.number} is assigned to {who}, not to @{board.me()}", EXIT_TAKEN)
+        raise Failure(f"{shown(args.number)} is assigned to {who}, not to @{board.me()}", EXIT_TAKEN)
     ref = f"refs/{CLAIM_NAMESPACE}/{args.number}/{phase}"
     agent = agent_id(args.agent)
     held = next((c for c in claims(config, args.number) if c["phase"] == phase), None)
@@ -1101,7 +1118,7 @@ def op_claim(args):
         taken(config, args.number, phase, held["sha"])
     if ticket["state"] not in CLAIM_FROM[phase]:
         where = ticket["state"] or f"in column {ticket['column']!r}"
-        raise Failure(f"#{args.number} is {where}, {phase} needs {sorted(CLAIM_FROM[phase])}", EXIT_WRONG_STATE)
+        raise Failure(f"{shown(args.number)} is {where}, {phase} needs {sorted(CLAIM_FROM[phase])}", EXIT_WRONG_STATE)
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     # The winner assigns its account, so other accounts' agents see the ticket reserved. Recorded
     # in the claim so `release` gives back only an assignment this claim made.
@@ -1112,7 +1129,7 @@ def op_claim(args):
         "POST",
         f"repos/{config['repo']}/git/commits",
         {
-            "message": f"wa-claim {phase} #{args.number}\n\nagent: {agent}\nclaimed: {now}\n{trailer}",
+            "message": f"wa-claim {phase} {shown(args.number)}\n\nagent: {agent}\nclaimed: {now}\n{trailer}",
             "tree": claim_tree(config),
             "parents": [],
         },
@@ -1137,7 +1154,7 @@ def op_claim(args):
         rest("DELETE", f"repos/{config['repo']}/git/{ref}", check=False)
         raise
     if assigning and not board.assign(args.number, login):
-        note(f"warning: claim held, but could not assign @{login} to #{args.number}")
+        note(f"warning: claim held, but could not assign @{login} to {shown(args.number)}")
     board.comment(args.number, f"🔒 **{phase}** — `{agent}` · {now}")
     emit({"number": args.number, "phase": phase, "taken": False, "agent": agent, "since": now})
 
@@ -1145,7 +1162,7 @@ def op_claim(args):
 def taken(config, number, phase, sha):
     owner = claim_owner(config, sha)
     emit({"number": number, "phase": phase, "taken": True, **owner})
-    raise Failure(f"#{number} {phase} already claimed by {owner['agent']} since {owner['since']}", EXIT_TAKEN)
+    raise Failure(f"{shown(number)} {phase} already claimed by {owner['agent']} since {owner['since']}", EXIT_TAKEN)
 
 
 def op_release(args):
@@ -1208,15 +1225,15 @@ def op_split(args):
     number = args.number
     ticket = find(board, number, with_owners=False)
     if ticket["closed"]:
-        raise Failure(f"#{number} is closed", EXIT_WRONG_STATE)
+        raise Failure(f"{shown(number)} is closed", EXIT_WRONG_STATE)
     if ticket["sprint"]:  # sprints don't nest: the children join this one instead
-        raise Failure(f"#{number} is already in sprint {ticket['sprint']!r}", EXIT_WRONG_STATE)
+        raise Failure(f"{shown(number)} is already in sprint {ticket['sprint']!r}", EXIT_WRONG_STATE)
     if ticket["claims"]:
         held = ", ".join(c["phase"] for c in ticket["claims"])
-        raise Failure(f"#{number} is claimed ({held}) — release it first", EXIT_WRONG_STATE)
+        raise Failure(f"{shown(number)} is claimed ({held}) — release it first", EXIT_WRONG_STATE)
     name = sprint_name(ticket["title"])
     if not name:
-        raise Failure(f"#{number} title has no letter or digit to name a sprint", EXIT_USAGE)
+        raise Failure(f"{shown(number)} title has no letter or digit to name a sprint", EXIT_USAGE)
     board.split(ticket, name)
     emit({"number": number, "sprint": name})
 
@@ -1413,14 +1430,14 @@ def op_screenshots(args):
 
 def stack_view(config, number):
     stack = rest("GET", f"repos/{config['repo']}/stacks/{number}")
-    pattern = re.compile(re.escape(config["branch_prefix"]) + r"(\d+)-")
+    pattern = re.compile(re.escape(config["branch_prefix"]) + rf"({TICKET_ID.pattern})-")
     prs = []
     for pr in stack["pull_requests"]:
         ticket = pattern.match(pr["head"]["ref"])
         prs.append(
             {
                 "pr": pr["number"],
-                "ticket": int(ticket.group(1)) if ticket else None,
+                "ticket": ticket_id(ticket.group(1)) if ticket else None,
                 "branch": pr["head"]["ref"],
                 "state": "merged" if pr.get("merged_at") else pr["state"],
                 "draft": pr.get("draft", False),
@@ -1432,11 +1449,11 @@ def stack_view(config, number):
 def shared_group(board, pr, blocker):
     """Sprint or track both tickets belong to, or None: only tickets of one body of work stack."""
     config = board.config
-    pattern = re.compile(re.escape(config["branch_prefix"]) + r"(\d+)-")
+    pattern = re.compile(re.escape(config["branch_prefix"]) + rf"({TICKET_ID.pattern})-")
     numbers = [pattern.match(p["head"]["ref"]) for p in (pr, blocker)]
     if not all(numbers):
         raise Failure("only ticket PRs stack", EXIT_WRONG_STATE)
-    mine, theirs = (find(board, int(n.group(1)), with_owners=False) for n in numbers)
+    mine, theirs = (find(board, ticket_id(n.group(1)), with_owners=False) for n in numbers)
     if mine["sprint"] and mine["sprint"] == theirs["sprint"]:
         return f"sprint {mine['sprint']}"
     if mine["milestone"] in config.get("tracks", []) and mine["milestone"] == theirs["milestone"]:
@@ -1536,7 +1553,7 @@ def parser():
     s.set_defaults(func=op_list)
 
     s = sub.add_parser("get")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.set_defaults(func=op_get)
 
     s = sub.add_parser("create")
@@ -1549,34 +1566,34 @@ def parser():
     s.set_defaults(func=op_create)
 
     s = sub.add_parser("claim", help="atomic lock; exit 3 when taken")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.add_argument("phase", choices=sorted(CLAIM_FROM))
     s.add_argument("--agent")
     s.set_defaults(func=op_claim)
 
     s = sub.add_parser("release")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.add_argument("phase", choices=sorted(CLAIM_FROM))
     s.add_argument("--reset-to", choices=STATES)
     s.add_argument("--reason")
     s.set_defaults(func=op_release)
 
     s = sub.add_parser("set-state")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.add_argument("state", choices=STATES)
     s.set_defaults(func=op_set_state)
 
     s = sub.add_parser("move")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     where = s.add_mutually_exclusive_group(required=True)
     where.add_argument("--top", action="store_true")
     where.add_argument("--bottom", action="store_true")
-    where.add_argument("--before", type=int)
-    where.add_argument("--after", type=int)
+    where.add_argument("--before", type=ticket_id)
+    where.add_argument("--after", type=ticket_id)
     s.set_defaults(func=op_move)
 
     s = sub.add_parser("set-field")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.add_argument("field", choices=["size", "sprint", "milestone"])
     s.add_argument("value", help='size value, sprint name or milestone title ("" clears)')
     s.set_defaults(func=op_set_field)
@@ -1589,23 +1606,23 @@ def parser():
     s.set_defaults(func=op_close_milestone)
 
     s = sub.add_parser("split", help="ticket becomes the sprint root of its split, children = sub-issues")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.set_defaults(func=op_split)
 
     s = sub.add_parser("comment")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     text = s.add_mutually_exclusive_group(required=True)
     text.add_argument("text", nargs="?")
     text.add_argument("--body-file", help="read the text from a file, - = stdin (multi-line comments)")
     s.set_defaults(func=op_comment)
 
     s = sub.add_parser("depend", help="ticket is blocked by others (issue Relationships)")
-    s.add_argument("number", type=int)
-    s.add_argument("--on", required=True, type=lambda v: [int(x) for x in v.split(",") if x], help="blocker ids, comma-separated")
+    s.add_argument("number", type=ticket_id)
+    s.add_argument("--on", required=True, type=lambda v: [ticket_id(x) for x in v.split(",") if x], help="blocker ids, comma-separated")
     s.set_defaults(func=op_depend)
 
     s = sub.add_parser("link-pr", help="repair: closing link PR → ticket (Development); hooks link on their own")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.add_argument("pr", type=int)
     s.set_defaults(func=op_link_pr)
 
@@ -1642,7 +1659,7 @@ def parser():
     s.set_defaults(func=op_whoami)
 
     s = sub.add_parser("branch", help="remote branch carrying the ticket")
-    s.add_argument("number", type=int)
+    s.add_argument("number", type=ticket_id)
     s.set_defaults(func=op_branch)
 
     s = sub.add_parser("provision", help="create or adopt the project, fields, repo variables")

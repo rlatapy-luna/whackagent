@@ -18,9 +18,9 @@ Owns three things: **creating** task, **cutting** spec too large for one task (*
 0. **Read arg.**
    - **Free text idea** → one task, steps 1–5, then **stop** and suggest `/wa-grill <#>`. User flags trivial quick win → suggest `/wa-grill <#> quick win` (no interview path).
    - **Spec** → file path, URL, or pasted document (several sections, several features) → *Spec* below. Short idea, even multi-line → free text. Doubt → spec: cut rules still give one task when that's what it is.
-   - **Existing task** (slug, display index, `#n`) → nothing to create: say so, suggest `→ /wa-grill 3`, stop.
+   - **Existing task** (slug, display index, ticket id) → nothing to create: say so, suggest `→ /wa-grill 3`, stop.
    - Bare arg matches **live sprint**, no task slug → ambiguous, ask which (recommend: new task inside that sprint, since `/wa-task` creates): `login-refacto is a sprint. New task inside it (recommended), or do you want the view? → /wa-board login-refacto`.
-   - `release <n>` → stale-claim cleanup (*GitHub provider*).
+   - `release <id>` → stale-claim cleanup (*GitHub provider*).
    - **No arg → prioritization only.** Skip to step 5, whole backlog in scope, full pass (see *Explicit run* there).
 1. **Context.** Read `.whackagent/config.md`, `{wiki}/index.md`, backlog (`{backlog}`, or `wa-backlog list` under GitHub — **reference/board-github.md**). `{…}` paths per **reference/paths.md**. Idea or spec block already covered by task → say so, reuse, never duplicate. Note live sprints.
 2. **Title first.** Distill request into SHORT explicit title — feature clear one glance ("Login Apple", not "improve auth"). Rules: **reference/voice.md → Titles and summaries** — label ≤ 5 words, never a narrative sentence, never a metaphor, tech terms untranslated. Slug = kebab-case title (`login-apple`).
@@ -105,9 +105,9 @@ What grill starts from — `/wa-grill` reads it instead of re-asking what spec a
 
 `backlog.provider: github` — rules in **reference/code-github.md** + **reference/board-github.md**. Creating = issue on board, nothing else.
 
-- **Create** → `wa-backlog create --title … --summary … [--size] [--sprint] [--milestone] --note "<idea or spec excerpt>"` (note = issue body) instead of steps 3–4, then `wa-backlog depend <n> --on <x>` per dependency. Ticket lands `todo`, bottom of board, milestone per **reference/milestones.md** (track: `--milestone <track>` on user's yes). **No claim, no branch, no task file** — `/wa-grill` makes them; `ported-from:` / `lands:` go in `--note`, grill copies them to task file. `type` not stored yet (no task file): grill infers it (**reference/task-types.md**).
+- **Create** → `wa-backlog create --title … --summary … [--size] [--sprint] [--milestone] --note "<idea or spec excerpt>"` (note = issue body) instead of steps 3–4, then `wa-backlog depend <id> --on <x>` per dependency. Ticket lands `todo`, bottom of board, milestone per **reference/milestones.md** (track: `--milestone <track>` on user's yes). **No claim, no branch, no task file** — `/wa-grill` makes them; `ported-from:` / `lands:` go in `--note`, grill copies them to task file. `type` not stored yet (no task file): grill infers it (**reference/task-types.md**).
 - **Prioritization (step 5) under GitHub:** **not automatic.** Board order shared with humans and other agents — new ticket lands bottom of `todo`, full stop. Only explicit `/wa-task` (no arg): re-read `wa-backlog list` just before writing, show proposed order, apply with `wa-backlog move` **only on user yes**. Cancel = close issue `not planned` with reason comment, on yes.
-- **`/wa-task release <n>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <n> <phase> --reset-to <todo|grilled|review> --reason "stale: <age>, no push"` (`coding` → `review` when PR open, else `grilled`; `grilling` → `grilled` when spec already exists — issue body criteria or task file on branch —, else `todo`). Never on own initiative, never to take ticket another live agent holds.
+- **`/wa-task release <id>`** — stale claim cleanup, human-triggered only. Show `wa-backlog claims` row (owner, age, last push), confirm, then `release <id> <phase> --reset-to <todo|grilled|review> --reason "stale: <age>, no push"` (`coding` → `review` when PR open, else `grilled`; `grilling` → `grilled` when spec already exists — issue body criteria or task file on branch —, else `todo`). Never on own initiative, never to take ticket another live agent holds.
 
 ## Sprints
 

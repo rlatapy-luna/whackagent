@@ -1,4 +1,4 @@
-import type { Board, BoardTask, GithubState, GithubTicket, MilestoneCount, SprintParent, TaskFile, TaskFocus, TaskStatus } from '../types'
+import type { Board, BoardTask, GithubState, GithubTicket, MilestoneCount, SprintParent, TaskFile, TaskFocus, TaskStatus, TicketId } from '../types'
 
 export type WaConfig = {
   backlog: string
@@ -126,6 +126,13 @@ const inlineMapKeys = (value: string) =>
     .filter(Boolean)
 
 export const isLive = (task: BoardTask) => task.status !== 'done' && task.status !== 'canceled'
+
+// Ticket id (reference/code-github.md): GitHub issue number, shown `#12`, or board key `<PROJECT>-<n>` (`WA-42`), shown as is.
+const BOARD_KEY = /^[A-Z][A-Z0-9]{0,11}-\d+$/
+const BRANCH_TICKET = /^(\d+|[A-Z][A-Z0-9]{0,11}-\d+)-/
+export const ticketLabel = (id: TicketId) => (typeof id === 'number' ? `#${id}` : id)
+export const isTicketId = (id: string) => id.startsWith('#') || BOARD_KEY.test(id)
+const toTicketId = (raw: unknown): TicketId => (typeof raw === 'string' && BOARD_KEY.test(raw) ? raw : Number(raw))
 
 // region Parsing
 
@@ -275,7 +282,7 @@ export function toTickets(
     const listed = GITHUB_ORDER.find(one => one === row.state)
     const state = row.not_planned === true ? 'canceled' : listed
     if (!state || row.ignored === true || (row.closed === true && state === listed && state !== 'done')) continue
-    const number = Number(row.number)
+    const number = toTicketId(row.number)
     const claims = Array.isArray(row.claims) ? (row.claims as RawRow[]) : []
     const assignees = Array.isArray(row.assignees) ? row.assignees.map(text) : []
     const pull = pulls.find(one => one.headRefName.startsWith(`${branchPrefix}${number}-`))
@@ -394,7 +401,7 @@ export function githubSprintRows(tickets: readonly GithubTicket[], parents: read
         size: '',
         title: entry.title,
         tags: [
-          ...(entry.number ? [{ text: `#${entry.number}`, tone: 'muted' as const }] : []),
+          ...(entry.number ? [{ text: ticketLabel(entry.number), tone: 'muted' as const }] : []),
           ...(entry.milestone ? [{ text: entry.milestone, tone: 'muted' as const }] : []),
         ],
         summary: members.length === 0 ? 'no ticket yet' : sprintSummary(done, members.length, parts, isComplete),
@@ -476,10 +483,10 @@ const NAME_TITLES_UP_TO = 2
 const shortTitle = (title: string) =>
   title.length > NAME_TITLE_LENGTH ? `${title.slice(0, NAME_TITLE_LENGTH - 1).trimEnd()}…` : title
 
-/** Task titles on the board, by `#12` or slug: they win over the title an agent names, which may be a step or a state. */
+/** Task titles on the board, by ticket id (`#12`, `WA-42`) or slug: they win over the title an agent names, which may be a step or a state. */
 export function boardTitles(current: Board): Map<string, string> {
   if (current.kind === 'local') return new Map(current.tasks.map(task => [task.slug, task.title]))
-  if (current.kind === 'github') return new Map(current.tickets.map(ticket => [`#${ticket.number}`, ticket.title]))
+  if (current.kind === 'github') return new Map(current.tickets.map(ticket => [ticketLabel(ticket.number), ticket.title]))
   return new Map()
 }
 
@@ -487,9 +494,9 @@ export function sessionName(project: string, tasks: readonly NamedTask[], titles
   const withTitles = tasks.length <= NAME_TITLES_UP_TO
   const labels = tasks.flatMap(task => {
     const id = task.id.trim().replace(/^(\d+)$/, '#$1')
-    const number = id.startsWith('#') ? id : ''
+    const ticket = isTicketId(id) ? id : ''
     const title = shortTitle((titles.get(id) || task.title).trim())
-    const label = (withTitles ? [number, title].filter(Boolean).join(' ') : number || title) || id
+    const label = (withTitles ? [ticket, title].filter(Boolean).join(' ') : ticket || title) || id
     return label ? [label] : []
   })
   return labels.length === 0 ? '' : [project, ...labels].join(' · ')
@@ -623,7 +630,7 @@ const githubRow = (ticket: GithubTicket): ViewRow => ({
   size: ticket.size,
   title: ticket.title,
   tags: [
-    { text: `#${ticket.number}`, tone: 'muted' as const },
+    { text: ticketLabel(ticket.number), tone: 'muted' as const },
     ...(ticket.sprint ? [{ text: ticket.sprint, tone: 'sprint' as const }] : []),
     ...(ticket.claimedBy ? [{ text: `🔒 ${ticket.claimedBy}`, tone: 'muted' as const }] : []),
     ...(ticket.reservedBy ? [{ text: `👤 @${ticket.reservedBy}`, tone: 'muted' as const }] : []),
@@ -730,15 +737,16 @@ export const activeLocalIds = (tasks: readonly BoardTask[], here: string) =>
 
 export const activeGithubIds = (tickets: readonly GithubTicket[], here: string) =>
   hereFirst(
-    tickets.filter(ticket => ticket.isMine && GITHUB_ACTIVE.includes(ticket.state)).map(ticket => `#${ticket.number}`),
+    tickets.filter(ticket => ticket.isMine && GITHUB_ACTIVE.includes(ticket.state)).map(ticket => ticketLabel(ticket.number)),
     here,
   )
 
 export function branchTaskId(branch: string, prefix: string, provider: string): string {
   if (!branch.startsWith(prefix) || branch === prefix) return ''
   const rest = branch.slice(prefix.length)
-  if (provider !== 'github') return rest
-  return /^\d+-/.test(rest) ? `#${rest.split('-')[0]}` : ''
+  if (provider === 'local') return rest
+  const ticket = rest.match(BRANCH_TICKET)?.[1]
+  return ticket ? ticketLabel(toTicketId(ticket)) : ''
 }
 
 const clean = (line: string) => line.replace(/\*\*/g, '').replace(/^\s*[-*]\s+/, '').trim()
@@ -898,7 +906,7 @@ export function localFocusView(tasks: readonly BoardTask[], focus: TaskFocus, he
 }
 
 export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFocus, here = ''): FocusView {
-  const ticket = tickets.find(one => `#${one.number}` === focus.id)
+  const ticket = tickets.find(one => ticketLabel(one.number) === focus.id)
   if (!ticket) {
     return {
       id: focus.id,
@@ -910,7 +918,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
     }
   }
   const phase = focus.file?.phase || ticket.phase
-  const openBlockers = focus.blockedBy.filter(blocker => blocker.isOpen).map(blocker => `#${blocker.number}`)
+  const openBlockers = focus.blockedBy.filter(blocker => blocker.isOpen).map(blocker => ticketLabel(blocker.number))
   const facts = [
     [
       withIcon(ticket.state),
@@ -932,7 +940,7 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
     facts,
     blocks: [
       ...sprintBlock(ticket.sprint, members, one => one.number === ticket.number, one => ({
-        id: `#${one.number}`,
+        id: ticketLabel(one.number),
         title: one.title,
         state: one.state,
         isDone: !isOpenTicket(one),

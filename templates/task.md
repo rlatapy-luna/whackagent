@@ -1,5 +1,5 @@
 ---
-# GitHub provider (backlog.provider: github): file named {tasks}/<issue#>-<slug>.md, lives on ticket
+# GitHub provider (backlog.provider: github): file named {tasks}/<id>-<slug>.md (ticket id), lives on ticket
 # branch, frontmatter keeps ONLY issue / phase / wiki / note / created (+ type, ported-from / lands when set). title, summary, size, sprint,
 # milestone, status live on GitHub (issue + Project) — never here. phase: in-progress | review | validated.
 # issue: 12

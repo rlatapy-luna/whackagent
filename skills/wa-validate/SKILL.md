@@ -43,12 +43,12 @@ Review every round burn one verifier per note, review code about to change anywa
 
 ## GitHub provider
 
-`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve `#n` / index (**reference/board-github.md**). One **agent round** (**reference/code-github.md**, *Agent round*): `claim <n> coding` from `review` only once *Do* steps 1–3 and *Entry* (step 1 below) pass — in-progress, branch switch declined, criterion unmet, PR already ready → stop, nothing claimed (exit 3 → someone mid-round, say who, stop). **Every exit after claim without push** (rebase declined or red, user drops round, nothing to push) → `release <n> coding --reset-to review --reason "<why>"`. **Scope = ticket range** (`git diff $start^` + working tree, **reference/code-github.md**, *Squash merge*), not `branch.base..HEAD`: squash-merged parent or stack makes that diff drag in already-landed code. `validated` stays whackagent-internal (task file), board never shows it.
+`backlog.provider: github`: task file `phase:` plays `status:` (`review` → `validated`). Resolve ticket id (`12`, `#12`, `WA-42`) / index (**reference/code-github.md**, *Ticket id*). One **agent round** (**reference/code-github.md**, *Agent round*): `claim <id> coding` from `review` only once *Do* steps 1–3 and *Entry* (step 1 below) pass — in-progress, branch switch declined, criterion unmet, PR already ready → stop, nothing claimed (exit 3 → someone mid-round, say who, stop). **Every exit after claim without push** (rebase declined or red, user drops round, nothing to push) → `release <id> coding --reset-to review --reason "<why>"`. **Scope = ticket range** (`git diff $start^` + working tree, **reference/code-github.md**, *Squash merge*), not `branch.base..HEAD`: squash-merged parent or stack makes that diff drag in already-landed code. `validated` stays whackagent-internal (task file), board never shows it.
 
 **Clean verdict = ready PR.** Here ticket PR leaves draft; `/wa-close` only merges.
 
 0. **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
-1. **Entry.** `phase: validated`, code untouched since its review: PR draft (validated before this rule, or autofix touched code since user's test) → straight to step 3 readiness, no verifier; PR ready → nothing to do, nothing claimed, say `/wa-close <n>` merges it.
+1. **Entry.** `phase: validated`, code untouched since its review: PR draft (validated before this rule, or autofix touched code since user's test) → straight to step 3 readiness, no verifier; PR ready → nothing to do, nothing claimed, say `/wa-close <id>` merges it.
 2. **Verify + autofix** — steps 3–7 above.
 3. **Clean** (no finding open, or user accepted the rest — step 8) → readiness, same round:
    - **Wiki** — `/wa-wiki` update mode scoped to ticket (ticket-range diff + task file + `wiki:` pages), committed on ticket branch: docs ride ticket PR, never land separately.
@@ -56,13 +56,13 @@ Review every round burn one verifier per note, review code about to change anywa
    - **Base moved** — fetch. PR base (`gh pr view --json baseRefName`) holds commits fork point lacks → rebase ticket range: `git rebase --onto origin/<base> $start^` (plain `git rebase <base>` replays squashed parents' commits). Stacked PR whose parent landed: GitHub retargets once parent branch deleted, else `gh pr edit --base <base>`. Base still another ticket's open branch → leave it: stacked PR goes ready, merges after parent. Conflicts mechanical (wiki index lines, imports, generated files) → resolve yourself; logic → stop and ask with recommended resolution. Rebased → build + tests again; red → stop, back to `/wa-feedback`.
      **Rebase = force-push** → attended run shows one-line plan first (`rebase onto origin/<base>, push --force-with-lease, #42 → ready, reviewers @team`), gets yes; no → skip rebase, push plain (no force) — mergeable check after push catches conflicts. Marking ready without rebase needs no extra confirm: invoking `/wa-validate` is the yes.
    - **Screenshots** — `pr.screenshots: validation` + UI in diff → shoot-mode `wa-implementer` here, after rebase, delta only (**reference/code-github.md**, *Screenshots*). Upload (`wa-backlog screenshots … --sha`) right after body refresh below. Failed shot never blocks readiness: say so in body.
-   - **Push** (`--force-with-lease` when rebased), **refresh body** (**reference/code-github.md**, *PR body refresh*) — checklist from final `## Verification`, status line `Ready — validated, verifier clean. Test, then merge — or /wa-close <n>.` (autofix case: below)
-   - **Autofix changed code since user's test** → PR stays **draft**, status line `Draft — validated; autofix touched <files> since your test. Retest, then /wa-validate <n> to mark ready.` Next `/wa-validate` = step 1 readiness only.
+   - **Push** (`--force-with-lease` when rebased), **refresh body** (**reference/code-github.md**, *PR body refresh*) — checklist from final `## Verification`, status line `Ready — validated, verifier clean. Test, then merge — or /wa-close <id>.` (autofix case: below)
+   - **Autofix changed code since user's test** → PR stays **draft**, status line `Draft — validated; autofix touched <files> since your test. Retest, then /wa-validate <id> to mark ready.` Next `/wa-validate` = step 1 readiness only.
    - **Autofix changed nothing** → **`gh pr ready <pr>`** + `pr.reviewers` requested, assignees per **reference/pull-requests.md** (`@me` always).
 4. **Findings open** (not accepted) → `phase: review`. Commit task file (`## Review`) + autofix code only — no wiki sync, no rebase —, push, refresh body. PR **stays draft**; was ready → `gh pr ready --undo`. Status line `Draft — verifier findings open: <list>. /wa-feedback · /wa-validate.`
 5. Hook sets `review`, drops claim; `ready_for_review` comments `✅ ready`. Then mergeable check per **reference/code-github.md**, *Agent round*.
 
-Report (step 10) names PR + state. Hand-back: clean → `Ready #42 — test, then merge on GitHub or /wa-close <n>`; clean, autofix touched code → `Draft #42 — retest, then /wa-validate <n> to mark ready`; findings open → same three-way recommendation, PR draft.
+Report (step 10) names PR + state. Hand-back: clean → `Ready #42 — test, then merge on GitHub or /wa-close <id>`; clean, autofix touched code → `Draft #42 — retest, then /wa-validate <id> to mark ready`; findings open → same three-way recommendation, PR draft.
 
 ## Interaction with the rest
 
@@ -83,4 +83,4 @@ Every question carry recommended answer + one-line reason — finding worth acce
 
 ## Next step
 
-Retest what review changed, then **`/wa-close <slug>`** — it commit, land branch (merge into sprint, PR, or nothing per `close.strategy`) and mark task `done`, wiki synced in same commit. GitHub provider: PR already ready, wiki inside — merge on GitHub, or `/wa-close <n>` merges it for you.
+Retest what review changed, then **`/wa-close <slug>`** — it commit, land branch (merge into sprint, PR, or nothing per `close.strategy`) and mark task `done`, wiki synced in same commit. GitHub provider: PR already ready, wiki inside — merge on GitHub, or `/wa-close <id>` merges it for you.

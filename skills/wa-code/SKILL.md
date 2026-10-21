@@ -40,14 +40,14 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 `backlog.provider: github` (rules **reference/code-github.md** + **reference/board-github.md**) replaces grill gate, status write and step 0:
 
 0. **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
-1. **Resolve** arg: `#12` / `12` / display index. No arg → top unclaimed `grilled` from `wa-backlog list --state grilled`. Blocker gate on `wa-backlog get <n>` → `blocked_by`, before claim, per **BOARD.md → Dependencies**: open **related** blocker (same sprint or track) → never code it from base. Arg given → wait, or `/wa-autopilot` stacks it — say so, stop. No arg → skip it like exit 3 (`#12 skipped — blocked by #9, same sprint`), try next `grilled`. Unrelated → warn as above; yes → PR body `Blocked by #<x>: merge order is yours.`
-2. **Claim** `wa-backlog claim <n> coding`. Exit 3 → `#12 coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`review`: `todo` means not grilled → suggest `/wa-grill <n>`; stop.
-3. **Branch** — ticket branch exists (grilling pushed it): `wa-backlog branch <n>`, fetch, check out **in current worktree**. Dirty tree → stop and ask first. Never create fresh branch when one exists: spec lives on it. Exists but holds no `{tasks}/<n>-*.md` (earlier round on issue-body spec dropped before first commit) → build task file from issue body as *Spec in issue body*, commit `task: spec #<n> <slug>`. **None** (spec in issue body, **reference/board-github.md**, *Spec in issue body*) → create it linked, first commit = task file from issue body. Git refusing because another local worktree holds branch → say which, stop. `branch.worktree: true` → reuse or add `{worktrees}/<n>-<slug>` on that branch instead (**reference/worktrees.md**); worktree already there = yours to reuse, not a refusal.
-4. **Spec** = `{tasks}/<n>-<slug>.md` on that branch (just built from issue body when step 3 created it). Set `phase: in-progress` there (local writes `status:`). **No push mid-round** — any push to branch with open PR fires `synchronize`: hook ends round and drops your claim while you still code.
+1. **Resolve** arg: ticket id (`12`, `#12`, `WA-42`) / display index. No arg → top unclaimed `grilled` from `wa-backlog list --state grilled`. Blocker gate on `wa-backlog get <id>` → `blocked_by`, before claim, per **BOARD.md → Dependencies**: open **related** blocker (same sprint or track) → never code it from base. Arg given → wait, or `/wa-autopilot` stacks it — say so, stop. No arg → skip it like exit 3 (`<#id> skipped — blocked by <#x>, same sprint`), try next `grilled`. Unrelated → warn as above; yes → PR body `Blocked by <#x>: merge order is yours.`
+2. **Claim** `wa-backlog claim <id> coding`. Exit 3 → `<#id> coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`review`: `todo` means not grilled → suggest `/wa-grill <id>`; stop.
+3. **Branch** — ticket branch exists (grilling pushed it): `wa-backlog branch <id>`, fetch, check out **in current worktree**. Dirty tree → stop and ask first. Never create fresh branch when one exists: spec lives on it. Exists but holds no `{tasks}/<id>-*.md` (earlier round on issue-body spec dropped before first commit) → build task file from issue body as *Spec in issue body*, commit `task: spec <#id> <slug>`. **None** (spec in issue body, **reference/board-github.md**, *Spec in issue body*) → create it linked, first commit = task file from issue body. Git refusing because another local worktree holds branch → say which, stop. `branch.worktree: true` → reuse or add `{worktrees}/<id>-<slug>` on that branch instead (**reference/worktrees.md**); worktree already there = yours to reuse, not a refusal.
+4. **Spec** = `{tasks}/<id>-<slug>.md` on that branch (just built from issue body when step 3 created it). Set `phase: in-progress` there (local writes `status:`). **No push mid-round** — any push to branch with open PR fires `synchronize`: hook ends round and drops your claim while you still code.
 5. **Track check** — only when `branch.tracks` non-empty: ticket milestone vs PR base / fork commit disagree on trunk → say so, offer move (**reference/tracks.md**), never code on wrong trunk. Then step 0.6 (sync offer, landing merge).
-6. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `#<n>` + PR URL.
+6. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `<#id>` + PR URL.
 7. **Deliver = end of round** (**reference/code-github.md**, *Agent round*, *Screenshots* — `each_round` only): commit code + task file (per **reference/commits.md**), push, open **draft PR** (or push to existing one + refresh its body, **reference/code-github.md**, *PR body refresh*). Board moves to `review` by itself: ticket never waits for your test in `coding`. First push of ticket = outward-facing → one-line plan (`push wa/12-… + draft PR → sprint/x`) + yes, first time only; later rounds push without asking.
-8. **Blocked / user drops it** → `wa-backlog release <n> coding --reset-to grilled --reason "<why>"` (`--reset-to review` when PR already open). Round created branch, never pushed commit → delete it, local + remote (`git push origin --delete <branch>`: holds only fork point), as `/wa-grill` abort. Coding lock never left dangling on abandon.
+8. **Blocked / user drops it** → `wa-backlog release <id> coding --reset-to grilled --reason "<why>"` (`--reset-to review` when PR already open). Round created branch, never pushed commit → delete it, local + remote (`git push origin --delete <branch>`: holds only fork point), as `/wa-grill` abort. Coding lock never left dangling on abandon.
 
 ## 1. Plan
 
@@ -69,7 +69,7 @@ Line counts not decoration: subagents run hard read budget (no whole-file `Read`
 
 Then **decompose** into bricks, fix **file/folder layout up front** per architecture module (group by feature, proper nesting, never flat), **sketch tests** (units, edge cases — YAGNI, only what task needs).
 
-**Post bricks** — provider `comment` on ticket, after decomposition, before first dispatch (GitHub: multi-line text → `wa-backlog comment <n> --body-file <file>`, `-` = stdin). One line per brick, what it builds + key file:
+**Post bricks** — provider `comment` on ticket, after decomposition, before first dispatch (GitHub: multi-line text → `wa-backlog comment <id> --body-file <file>`, `-` = stdin). One line per brick, what it builds + key file:
 
 ```
 🧱 3 bricks
@@ -129,7 +129,7 @@ Then:
 - **Save** to `{reports}/<slug>.md`: same card, plus full file/folder list, key decisions, review findings.
 - Set `status: review` — means *waiting for user to test it*, nothing more.
 - **Test branch** (`branch.test_branch: true`) — rebuild for this task's base per **reference/test-branch.md**, after delivery (GitHub: after push). Git only, no build. Built → checked out last, clean tree only (*Checkout* there). Result goes in card's 📍 line.
-- **Say what to do next, in this order**: test it where 📍 line says. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`**, which fires verifier; **`/wa-close <slug>`** ends it after your retest. GitHub: `/wa-validate` syncs wiki + readies PR; merge on GitHub or `/wa-close <n>`.
+- **Say what to do next, in this order**: test it where 📍 line says. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`**, which fires verifier; **`/wa-close <slug>`** ends it after your retest. GitHub: `/wa-validate` syncs wiki + readies PR; merge on GitHub or `/wa-close <id>`.
 - **Iteration is `/wa-feedback` job.** Never patch code from this thread — even one-liner. `/wa-feedback` only place inline fixes are bounded, tagged, built, flagged to verifier (see its *Micro-fix or implementer*); untracked touch-up here undoes review it about to get.
 - **Never set `done` yourself, never commit here.** `review` → `/wa-validate` → `validated` → `/wa-close` → `done`; user "ok that's it" = spec approval, not close.
 
@@ -182,4 +182,4 @@ Never write code yourself. Never commit — closing is `/wa-close` job (GitHub p
 
 ## Next step
 
-Test it. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`** (verifier), then **`/wa-close <slug>`** after retest (syncs wiki itself). GitHub: `/wa-validate` syncs wiki + readies PR; merge on GitHub or `/wa-close <n>`.
+Test it. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`** (verifier), then **`/wa-close <slug>`** after retest (syncs wiki itself). GitHub: `/wa-validate` syncs wiki + readies PR; merge on GitHub or `/wa-close <id>`.

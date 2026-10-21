@@ -102,6 +102,39 @@ test('a PR opens from its tag and its in-flight tab: link on desktop, gh button 
   }
 })
 
+test('board key ids: WA-42 row, its task file named after the branch, Task tab', async ($, on) => {
+  const ok = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+  const rows = [{ number: 'WA-42', title: 'Login', summary: 'S', state: 'coding', size: 'medium', assignees: ['me'], reserved: false, claims: [] }]
+  const read: string[] = []
+  on('session.root', () => ({ value: '/p' }))
+  on('session.start', () => ({ cwd: '/p' }))
+  on('command.register', () => ({ value: { command: 'wa-pane' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('fs.read', ($, e) => {
+    read.push(e.path)
+    if (e.path === '/p/.whackagent/config.md') return { value: GITHUB_CONFIG }
+    if (e.path === '/p/.whackagent/tasks/WA-42-login.md') return { value: '---\nphase: in-progress\n---\n## Acceptance criteria\n1. Sign in with Apple.\n' }
+    return { deny: `ENOENT ${e.path}` }
+  })
+  on('fs.stat', () => ({ deny: 'ENOENT' }))
+  on('process.run', ($, e) => {
+    const command = e.argv.join(' ')
+    if (command.includes('wa-backlog list')) return ok(JSON.stringify(rows))
+    if (command.includes('wa-backlog milestones')) return ok('[]')
+    if (command.startsWith('gh pr list') || command.startsWith('gh issue list')) return ok('[]')
+    if (command.includes('rev-parse --abbrev-ref')) return ok('wa/WA-42-login')
+    return ok(command.startsWith('git') ? '' : '{}')
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ key: 'task-WA-42' }))?.props.label).toBe('● 🔨 WA-42 Login 📍')
+  expect(await ui.find({ type: 'Text', text: 'Sign in with Apple.' })).toBeDefined()
+  expect(read).toContain('/p/.whackagent/tasks/WA-42-login.md')
+  await ui.unmount()
+})
+
 test('+N more under Done shows every task, show less folds it back', async ($, on) => {
   const slugs = ['t1', 't2', 't3', 't4', 't5']
   const files: Record<string, string> = {
@@ -198,6 +231,10 @@ test('name_session renames the session after its tasks, once per name', async ($
   await $.tool.call({ tool: NAME_TOOL, tasks: [{ id: '12', title: 'Login Apple' }] })
   await clock.advance(10)
   expect(renamed).toEqual(['/rename shop · #12 Login Apple'])
+  const keyed = await $.tool.call({ tool: NAME_TOOL, tasks: [{ id: 'WA-42', title: 'Login Apple' }] })
+  expect(keyed.result).toBe('Session named "shop · WA-42 Login Apple".')
+  await clock.advance(10)
+  expect(renamed).toEqual(['/rename shop · #12 Login Apple', '/rename shop · WA-42 Login Apple'])
 })
 
 test('name_session is not offered when the option is off', { options: { rename_session: false } }, async ($, on) => {

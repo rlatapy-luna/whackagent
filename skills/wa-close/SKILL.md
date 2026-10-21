@@ -42,23 +42,23 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 `backlog.provider: github` (rules **reference/code-github.md** + **reference/board-github.md**). Ticket PR already carries everything — `/wa-validate` synced wiki, rebased, marked it ready. `/wa-close` = **merge it for you**, on your yes. Merging on GitHub yourself is just as good: hook sets `done` either way. Replaces steps 2–9:
 
 0. **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
-1. **Resolve** `#12` / `12` / index. PR = issue's linked PRs (`gh issue view <n> --json closedByPullRequestsReferences`), fallback `gh pr list --head <branch> --state all --json number,state,isDraft,url`. `phase:` in task file plays `status:` in step 1.
-   - No PR → not delivered: `/wa-code <n>`, stop.
+1. **Resolve** ticket id (`12`, `#12`, `WA-42`) / index. PR = ticket's linked PRs (GitHub board: `gh issue view <id> --json closedByPullRequestsReferences`), fallback `gh pr list --head <branch> --state all --json number,state,isDraft,url`. `phase:` in task file plays `status:` in step 1.
+   - No PR → not delivered: `/wa-code <id>`, stop.
    - Merged → hook already set `done`: say so, run step 7 cleanup only.
-   - **Draft** → not validated: `/wa-validate <n>` marks it ready (no re-review when `phase: validated` and code untouched), stop.
-   - **Ready, `phase: review`** → findings never cleared: `/wa-validate <n>`, stop.
+   - **Draft** → not validated: `/wa-validate <id>` marks it ready (no re-review when `phase: validated` and code untouched), stop.
+   - **Ready, `phase: review`** → findings never cleared: `/wa-validate <id>`, stop.
    - **Ready, no task file / `phase` empty** → another work loop's PR (**BOARD.md → Working a ticket** allows it): merge on yes after step 2 checks, no rebase offered — `CONFLICTING` → stop, say so (PR owner rebases).
    - **Ready** → continue.
 2. **Mergeable?** `gh pr view <pr> --json mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,body` (retry while `UNKNOWN`):
    - Base = another ticket's open branch (stacked, parent not landed) → stop: parent merges first (`/wa-close <parent>`), GitHub then retargets and rebases this one (**reference/code-github.md**, *Stacked PRs*) — start from `origin/<branch>`.
-   - Checks failing → name them, stop: `/wa-feedback <n>`. Pending → plan says it waits (`gh pr checks <pr> --watch`).
+   - Checks failing → name them, stop: `/wa-feedback <id>`. Pending → plan says it waits (`gh pr checks <pr> --watch`).
    - `reviewDecision` `REVIEW_REQUIRED` / `CHANGES_REQUESTED` → GitHub refuses: name who's requested, stop. Never `--admin`.
    - `CONFLICTING` → plan adds rebase: ticket range onto PR base (step 4).
    - Criteria left `- [ ]` in PR body → named in plan: merging ships them unproven.
 3. **Plan block + yes**, every time — *Plan block*, GitHub example. Nothing touched before yes.
-4. **Claim** `wa-backlog claim <n> coding` from `review`: no other round pushes while you merge (exit 3 → someone mid-round, say who, stop). Rebase planned → `git rebase --onto origin/<base> $start^` (ticket range, **reference/code-github.md**, *Squash merge*; plain `git rebase <base>` replays squashed parents), mechanical conflicts yourself, logic → stop and ask with recommended resolution; build + tests, red → release `--reset-to review`, back to `/wa-feedback`; `push --force-with-lease`. Push ends round: hook drops claim → wait for it (`wa-backlog get <n>` shows `review`, no claim), re-claim `coding`, re-run step 2 checks (pending → `gh pr checks <pr> --watch`), then merge.
-5. **Merge** — `wa-backlog merge <pr>` (async merge: only way GitHub merges stacked PR, fine for any; waits for result; ticket carrying `lands: <track>` → `--method merge`, **reference/tracks.md**). Exit 4 → PR below in stack still open or PR not ready: say so. Remote branch goes with `delete_branch_on_merge` (provision sets it; off → say so, leave it — deleting by hand closes PRs stacked on it). Refused → claim still held → `release <n> coding --reset-to review --reason "merge refused: <why>"`; say why, stop.
-6. **Board** — hook sets `done`, drops claim, closes issue. Confirm `wa-backlog get <n>` shows `done` (re-read once after ~30 s). Never set state yourself.
+4. **Claim** `wa-backlog claim <id> coding` from `review`: no other round pushes while you merge (exit 3 → someone mid-round, say who, stop). Rebase planned → `git rebase --onto origin/<base> $start^` (ticket range, **reference/code-github.md**, *Squash merge*; plain `git rebase <base>` replays squashed parents), mechanical conflicts yourself, logic → stop and ask with recommended resolution; build + tests, red → release `--reset-to review`, back to `/wa-feedback`; `push --force-with-lease`. Push ends round: hook drops claim → wait for it (`wa-backlog get <id>` shows `review`, no claim), re-claim `coding`, re-run step 2 checks (pending → `gh pr checks <pr> --watch`), then merge.
+5. **Merge** — `wa-backlog merge <pr>` (async merge: only way GitHub merges stacked PR, fine for any; waits for result; ticket carrying `lands: <track>` → `--method merge`, **reference/tracks.md**). Exit 4 → PR below in stack still open or PR not ready: say so. Remote branch goes with `delete_branch_on_merge` (provision sets it; off → say so, leave it — deleting by hand closes PRs stacked on it). Refused → claim still held → `release <id> coding --reset-to review --reason "merge refused: <why>"`; say why, stop.
+6. **Board** — hook sets `done`, drops claim, closes issue. Confirm `wa-backlog get <id>` shows `done` (re-read once after ~30 s). Never set state yourself.
 7. **Cleanup** — worktree removed when clean (dirty → stop and ask), local branch `git branch -D` (squash leaves it unmerged to git; PR merged = code on base), `git fetch --prune`. `close.delete_branch: never` → keep local branch, say so. Never `push --delete`. Test branch of PR base → rebuilt or deleted, as local step 6.
 8. **Sprint** — ticket was its sprint's last open sub-issue → *Sprint landing*: sprint PR onto `close.target` (track sprint: its trunk) per **reference/pull-requests.md** (`{title}` = sprint name), body names sprint parent (`Sprint #<parent>`). Offer merging it (`--merge`, never squash, second yes) only when step 2 checks already pass; else say it merges once reviewed — on GitHub, or `/wa-close <sprint>` later. Merge → hook closes parent.
 9. **Next** (`branch.checkout_next`) → next ticket only through **claim**: `/wa-code` without arg picks top unclaimed `grilled`. Never check out ticket branch you don't hold.
@@ -165,7 +165,7 @@ Order matter — worktree holding branch block deleting it.
 1. **Complete?** Task left `todo` / `in-progress` / `review` / `validated` (GitHub: open sub-issue on board) → list what left, stop. None `done`, all canceled → nothing to ship: GitHub → offer closing parent as not planned (`gh issue close <parent> --reason "not planned"`, confirm first); local → say so, stop.
 2. **Anything to land?** Fetch. `close.strategy: pr` → task PRs still open onto sprint branch (`gh pr list --base <sprint branch> --state open`) → list them, say sprint PR waits until they merge, stop. Sprint branch `<branch.sprint_prefix><sprint>` holds commits not in `close.target` (track sprint: its trunk) — `git rev-list --count <target>..<sprint branch>` > 0 → *Sprint landing* steps 2–4 below (GitHub: sprint PR body `Sprint #<parent>`; merge → hook closes parent). Branch absent, empty or already in target → nothing to land.
 3. **Nothing to land** → GitHub: close parent — `gh issue close <parent> --comment "🏁 sprint landed — every sub-issue closed, nothing left on the sprint branch"`. Outward: confirm first. Local: say complete, nothing to do.
-4. **Report** one line: `🏁 <sprint> — <done>/<total> · <PR #n opened | parent #n closed | already landed>`.
+4. **Report** one line: `🏁 <sprint> — <done>/<total> · <PR #<pr> opened | parent <#parent> closed | already landed>`.
 
 Never touches a task: their states stay theirs.
 
@@ -190,7 +190,7 @@ A sprint is never `done` as a thing — there's no sprint status to set. It's co
 
 - **`/wa-validate`** sets `validated` and stops there. It never commits, never touches a branch, never sets `done`. GitHub provider: its round pushes and marks ticket PR ready — `/wa-close` only merges.
 - **`/wa-feedback` on a `validated` task** → status back to `review`, needs `/wa-validate` again before it can be closed.
-- **`/wa-autopilot`** leaves tasks `validated` (verifier clean, wiki synced) on their own branches, worktrees already removed (except blocked ones). GitHub provider: PR already ready — merge on GitHub, or `/wa-close <n>` merges it. Local: straight to `/wa-close` after your test. Findings left open → `review`, `/wa-feedback` or `/wa-validate` first.
+- **`/wa-autopilot`** leaves tasks `validated` (verifier clean, wiki synced) on their own branches, worktrees already removed (except blocked ones). GitHub provider: PR already ready — merge on GitHub, or `/wa-close <id>` merges it. Local: straight to `/wa-close` after your test. Findings left open → `review`, `/wa-feedback` or `/wa-validate` first.
 - **`/wa-wiki`** runs **inside** `/wa-close` (step 2b), never after: wiki lands in same commit/PR as code it describes. Standalone `/wa-wiki` stays for syncs outside a task (query mode, catch-up).
 
 ## Never

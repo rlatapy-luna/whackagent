@@ -27,9 +27,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `blo
 
 ## GitHub board
 
-Same list format, sections by contract state, render order: **📥 Todo → 🔥 Grilling → 📐 Grilled → 🔨 Coding → 👀 Review → 🎉 Done → 🚫 Canceled** (heading = emoji + name). Canceled = issue closed as not planned (`not_planned: true` in `list --all`, whatever its column) — never under Done. Line 1 = `<#> · <size> **<title>** · #<n>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short), `👤 @<login>` when `reserved` (assigned to another account). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
+Same list format, sections by contract state, render order: **📥 Todo → 🔥 Grilling → 📐 Grilled → 🔨 Coding → 👀 Review → 🎉 Done → 🚫 Canceled** (heading = emoji + name). Canceled = issue closed as not planned (`not_planned: true` in `list --all`, whatever its column) — never under Done. Line 1 = `<#> · <size> **<title>** · <#id>`, plus sprint tag, plus `🔒 <agent>` when claimed (agent = worktree basename, short), `👤 @<login>` when `reserved` (assigned to another account). `⚠` = `todo` (not grilled). Extra blocks under legend when present:
 
-- `⏳ stale claims` — `claims` rows with `stale: true`: `#12 coding · <agent> · 2d, no push` → suggest `/wa-task release 12`.
+- `⏳ stale claims` — `claims` rows with `stale: true`: `<#id> coding · <agent> · 2d, no push` → suggest `/wa-task release <id>`.
 - `📝 drafts` — Project draft items: not tickets, convert to issue on GitHub.
 
 **Review section splits draft vs ready** — `gh pr list --json number,headRefName,isDraft`: draft → `🧪 draft #<pr>` (your test), ready → `🔀 ready #<pr>` (your test, then merge — GitHub or `/wa-close`).

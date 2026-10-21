@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Board, BoardTask, MilestoneCount, SprintParent, TaskFocus } from '../types'
+import type { Board, BoardTask, MilestoneCount, SprintParent, TaskFocus, TicketId } from '../types'
 import type { FocusView, NamedTask, PullRequest, View, ViewRow, WaConfig, Worktree } from './board'
 import {
   ALL_TAB,
@@ -15,6 +15,7 @@ import {
   dirname,
   githubFocusView,
   githubView,
+  isTicketId,
   joinPath,
   localFocusView,
   localView,
@@ -164,7 +165,7 @@ async function githubFocus(
   id: string,
   source: { branch: string; path: string; ref: string } | undefined,
 ): Promise<TaskFocus> {
-  const number = id.slice(1)
+  const number = id.replace(/^#/, '')
   const fileName = source ? `${config.tasks}/${source.branch.slice(config.branchPrefix.length)}.md` : ''
   const diskPath = source?.path ? joinPath(source.path, fileName) : ''
   if (diskPath) focusFiles.set(id, diskPath)
@@ -175,7 +176,7 @@ async function githubFocus(
       : (await git($, at.root, ['show', `${source.ref}:${fileName}`])) || undefined
   const file = text === undefined ? null : parseTaskFile(text)
   const ticket = (await runJson($, ['python3', script, 'get', number], at.root, 'wa-backlog get').catch(() => ({}))) as {
-    blocked_by?: { number: number; state: string }[]
+    blocked_by?: { number: TicketId; state: string }[]
   }
   if (file && file.bricks.length === 0) {
     const issue = (await runJson($, ['gh', 'issue', 'view', number, '--json', 'comments'], at.root, 'gh issue view').catch(
@@ -324,7 +325,7 @@ function viewOf(current: Board, milestone: string, expanded: readonly string[]):
 }
 
 const tabLabel = (focus: FocusView) => {
-  if (!focus.id.startsWith('#') || !focus.row) return `${focus.icon} ${focus.id}`
+  if (!isTicketId(focus.id) || !focus.row) return `${focus.icon} ${focus.id}`
   const title = focus.row.title
   return `${focus.icon} ${focus.id} ${title.length > TAB_TITLE_LENGTH ? `${title.slice(0, TAB_TITLE_LENGTH - 1)}…` : title}`
 }
@@ -337,7 +338,7 @@ export const register: Register = (on, options) => {
       await $.tool.register({
         name: NAME_TOOL,
         description:
-          'Names this session after the whackagent task(s) it works on: project, ticket number, short title. Call once the task is resolved.',
+          'Names this session after the whackagent task(s) it works on: project, ticket id, short title. Call once the task is resolved.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -347,7 +348,7 @@ export const register: Register = (on, options) => {
               items: {
                 type: 'object',
                 properties: {
-                  id: { type: 'string', description: 'GitHub issue number (#12), or the local task slug.' },
+                  id: { type: 'string', description: 'Ticket id (#12, WA-42), or the local task slug.' },
                   title: { type: 'string', description: 'The task\'s own short title, as on the board. Never the command, step or state.' },
                 },
                 required: ['id', 'title'],

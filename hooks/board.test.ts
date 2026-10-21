@@ -651,3 +651,80 @@ test('session name: board titles win over the title the agent names', async () =
   expect(sessionName('shop', [{ id: '#9', title: 'Export CSV' }], boardTitles(github))).toBe('shop · #9 Export CSV')
   expect(boardTitles({ kind: 'loading' }).size).toBe(0)
 })
+
+test('board key ids (WA-42): rows, PR match, actions, sprint tag, active ids', async () => {
+  const { tickets } = toTickets(
+    [
+      row({ number: 'WA-42', state: 'review', sprint: 'auth', assignees: ['me'] }),
+      row({ number: 'WA-43', state: 'todo' }),
+      row({ number: 'WA-4', state: 'grilling', assignees: ['me'] }),
+    ],
+    [
+      { number: 40, headRefName: 'wa/WA-42-login', isDraft: true, url: 'https://x/pull/40' },
+      { number: 41, headRefName: 'wa/WA-43-export', isDraft: false },
+    ],
+    'wa/',
+  )
+  expect(tickets.map(ticket => [ticket.number, ticket.pr?.number ?? null])).toEqual([
+    ['WA-42', 40],
+    ['WA-43', 41],
+    ['WA-4', null],
+  ])
+  const view = githubView(tickets, [], [], [], '', [], [{ number: 'WA-7', title: 'Auth', milestone: '' }])
+  const rows = view.sections.flatMap(section => section.rows)
+  expect(rows.map(one => [one.key, one.tags[0]?.text])).toEqual([
+    ['WA-43', 'WA-43'],
+    ['WA-4', 'WA-4'],
+    ['WA-42', 'WA-42'],
+  ])
+  expect(ticketActions(tickets[1]!).map(one => one.command)).toEqual(['/wa-grill WA-43', '/wa-autopilot WA-43'])
+  expect(ticketActions(tickets[0]!).map(one => one.command)).toEqual(['/wa-feedback WA-42 ', '/wa-validate WA-42', '/wa-autopilot WA-42'])
+  expect(view.sprints[0]?.tags.map(tag => tag.text)).toEqual(['WA-7'])
+  expect(activeGithubIds(tickets, 'WA-4')).toEqual(['WA-4'])
+})
+
+test('board key ids (WA-42): branch and task file name map to the ticket, slug digits never do', async () => {
+  expect(branchTaskId('wa/WA-42-login-apple', 'wa/', 'github')).toBe('WA-42')
+  expect(branchTaskId('wa/WA-42-login-apple', 'wa/', 'plane')).toBe('WA-42')
+  expect(branchTaskId('wa/MOBILE2-7-sync', 'wa/', 'github')).toBe('MOBILE2-7')
+  expect(branchTaskId('wa/12-3d-view', 'wa/', 'github')).toBe('#12')
+  expect(branchTaskId('wa/wa-42-login', 'wa/', 'github')).toBe('')
+  expect(branchTaskId('wa/WA-login', 'wa/', 'github')).toBe('')
+  expect(branchTaskId('wa/WA-42-login-apple', 'wa/', 'local')).toBe('WA-42-login-apple')
+})
+
+test('board key ids (WA-42): focus finds the ticket, its open blockers and sprint siblings', async () => {
+  const { tickets } = toTickets(
+    [
+      row({ number: 'WA-42', state: 'review', sprint: 'auth', phase: 'review' }),
+      row({ number: 'WA-41', state: 'done', sprint: 'auth', title: 'Base auth' }),
+    ],
+    [{ number: 40, headRefName: 'wa/WA-42-login', isDraft: true }],
+    'wa/',
+  )
+  const view = githubFocusView(tickets, {
+    id: 'WA-42',
+    worktree: '',
+    file: parseTaskFile('---\nphase: review\n---\n## Acceptance criteria\n1. Sign in with Apple.\n'),
+    blockedBy: [
+      { number: 'WA-40', isOpen: true },
+      { number: 'WA-39', isOpen: false },
+    ],
+    prUrl: 'https://x/pull/40',
+  })
+  expect(view.row?.tags[0]?.text).toBe('WA-42')
+  expect(view.facts).toEqual(['👀 review · phase: review', '⛔ blocked by WA-40'])
+  expect(view.pr).toEqual({ number: 40, isDraft: true, url: 'https://x/pull/40' })
+  expect(view.blocks.map(block => [block.title, block.lines.map(line => `${line.mark} ${line.text}`)])).toEqual([
+    ['🏁 auth — 1/2', ['→ WA-42 T · 👀 review', '✓ WA-41 Base auth · 🎉 done']],
+    ['Acceptance criteria (1)', ['· Sign in with Apple.']],
+  ])
+})
+
+test('board key ids (WA-42): session name keeps the key, prefers the board title', async () => {
+  expect(sessionName('shop', [{ id: 'WA-42', title: 'Login Apple' }])).toBe('shop · WA-42 Login Apple')
+  expect(sessionName('shop', [{ id: 'WA-1', title: '' }, { id: 'WA-2', title: '' }, { id: 'WA-3', title: '' }])).toBe('shop · WA-1 · WA-2 · WA-3')
+  expect(sessionName('shop', [{ id: 'fix-12', title: 'Fix crash' }])).toBe('shop · Fix crash')
+  const board = { kind: 'github', tickets: [{ number: 'WA-42', title: 'Offline sync' }] } as unknown as Board
+  expect(sessionName('shop', [{ id: 'WA-42', title: 'validate' }], boardTitles(board))).toBe('shop · WA-42 Offline sync')
+})

@@ -17,8 +17,11 @@ export type BoardTask = {
 
 export type GithubState = 'todo' | 'grilling' | 'grilled' | 'coding' | 'review' | 'done' | 'canceled'
 
+/** Ticket id as `wa-backlog` gives it (`number`): GitHub issue number (12), or board key `<PROJECT>-<n>` ('WA-42'). */
+export type TicketId = number | string
+
 export type GithubTicket = {
-  number: number
+  number: TicketId
   title: string
   summary: string
   size: string
@@ -48,11 +51,11 @@ export type TaskFocus = {
   id: string
   worktree: string
   file: TaskFile | null
-  blockedBy: { number: number; isOpen: boolean }[]
+  blockedBy: { number: TicketId; isOpen: boolean }[]
   prUrl: string
 }
 
-export type SprintParent = { number: number; title: string; milestone: string }
+export type SprintParent = { number: TicketId; title: string; milestone: string }
 
 export type MilestoneCount = { title: string; isOpen: boolean; tickets: number; done: number }
 

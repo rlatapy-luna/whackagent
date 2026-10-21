@@ -203,7 +203,7 @@ pr:                            # HOW every PR whackagent open look — ticket dr
                                #   checkboxes ticked only when proved. <path> — that file. none — no template.
                                # whackagent part (Closes #n, criteria, status) always in own marked block;
                                # refresh rewrite only that block, human edits stay.
-  title: "{title}"             # placeholders {title} {n} (issue number, GitHub) {slug}
+  title: "{title}"             # placeholders {title} {n} (ticket id, not local) {slug}
                                # e.g. "[#{n}] {title}", "feat: {title}"
   labels: []                   # added at creation, e.g. [whackagent]. Label missing in repo → skipped.
                                # On top, every PR gets ≥1 label picked from repo's own labels

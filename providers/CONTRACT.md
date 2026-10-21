@@ -83,6 +83,7 @@ Release scope (iteration, version) — **not** a sprint. Sprint = feature groupi
 
 ## Ticket ↔ repo contract
 
+- Ticket id `<id>` (`number` in every output) = opaque: GitHub issue number (`12`, shown `#12`), or board key `<PROJECT>-<n>` (string `"WA-42"`, shown as is). Same id in verb args, branch, task file, claim ref `refs/wa-claims/<id>/<phase>`.
 - Branch `<branch.prefix><id>-<slug>` (`wa/12-login-apple`). Grilling creates it (spec in issue body: first coding round does), coding continues on it, PR opens from it.
 - Spec = `## Acceptance criteria` in issue body, or file `{tasks}/<id>-<slug>.md` on that branch (frontmatter `issue: <id>`, non-empty `## Acceptance criteria`). First coding round on body spec builds that file from issue body. File = everything needed to start coding.
 - Ticket title/summary/state/size/sprint/milestone live in tracker only — never duplicated in task file. Optional `ported-from:` / `lands:` (tracks) are task-file facts, not tracker fields.
