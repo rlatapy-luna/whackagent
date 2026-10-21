@@ -12,6 +12,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Changed
 
+- PR screenshots at validation (`pr.screenshots: validation`) are now taken by a dedicated `wa-screenshot` agent instead of the implementer. It names screens from the glossary's Screens table when there is one, and the PR body says which states it skipped or failed to shoot.
 - Board contract 2.4 (GitHub and Plane boards): `BOARD.md` is split into shared rules and a section per board tool; on a GitHub board the rules themselves are unchanged. `wa-backlog` warns while a project's `BOARD.md` still carries 2.3, and `/wa-setup backlog` offers the PR that updates `BOARD.md` and the other board files together.
 
 ### Fixed
