@@ -1,0 +1,30 @@
+# Smoke test for the self-hosted runner + local Plane wiring. Copied by hand into the playground repo
+# (rlatapy-luna/whackagent-playground-plane) as .github/workflows/plane-ping.yml; see README.md.
+name: plane-ping
+
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/plane-ping.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: [self-hosted, whackagent-plane]
+    timeout-minutes: 5
+    steps:
+      - name: Reach the local Plane API
+        env:
+          PLANE_API_KEY: ${{ secrets.PLANE_API_KEY }}
+          PLANE_URL: ${{ vars.PLANE_URL }}
+          PLANE_WORKSPACE: ${{ vars.PLANE_WORKSPACE }}
+          PLANE_PROJECT_ID: ${{ vars.PLANE_PROJECT_ID }}
+        run: |
+          set -eu
+          base="$PLANE_URL/api/v1/workspaces/$PLANE_WORKSPACE/projects/$PLANE_PROJECT_ID"
+          curl -sf -H "X-API-Key: $PLANE_API_KEY" "$base/" \
+            | python3 -c 'import json,sys; p=json.load(sys.stdin); print("project", p["identifier"], p["name"]); assert p["identifier"] == "WA"'
+          curl -sf -H "X-API-Key: $PLANE_API_KEY" "$base/states/" \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); d=d.get("results", d); print("states", ", ".join(s["name"] for s in d))'

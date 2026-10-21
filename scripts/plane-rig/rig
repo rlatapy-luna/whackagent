@@ -1,0 +1,538 @@
+#!/usr/bin/env python3
+"""Local Plane CE rig for whackagent maintainers (see scripts/plane-rig/README.md).
+
+    scripts/plane-rig/rig up | down | reset --yes | bootstrap | status | env | playground
+    scripts/plane-rig/rig runner register | start | stop | status
+
+Maintainer tooling, not shipped behavior. Python 3 stdlib + docker compose (+ gh for `runner`).
+Secrets and bootstrap results land in the gitignored scripts/plane-rig/.env.local.
+"""
+import argparse
+import json
+import os
+import platform
+import secrets
+import signal
+import socket
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+COMPOSE = HERE / "docker-compose.yml"
+PLANE_ENV = HERE / "plane.env"
+LOCAL_ENV = HERE / ".env.local"
+
+WORKSPACE_SLUG = "whackagent"
+WORKSPACE_NAME = "whackagent"
+PROJECT_IDENTIFIER = "WA"
+PROJECT_NAME = "whackagent playground"
+ADMIN_EMAIL = "admin@whackagent.local"
+TOKEN_LABEL = "whackagent-rig"
+
+# Contract states (providers/CONTRACT.md) + canceled, in board order. Name → (Plane group, color).
+STATES = [
+    ("Todo", "unstarted", "#60646C"),
+    ("Grilling", "started", "#8E4EC6"),
+    ("Grilled", "started", "#3E63DD"),
+    ("Coding", "started", "#F59E0B"),
+    ("Review", "started", "#E5484D"),
+    ("Done", "completed", "#46A758"),
+    ("Canceled", "cancelled", "#9AA4BC"),
+]
+DEFAULT_STATE = "Todo"
+# Plane's own seed states that have no contract meaning. Removed when empty, renamed when they map.
+SEED_RENAMES = {"Cancelled": "Canceled"}
+SEED_REMOVALS = ["Backlog", "In Progress"]
+
+ESTIMATE_NAME = "Size"
+SIZES = ["quickwin", "medium", "large"]  # same vocabulary as providers/github/wa-backlog SIZES
+
+PLAYGROUND_REPO = "rlatapy-luna/whackagent-playground-plane"
+RUNNER_DIR = Path.home() / "actions-runner-whackagent"
+RUNNER_LABEL = "whackagent-plane"
+
+
+class Failure(Exception):
+    pass
+
+
+# ---------------------------------------------------------------- env files
+
+def read_env(path):
+    out = {}
+    if path.exists():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                out[k.strip()] = v.strip()
+    return out
+
+
+def write_local_env(updates, drop=()):
+    env = read_env(LOCAL_ENV)
+    for k in drop:
+        env.pop(k, None)
+    env.update(updates)
+    body = "# Local Plane rig secrets and bootstrap results. Gitignored. Never commit.\n"
+    body += "".join(f"{k}={v}\n" for k, v in env.items())
+    old = os.umask(0o077)
+    try:
+        LOCAL_ENV.write_text(body)
+    finally:
+        os.umask(old)
+    LOCAL_ENV.chmod(0o600)
+
+
+def ensure_secrets():
+    env = read_env(LOCAL_ENV)
+    missing = {k: secrets.token_hex(32) for k in ("SECRET_KEY", "LIVE_SERVER_SECRET_KEY") if not env.get(k)}
+    if not env.get("PLANE_ADMIN_PASSWORD"):
+        missing["PLANE_ADMIN_PASSWORD"] = secrets.token_hex(12)
+    if missing:
+        write_local_env(missing)
+
+
+def plane_url():
+    return f"http://localhost:{read_env(PLANE_ENV).get('LISTEN_HTTP_PORT', '8390')}"
+
+
+# ---------------------------------------------------------------- docker
+
+def compose(*args, check=True, capture=False, stdin=None):
+    cmd = ["docker", "compose", "--env-file", str(PLANE_ENV), "--env-file", str(LOCAL_ENV),
+           "-f", str(COMPOSE), *args]
+    r = subprocess.run(cmd, text=True, input=stdin,
+                       stdout=subprocess.PIPE if capture else None,
+                       stderr=subprocess.PIPE if capture else None)
+    if check and r.returncode != 0:
+        raise Failure(f"docker compose {' '.join(args)} failed ({r.returncode})\n{r.stderr or ''}")
+    return r
+
+
+def docker_ready():
+    return subprocess.run(["docker", "info"], capture_output=True).returncode == 0
+
+
+def wait_http(url, timeout=300):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                if r.status == 200:
+                    return
+        except (urllib.error.URLError, ConnectionError, socket.timeout):
+            pass
+        time.sleep(3)
+    raise Failure(f"{url} not answering after {timeout}s (see `docker compose logs api proxy`)")
+
+
+# ---------------------------------------------------------------- REST
+
+def api(method, path, body=None, key=None, ok=(200, 201, 204)):
+    key = key or read_env(LOCAL_ENV).get("PLANE_API_KEY")
+    url = path if path.startswith("http") else f"{plane_url()}/api/v1/{path.lstrip('/')}"
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, method=method,
+                                 headers={"X-API-Key": key, "Content-Type": "application/json"})
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                raw = r.read()
+                return r.status, (json.loads(raw) if raw else None)
+        except urllib.error.HTTPError as e:
+            raw = e.read()
+            if e.code == 429 and attempt < 4:
+                time.sleep(int(e.headers.get("Retry-After") or 15))
+                continue
+            payload = json.loads(raw) if raw[:1] in (b"{", b"[") else raw.decode(errors="replace")
+            if e.code in ok:
+                return e.code, payload
+            raise Failure(f"{method} {path} → {e.code}: {payload}")
+    raise Failure(f"{method} {path} → still rate limited")
+
+
+def results(payload):
+    """List endpoints answer either a bare list or a cursor page {results: [...]}."""
+    return payload.get("results", []) if isinstance(payload, dict) else payload
+
+
+# ---------------------------------------------------------------- commands
+
+def cmd_up(_):
+    if not docker_ready():
+        raise Failure("docker daemon not answering (start Docker Desktop)")
+    ensure_secrets()
+    compose("up", "-d", "--quiet-pull")
+    wait_http(f"{plane_url()}/api/instances/")
+    print(f"Plane up: {plane_url()} (admin console {plane_url()}/god-mode/)")
+
+
+def cmd_down(_):
+    compose("down")
+    print("Plane stopped, data kept (volumes).")
+
+
+def cmd_reset(args):
+    if not args.yes:
+        raise Failure("reset wipes every Plane volume (workspace, tickets, API key). Rerun with --yes.")
+    compose("down", "-v", "--remove-orphans")
+    write_local_env({}, drop=("PLANE_API_KEY", "PLANE_PROJECT_ID", "PLANE_WORKSPACE", "PLANE_URL",
+                              "PLANE_ADMIN_EMAIL", "PLANE_ESTIMATE_ID"))
+    print("Plane stopped and volumes wiped. `rig up` then `rig bootstrap` for a fresh instance.")
+
+
+SHELL_BOOTSTRAP = r"""
+import json, uuid
+from django.contrib.auth.hashers import make_password
+from django.utils import timezone
+from plane.db.models import User, Profile, Workspace, WorkspaceMember, APIToken
+from plane.license.models import Instance, InstanceAdmin
+
+email, password, slug, name, label = {args}
+created = []
+instance = Instance.objects.first()
+user = User.objects.filter(email=email).first()
+if user is None:
+    user = User.objects.create(email=email, username=uuid.uuid4().hex, first_name="whackagent",
+                               last_name="admin", password=make_password(password),
+                               is_password_autoset=False, is_active=True)
+    created.append("user")
+user.is_email_verified = True
+user.save()
+profile, made = Profile.objects.get_or_create(user=user)
+if made:
+    created.append("profile")
+if not InstanceAdmin.objects.filter(user=user, instance=instance).exists():
+    InstanceAdmin.objects.create(user=user, instance=instance, role=20)
+    created.append("instance-admin")
+instance.is_setup_done = True
+instance.is_telemetry_enabled = False
+instance.is_signup_screen_visited = True
+instance.instance_name = "whackagent rig"
+instance.save()
+ws = Workspace.objects.filter(slug=slug).first()
+if ws is None:
+    ws = Workspace.objects.create(name=name, slug=slug, owner=user)
+    created.append("workspace")
+if not WorkspaceMember.objects.filter(workspace=ws, member=user).exists():
+    WorkspaceMember.objects.create(workspace=ws, member=user, role=20)
+    created.append("workspace-member")
+profile.is_onboarded = True
+profile.is_tour_completed = True
+profile.onboarding_step = dict.fromkeys(profile.onboarding_step or {{}}, True) or profile.onboarding_step
+profile.last_workspace_id = ws.id
+profile.save()
+token = APIToken.objects.filter(user=user, label=label, is_active=True).first()
+if token is None:
+    token = APIToken.objects.create(user=user, label=label, workspace=ws, user_type=0,
+                                    description="whackagent local rig (scripts/plane-rig)")
+    created.append("api-token")
+if created:
+    from django.core.cache import cache
+    cache.clear()  # /api/instances/ is cached: drop it so the UI sees setup done
+print("RIG-RESULT " + json.dumps({{"token": token.token, "created": created}}))
+"""
+
+
+def shell(template, args):
+    """Run a Django snippet in the api container; it prints one `RIG-RESULT <json>` line."""
+    script = template.format(args=repr(args))
+    r = compose("exec", "-T", "api", "python", "manage.py", "shell", capture=True, stdin=script)
+    for line in r.stdout.splitlines():
+        if line.startswith("RIG-RESULT "):
+            return json.loads(line[len("RIG-RESULT "):])
+    raise Failure(f"rig shell snippet gave no result\n{r.stdout}\n{r.stderr}")
+
+
+def ensure_project(key):
+    _, page = api("GET", f"workspaces/{WORKSPACE_SLUG}/projects/", key=key)
+    for p in results(page):
+        if p["identifier"] == PROJECT_IDENTIFIER:
+            return p, False
+    _, p = api("POST", f"workspaces/{WORKSPACE_SLUG}/projects/", key=key, body={
+        "name": PROJECT_NAME, "identifier": PROJECT_IDENTIFIER,
+        "description": "whackagent Plane provider playground (local rig)",
+    })
+    return p, True
+
+
+def ensure_features(key, project, log):
+    """Cycles (sprints) and modules (milestones) are off on a new project; the API can switch them on."""
+    if not (project.get("cycle_view") and project.get("module_view")):
+        api("PATCH", f"workspaces/{WORKSPACE_SLUG}/projects/{project['id']}/", key=key,
+            body={"cycle_view": True, "module_view": True})
+        log.append("cycles and modules enabled")
+
+
+def ensure_states(key, pid, log):
+    base = f"workspaces/{WORKSPACE_SLUG}/projects/{pid}/states/"
+    have = {s["name"]: s for s in results(api("GET", base, key=key)[1])}
+    for old, new in SEED_RENAMES.items():
+        if old in have and new not in have:
+            api("PATCH", f"{base}{have[old]['id']}/", key=key, body={"name": new})
+            have[new] = have.pop(old)
+            log.append(f"state renamed {old} → {new}")
+    for seq, (name, group, color) in enumerate(STATES, 1):
+        want = {"name": name, "group": group, "color": color, "sequence": seq * 10000}
+        if name not in have:
+            have[name] = api("POST", base, key=key, body=want)[1]
+            log.append(f"state created {name}")
+        # POST ignores `sequence` (1.4.2 appends at the end), so a fresh state is patched in place too.
+        if any(have[name].get(k) != v for k, v in want.items()):
+            have[name] = api("PATCH", f"{base}{have[name]['id']}/", key=key, body=want)[1]
+            log.append(f"state updated {name}")
+    if not have[DEFAULT_STATE].get("default"):
+        api("PATCH", f"{base}{have[DEFAULT_STATE]['id']}/", key=key, body={"default": True})
+        log.append(f"default state → {DEFAULT_STATE}")
+    for name in SEED_REMOVALS:
+        # PATCH default=true through /api/v1 does not clear the old default (1.4.2 serializer gets no
+        # project context), so the seed default must be cleared by hand before it can be deleted.
+        if name in have and have[name].get("default"):
+            api("PATCH", f"{base}{have[name]['id']}/", key=key, body={"default": False})
+        if name in have:
+            code, body = api("DELETE", f"{base}{have[name]['id']}/", key=key, ok=(204, 400))
+            log.append(f"state removed {name}" if code == 204 else f"state {name} kept: {body}")
+    rows = sorted(results(api("GET", base, key=key)[1]), key=lambda s: s["sequence"])
+    return {s["name"]: s["id"] for s in rows}
+
+
+SHELL_ESTIMATE = r"""
+import json
+from plane.db.models import Project, Estimate, EstimatePoint
+
+pid, name, sizes = {args}
+created = []
+project = Project.objects.get(id=pid)
+est = Estimate.objects.filter(project=project).first()
+if est is None:
+    est = Estimate.objects.create(project=project, workspace=project.workspace, name=name,
+                                  type="categories", description="whackagent size", last_used=True)
+    created.append("estimate")
+have = set(EstimatePoint.objects.filter(estimate=est).values_list("value", flat=True))
+for i, size in enumerate(sizes, 1):
+    if size not in have:
+        EstimatePoint.objects.create(estimate=est, project=project, workspace=project.workspace, key=i, value=size)
+        created.append("point " + size)
+points = {{p.value: str(p.id) for p in EstimatePoint.objects.filter(estimate=est)}}
+print("RIG-RESULT " + json.dumps({{"id": str(est.id), "points": points, "created": created}}))
+"""
+
+
+def ensure_estimate(key, pid, log):
+    """Public API first; Plane CE 1.4.2 does not mount /api/v1 estimates (404), so fall back to the ORM."""
+    base = f"workspaces/{WORKSPACE_SLUG}/projects/{pid}/estimates/"
+    code, _ = api("GET", base, key=key, ok=(200, 404))
+    if code == 200:
+        raise Failure("this Plane mounts /api/v1 estimates: switch ensure_estimate to the public API")
+    res = shell(SHELL_ESTIMATE, (pid, ESTIMATE_NAME, SIZES))
+    log.extend(f"created {c}" for c in res["created"])
+    eid = res["id"]
+    _, proj = api("GET", f"workspaces/{WORKSPACE_SLUG}/projects/{pid}/", key=key)
+    if proj.get("estimate") != eid:
+        api("PATCH", f"workspaces/{WORKSPACE_SLUG}/projects/{pid}/", key=key, body={"estimate": eid})
+        log.append("project estimate enabled")
+    return eid, res["points"]
+
+
+def cmd_bootstrap(_):
+    ensure_secrets()
+    wait_http(f"{plane_url()}/api/instances/", timeout=30)
+    env = read_env(LOCAL_ENV)
+    res = shell(SHELL_BOOTSTRAP, (ADMIN_EMAIL, env["PLANE_ADMIN_PASSWORD"], WORKSPACE_SLUG, WORKSPACE_NAME,
+                                  TOKEN_LABEL))
+    key = res["token"]
+    log = [f"created {c}" for c in res["created"]]
+    project, made = ensure_project(key)
+    if made:
+        log.append(f"project {PROJECT_IDENTIFIER} created")
+    pid = project["id"]
+    ensure_features(key, project, log)
+    states = ensure_states(key, pid, log)
+    eid, points = ensure_estimate(key, pid, log)
+    write_local_env({
+        "PLANE_URL": plane_url(), "PLANE_WORKSPACE": WORKSPACE_SLUG, "PLANE_PROJECT_ID": pid,
+        "PLANE_ESTIMATE_ID": eid, "PLANE_ADMIN_EMAIL": ADMIN_EMAIL, "PLANE_API_KEY": key,
+    })
+    print("\n".join(log) if log else "nothing to do: already bootstrapped")
+    print(f"states: {', '.join(states)}")
+    print(f"sizes: {', '.join(points)}")
+    print(f"login {plane_url()} as {ADMIN_EMAIL}, password in {LOCAL_ENV.relative_to(HERE.parent.parent)}")
+    print(f'API key written to {LOCAL_ENV.relative_to(HERE.parent.parent)}. Export: eval "$(scripts/plane-rig/rig env)"')
+
+
+def cmd_env(_):
+    env = read_env(LOCAL_ENV)
+    for k in ("PLANE_URL", "PLANE_WORKSPACE", "PLANE_PROJECT_ID", "PLANE_API_KEY"):
+        if env.get(k):
+            print(f"export {k}={env[k]}")
+
+
+def cmd_status(_):
+    if not docker_ready():
+        print("docker: not answering")
+        return
+    compose("ps", "--format", "table {{.Service}}\t{{.Status}}")
+    try:
+        with urllib.request.urlopen(f"{plane_url()}/api/instances/", timeout=5) as r:
+            inst = json.load(r)["instance"]
+        print(f"plane: {plane_url()} version {inst['current_version']} edition {inst['edition']}")
+    except (urllib.error.URLError, ConnectionError, socket.timeout, KeyError):
+        print(f"plane: {plane_url()} not answering")
+        return
+    env = read_env(LOCAL_ENV)
+    if env.get("PLANE_API_KEY") and env.get("PLANE_PROJECT_ID"):
+        try:
+            _, p = api("GET", f"workspaces/{WORKSPACE_SLUG}/projects/{env['PLANE_PROJECT_ID']}/")
+            print(f"bootstrap: workspace {WORKSPACE_SLUG}, project {p['identifier']} ({p['id']}), API key OK")
+        except Failure as e:
+            print(f"bootstrap: API key or project not valid ({e}). Run `rig bootstrap`.")
+    else:
+        print("bootstrap: not run")
+    print(f"runner: {runner_state()}")
+
+
+# ---------------------------------------------------------------- runner
+
+def gh(*args):
+    r = subprocess.run(["gh", *args], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Failure(f"gh {' '.join(args)}: {r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def check_playground():
+    name = gh("api", f"repos/{PLAYGROUND_REPO}", "--jq", ".full_name")
+    if name != PLAYGROUND_REPO:
+        raise Failure(f"repo identity check failed: {PLAYGROUND_REPO} resolves to {name}. Refusing.")
+
+
+def cmd_playground(_):
+    """Push the rig's Plane settings to the playground repo: API key secret + URL/workspace/project variables."""
+    check_playground()
+    env = read_env(LOCAL_ENV)
+    if not env.get("PLANE_API_KEY"):
+        raise Failure("no API key yet: `rig bootstrap` first")
+    r = subprocess.run(["gh", "secret", "set", "PLANE_API_KEY", "-R", PLAYGROUND_REPO],
+                       input=env["PLANE_API_KEY"], text=True, capture_output=True)
+    if r.returncode != 0:
+        raise Failure(f"gh secret set: {r.stderr.strip()}")
+    for k in ("PLANE_URL", "PLANE_WORKSPACE", "PLANE_PROJECT_ID"):
+        gh("variable", "set", k, "-R", PLAYGROUND_REPO, "-b", env[k])
+    print(f"{PLAYGROUND_REPO}: secret PLANE_API_KEY, variables PLANE_URL PLANE_WORKSPACE PLANE_PROJECT_ID set")
+
+
+def runner_pid():
+    pidfile = RUNNER_DIR / ".rig.pid"
+    if pidfile.exists():
+        pid = int(pidfile.read_text().strip() or 0)
+        try:
+            os.kill(pid, 0)
+            return pid
+        except (OSError, ValueError):
+            pidfile.unlink()
+    return None
+
+
+def runner_state():
+    if not (RUNNER_DIR / ".runner").exists():
+        return f"not registered ({RUNNER_DIR})"
+    pid = runner_pid()
+    return f"registered, {'running pid ' + str(pid) if pid else 'stopped'}"
+
+
+def runner_register(_):
+    check_playground()
+    if (RUNNER_DIR / ".runner").exists():
+        print(f"already registered in {RUNNER_DIR}")
+        return
+    RUNNER_DIR.mkdir(exist_ok=True)
+    if not (RUNNER_DIR / "config.sh").exists():
+        arch = {"arm64": "arm64", "x86_64": "x64"}[platform.machine()]
+        rel = json.loads(gh("api", "repos/actions/runner/releases/latest"))
+        ver = rel["tag_name"].lstrip("v")
+        asset = f"actions-runner-osx-{arch}-{ver}.tar.gz"
+        url = f"https://github.com/actions/runner/releases/download/v{ver}/{asset}"
+        tgz = RUNNER_DIR / asset
+        print(f"downloading {url}")
+        urllib.request.urlretrieve(url, tgz)
+        with tarfile.open(tgz) as t:
+            t.extractall(RUNNER_DIR, filter="data")
+        tgz.unlink()
+    token = gh("api", "-X", "POST", f"repos/{PLAYGROUND_REPO}/actions/runners/registration-token", "--jq", ".token")
+    name = f"{socket.gethostname().split('.')[0]}-whackagent"
+    subprocess.run(["./config.sh", "--unattended", "--url", f"https://github.com/{PLAYGROUND_REPO}",
+                    "--token", token, "--labels", RUNNER_LABEL, "--name", name, "--replace"],
+                   cwd=RUNNER_DIR, check=True)
+    print(f"runner {name} registered with label {RUNNER_LABEL}. Not a service: `rig runner start` when needed.")
+
+
+def runner_start(_):
+    if not (RUNNER_DIR / ".runner").exists():
+        raise Failure("runner not registered: `rig runner register` first")
+    if runner_pid():
+        print(f"runner already {runner_state()}")
+        return
+    log = open(RUNNER_DIR / "rig-run.log", "a")
+    p = subprocess.Popen(["./run.sh"], cwd=RUNNER_DIR, stdout=log, stderr=subprocess.STDOUT,
+                         start_new_session=True)
+    (RUNNER_DIR / ".rig.pid").write_text(str(p.pid))
+    print(f"runner started, pid {p.pid}, log {RUNNER_DIR / 'rig-run.log'}")
+
+
+def runner_stop(_):
+    pid = runner_pid()
+    if not pid:
+        print("runner not running")
+        return
+    os.killpg(pid, signal.SIGINT)
+    for _ in range(30):
+        if not runner_pid():
+            break
+        time.sleep(1)
+    else:
+        os.killpg(pid, signal.SIGKILL)
+    (RUNNER_DIR / ".rig.pid").unlink(missing_ok=True)
+    print("runner stopped")
+
+
+def runner_status(_):
+    print(runner_state())
+
+
+# ---------------------------------------------------------------- main
+
+def main():
+    ap = argparse.ArgumentParser(prog="rig", description=__doc__.split("\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("up", help="start Plane (creates local secrets on first run)").set_defaults(fn=cmd_up)
+    sub.add_parser("down", help="stop Plane, keep data").set_defaults(fn=cmd_down)
+    r = sub.add_parser("reset", help="stop Plane and wipe its volumes")
+    r.add_argument("--yes", action="store_true")
+    r.set_defaults(fn=cmd_reset)
+    sub.add_parser("bootstrap", help="idempotent admin, workspace, project, states, estimate, API key"
+                   ).set_defaults(fn=cmd_bootstrap)
+    sub.add_parser("status", help="containers, version, bootstrap, runner").set_defaults(fn=cmd_status)
+    sub.add_parser("env", help="print export lines for PLANE_* (eval it)").set_defaults(fn=cmd_env)
+    sub.add_parser("playground", help="push API key secret + PLANE_* variables to the playground repo"
+                   ).set_defaults(fn=cmd_playground)
+    run = sub.add_parser("runner", help="self-hosted Actions runner for the playground repo")
+    rs = run.add_subparsers(dest="action", required=True)
+    for name, fn in (("register", runner_register), ("start", runner_start),
+                     ("stop", runner_stop), ("status", runner_status)):
+        rs.add_parser(name).set_defaults(fn=fn)
+    args = ap.parse_args()
+    try:
+        args.fn(args)
+    except Failure as e:
+        print(f"rig: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

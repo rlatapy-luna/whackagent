@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+"""Re-run the Plane API fact checks recorded in providers/plane/README.md, against the local rig.
+
+    scripts/plane-rig/factcheck [--keep] [--skip-rate]
+
+Needs `rig up` + `rig bootstrap`. Works in a throwaway project `FC` (deleted at the end unless --keep),
+never in the bootstrap project. Prints one line per observation. Python 3 stdlib only.
+"""
+import argparse
+import importlib.machinery
+import importlib.util
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.dont_write_bytecode = True  # loading `rig` must not leave a __pycache__ in the repo
+_spec = importlib.util.spec_from_loader("rig", importlib.machinery.SourceFileLoader("rig", str(HERE / "rig")))
+rig = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(rig)
+
+WS = rig.WORKSPACE_SLUG
+FC = "FC"
+
+
+def raw(method, path, body=None):
+    """One request, no retry: (status, headers, payload)."""
+    env = rig.read_env(rig.LOCAL_ENV)
+    url = f"{rig.plane_url()}/api/v1/{path.lstrip('/')}" if not path.startswith("http") else path
+    req = urllib.request.Request(url, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"X-API-Key": env["PLANE_API_KEY"], "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = r.read()
+            return r.status, dict(r.headers), (json.loads(data) if data else None)
+    except urllib.error.HTTPError as e:
+        data = e.read()
+        try:
+            payload = json.loads(data)
+        except ValueError:
+            payload = data.decode(errors="replace")[:120]
+        return e.code, dict(e.headers), payload
+
+
+def ok(method, path, body=None):
+    code, _, payload = raw(method, path, body)
+    if code == 429:
+        time.sleep(61)
+        code, _, payload = raw(method, path, body)
+    if code >= 300:
+        raise SystemExit(f"{method} {path} → {code} {payload}")
+    return payload
+
+
+def say(topic, line):
+    print(f"[{topic}] {line}")
+
+
+def items(payload):
+    return payload.get("results", []) if isinstance(payload, dict) else payload
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--keep", action="store_true", help="keep the FC project for inspection")
+    ap.add_argument("--skip-rate", action="store_true", help="skip the 100-request rate-limit probe")
+    args = ap.parse_args()
+
+    # Fresh throwaway project.
+    for p in items(ok("GET", f"workspaces/{WS}/projects/")):
+        if p["identifier"] == FC:
+            ok("DELETE", f"workspaces/{WS}/projects/{p['id']}/")
+    proj = ok("POST", f"workspaces/{WS}/projects/", {"name": "factcheck", "identifier": FC})
+    pid = proj["id"]
+    P = f"workspaces/{WS}/projects/{pid}"
+    say("project", f"created: cycle_view={proj.get('cycle_view')} module_view={proj.get('module_view')}")
+    proj2 = ok("PATCH", P + "/", {"cycle_view": True, "module_view": True})
+    say("project", f"PATCH cycle_view/module_view=true → {proj2.get('cycle_view')}/{proj2.get('module_view')}")
+
+    # ---- states
+    seeded = items(ok("GET", f"{P}/states/"))
+    say("states", "seeded on project create: " + ", ".join(f"{s['name']}({s['group']}{',default' if s['default'] else ''})"
+                                                         for s in seeded))
+    st = ok("POST", f"{P}/states/", {"name": "Grilling", "group": "started", "color": "#8E4EC6"})
+    say("states", f"POST {P}/states/ → 201, id {st['id'][:8]}, sequence {st['sequence']}")
+    by = {s["name"]: s for s in items(ok("GET", f"{P}/states/"))}
+    ok("PATCH", f"{P}/states/{by['Todo']['id']}/", {"default": True})
+    defaults = [s["name"] for s in items(ok("GET", f"{P}/states/")) if s["default"]]
+    say("states", f"PATCH Todo default=true → defaults now {defaults}")
+    code, _, body = raw("DELETE", f"{P}/states/{by['Backlog']['id']}/")
+    say("states", f"DELETE Backlog while default → {code} {body}")
+    ok("PATCH", f"{P}/states/{by['Backlog']['id']}/", {"default": False})
+    code, _, _ = raw("DELETE", f"{P}/states/{by['Backlog']['id']}/")
+    say("states", f"after PATCH default=false, DELETE Backlog → {code}")
+
+    # ---- estimates
+    code, _, body = raw("GET", f"{P}/estimates/")
+    say("estimates", f"GET {P}/estimates/ → {code} {body}")
+    code, _, body = raw("POST", f"{P}/estimates/", {"name": "Size", "type": "categories"})
+    say("estimates", f"POST {P}/estimates/ → {code}")
+    code, _, body = raw("GET", f"{rig.plane_url()}/api/workspaces/{WS}/projects/{pid}/estimates/")
+    say("estimates", f"GET internal /api/workspaces/…/estimates/ with X-API-Key → {code} (session-only app API)")
+
+    # ---- work items, sort order
+    todo = by["Todo"]["id"]
+    made = []
+    for n in range(1, 4):
+        wi = ok("POST", f"{P}/work-items/", {"name": f"item {n}", "state": todo})
+        made.append(wi)
+    say("sort", "create in Todo → sort_order " + ", ".join(f"{FC}-{w['sequence_id']}={w['sort_order']}" for w in made))
+    wi_default = ok("POST", f"{P}/work-items/", {"name": "no state given"})
+    say("sort", f"create without state → state default? {wi_default['state'] == todo}, sort_order {wi_default['sort_order']}")
+    a, b, c = made
+    mid = (a["sort_order"] + b["sort_order"]) / 2
+    moved = ok("PATCH", f"{P}/work-items/{c['id']}/", {"sort_order": mid})
+    say("sort", f"PATCH {FC}-{c['sequence_id']} sort_order={mid} → stored {moved['sort_order']}; others unchanged: "
+        + ", ".join(f"{FC}-{w['sequence_id']}={ok('GET', f'{P}/work-items/' + w['id'] + '/')['sort_order']}" for w in (a, b)))
+    rows = items(ok("GET", f"{P}/work-items/?order_by=sort_order&per_page=100"))
+    say("sort", "GET work-items/?order_by=sort_order → " + " ".join(f"{FC}-{r['sequence_id']}" for r in rows))
+    rows = items(ok("GET", f"{P}/work-items/?per_page=100"))
+    say("sort", "GET work-items/ (no order_by) → " + " ".join(f"{FC}-{r['sequence_id']}" for r in rows))
+    grill = st["id"]
+    before = ok("GET", f"{P}/work-items/{a['id']}/")["sort_order"]
+    after = ok("PATCH", f"{P}/work-items/{a['id']}/", {"state": grill})["sort_order"]
+    say("sort", f"PATCH state Todo→Grilling: sort_order {before} → {after} (not renumbered)")
+    ok("PATCH", f"{P}/work-items/{a['id']}/", {"state": todo})
+    code, _, body = raw("PATCH", f"{P}/work-items/{b['id']}/", {"sort_order": -5})
+    say("sort", f"PATCH sort_order=-5 → {code} {body.get('sort_order') if isinstance(body, dict) else body}")
+    code, _, body = raw("GET", f"workspaces/{WS}/work-items/{FC}-{a['sequence_id']}/")
+    say("ids", f"GET workspaces/{WS}/work-items/{FC}-{a['sequence_id']}/ → {code}, id matches {body.get('id') == a['id']}")
+
+    # ---- estimate point on a work item (ORM-made estimate, as the bootstrap does)
+    res = rig.shell(rig.SHELL_ESTIMATE, (pid, "Size", rig.SIZES))
+    ok("PATCH", P + "/", {"estimate": res["id"]})
+    wi = ok("PATCH", f"{P}/work-items/{a['id']}/", {"estimate_point": res["points"]["medium"]})
+    say("estimates", f"PATCH work item estimate_point=<medium id> → stored {wi['estimate_point'] == res['points']['medium']}")
+    code, _, body = raw("GET", f"{P}/work-items/{a['id']}/?expand=estimate_point")
+    say("estimates", f"GET work item ?expand=estimate_point → {code}, estimate_point = {json.dumps(body.get('estimate_point'))[:80]}")
+
+    # ---- cycles
+    ok("PATCH", P + "/", {"cycle_view": False})
+    code, _, body = raw("POST", f"{P}/cycles/", {"name": "x", "project_id": pid, "owned_by": proj["created_by"]})
+    say("cycles", f"POST cycle with cycle_view=false → {code} {body}")
+    ok("PATCH", P + "/", {"cycle_view": True})
+    cyc = ok("POST", f"{P}/cycles/", {"name": "sprint-a", "project_id": pid, "owned_by": proj["created_by"]})
+    say("cycles", f"POST {P}/cycles/ (no dates) → 201, id {cyc['id'][:8]}, start {cyc.get('start_date')}")
+    cyc2 = ok("POST", f"{P}/cycles/", {"name": "sprint-b", "project_id": pid, "owned_by": proj["created_by"]})
+    ok("POST", f"{P}/cycles/{cyc['id']}/cycle-issues/", {"issues": [a["id"], b["id"]]})
+    in_a = [w["id"] for w in items(ok("GET", f"{P}/cycles/{cyc['id']}/cycle-issues/"))]
+    say("cycles", f"POST cycle-issues {{issues:[a,b]}} → members {len(in_a)}")
+    ok("POST", f"{P}/cycles/{cyc2['id']}/cycle-issues/", {"issues": [a["id"]]})
+    in_a = [w["id"] for w in items(ok("GET", f"{P}/cycles/{cyc['id']}/cycle-issues/"))]
+    in_b = [w["id"] for w in items(ok("GET", f"{P}/cycles/{cyc2['id']}/cycle-issues/"))]
+    say("cycles", f"add a to sprint-b → a in sprint-a {a['id'] in in_a}, in sprint-b {a['id'] in in_b} (one cycle per item)")
+    code, _, _ = raw("DELETE", f"{P}/cycles/{cyc2['id']}/cycle-issues/{a['id']}/")
+    say("cycles", f"DELETE cycle-issues/<a> → {code}")
+
+    # ---- modules
+    m1 = ok("POST", f"{P}/modules/", {"name": "1.0"})
+    m2 = ok("POST", f"{P}/modules/", {"name": "1.1"})
+    say("modules", f"POST {P}/modules/ → 201, status {m1.get('status')}")
+    ok("POST", f"{P}/modules/{m1['id']}/module-issues/", {"issues": [a["id"]]})
+    ok("POST", f"{P}/modules/{m2['id']}/module-issues/", {"issues": [a["id"]]})
+    in1 = [w["id"] for w in items(ok("GET", f"{P}/modules/{m1['id']}/module-issues/"))]
+    in2 = [w["id"] for w in items(ok("GET", f"{P}/modules/{m2['id']}/module-issues/"))]
+    say("modules", f"a added to 1.0 then 1.1 → in 1.0 {a['id'] in in1}, in 1.1 {a['id'] in in2} (many modules per item)")
+    code, _, body = raw("PATCH", f"{P}/modules/{m1['id']}/", {"status": "completed"})
+    say("modules", f"PATCH module status=completed → {code} {body.get('status') if isinstance(body, dict) else body}")
+    code, _, body = raw("POST", f"{P}/modules/{m1['id']}/archive/")
+    say("modules", f"POST module archive → {code} {body if code >= 300 else ''}")
+
+    # ---- relations, parent
+    rel = raw("POST", f"{P}/work-items/{b['id']}/relations/", {"relation_type": "blocked_by", "issues": [a["id"]]})
+    say("relations", f"POST relations blocked_by → {rel[0]}")
+    again = raw("POST", f"{P}/work-items/{b['id']}/relations/", {"relation_type": "blocked_by", "issues": [a["id"]]})
+    n = len(ok("GET", f"{P}/work-items/{b['id']}/relations/")["blocked_by"])
+    say("relations", f"same relation POSTed again → {again[0]}, blocked_by count {n}")
+    got = ok("GET", f"{P}/work-items/{b['id']}/relations/")
+    other = ok("GET", f"{P}/work-items/{a['id']}/relations/")
+    say("relations", f"GET b relations blocked_by {[x['issue_id'] == a['id'] for x in got['blocked_by']]}; "
+        f"a blocking {[x['issue_id'] == b['id'] for x in other['blocking']]}")
+    code, _, _ = raw("POST", f"{P}/work-items/{b['id']}/relations/remove/", {"related_issue": a["id"]})
+    say("relations", f"no remove route in /api/v1: POST relations/remove/ → {code}")
+    parent = ok("POST", f"{P}/work-items/", {"name": "sprint root", "state": todo})
+    child = ok("POST", f"{P}/work-items/", {"name": "child", "state": todo, "parent": parent["id"]})
+    say("parent", f"POST work item parent=<root> → stored {child['parent'] == parent['id']}")
+    ok("PATCH", f"{P}/work-items/{c['id']}/", {"parent": parent["id"]})
+    kids = [w for w in items(ok("GET", f"{P}/work-items/?per_page=100")) if w.get("parent") == parent["id"]]
+    say("parent", f"PATCH parent on existing item; list filtered client-side → {len(kids)} children")
+    code, _, body = raw("GET", f"{P}/work-items/{parent['id']}/")
+    say("parent", f"root sub_issues_count in list rows: "
+        f"{next((w.get('sub_issues_count') for w in items(ok('GET', f'{P}/work-items/?per_page=100')) if w['id'] == parent['id']), 'n/a')}")
+    code, _, body = raw("PATCH", f"{P}/work-items/{c['id']}/", {"parent": None})
+    say("parent", f"PATCH parent=null → {code}, parent {body.get('parent') if isinstance(body, dict) else body}")
+
+    # ---- links (PR on the card)
+    link = ok("POST", f"{P}/work-items/{a['id']}/links/", {"url": "https://github.com/o/r/pull/1", "title": "PR #1"})
+    code, _, _ = raw("POST", f"{P}/work-items/{a['id']}/links/", {"url": "https://github.com/o/r/pull/1"})
+    say("links", f"POST links → 201 id {link['id'][:8]}; same URL again → {code}")
+
+    # ---- GitHub integration
+    # An existing session-only route answers 401 to X-API-Key (see estimates above); a missing one 404.
+    for route in (f"workspaces/{WS}/workspace-integrations/", f"workspaces/{WS}/integrations/",
+                  f"workspaces/{WS}/projects/{pid}/workspace-integrations/x/github-repository-sync/"):
+        code, _, _ = raw("GET", f"{rig.plane_url()}/api/{route}")
+        say("github", f"GET /api/{route} → {code}")
+    with urllib.request.urlopen(f"{rig.plane_url()}/api/instances/") as r:
+        cfg = json.load(r)["config"]
+    say("github", f"/api/instances/ config: is_github_enabled={cfg['is_github_enabled']} (GitHub OAuth login only), "
+        f"github_app_name={cfg['github_app_name']!r}")
+
+    # ---- rate limit
+    code, headers, _ = raw("GET", "users/me/")
+    rl = {k: v for k, v in headers.items() if k.lower().startswith("x-ratelimit")}
+    say("rate", f"GET users/me/ headers {rl}")
+    if not args.skip_rate:
+        time.sleep(61)
+        codes, first429, retry = {}, None, None
+        for n in range(1, 101):
+            code, headers, _ = raw("GET", "users/me/")
+            codes[code] = codes.get(code, 0) + 1
+            if code == 429 and first429 is None:
+                first429, retry = n, headers.get("Retry-After")
+        say("rate", f"100 GETs in a burst → {codes}; first 429 at request {first429}, Retry-After {retry}")
+
+    if not args.keep:
+        time.sleep(61 if not args.skip_rate else 0)
+        ok("DELETE", f"workspaces/{WS}/projects/{pid}/")
+        say("cleanup", "FC project deleted")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

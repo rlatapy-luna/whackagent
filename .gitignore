@@ -18,6 +18,8 @@ Icon
 # Env
 .env
 .env.local
+# Plane rig secrets, admin password and API key (scripts/plane-rig)
+scripts/plane-rig/.env.local
 
 # Node
 node_modules/
