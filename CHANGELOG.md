@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Experimental Plane board: board hooks. They run as GitHub Actions on a self-hosted runner next to the Plane server (label from the `WA_RUNNER_LABEL` repository variable, default `self-hosted`; the runner needs `python3` and `gh` and must reach Plane), through a caller workflow `/wa-setup` installs (`.github/workflows/whackagent-board-plane.yml`). Pushing a task file with acceptance criteria on the ticket branch moves the card to Grilled and drops the grilling claim; when the card does not move, `/wa-grill` reports the hook run's URL, a queued run or "not triggered". The pull request hooks (`review`, `done`) are not built yet, so coding rounds still stop once the ticket is grilled.
+
 ## [1.7.0] - 2026-10-21
 
 ### Added

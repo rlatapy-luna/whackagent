@@ -9,8 +9,8 @@ cached per clone in <git-common-dir>/whackagent/github-cache.json.
 Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the operation.
 
 Shared core (same for every board): CLI, verbs, states, claim-from rules, exit codes, claims (git refs
-on the GitHub repo), ticket branches and task phases, pull requests, merge, stacks, screenshots and
-the contract check. Everything the board tool owns sits behind `Board`, picked by `backlog.provider`
+on the GitHub repo), ticket branches and task phases, pull requests, merge, stacks, screenshots, the
+contract check and `hook`, the board hooks of a board other than GitHub (GitHub events → board writes). Everything the board tool owns sits behind `Board`, picked by `backlog.provider`
 in .whackagent/config.md: `github` (a GitHub Project v2) or `plane` (a Plane Community Edition project,
 experimental); anything else falls back to GitHub. The Plane API key comes from env PLANE_API_KEY only.
 
@@ -148,10 +148,15 @@ def cache_path():
 
 
 def current_repo():
+    if os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("GITHUB_REPOSITORY"):  # a hooks run
+        return os.environ["GITHUB_REPOSITORY"]
     return gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).stdout.strip()
 
 
 def repo_variables(repo):
+    # Hooks run: the workflow hands the variables over (WA_VARS = toJSON(vars)); GITHUB_TOKEN cannot list them.
+    if os.environ.get("WA_VARS"):
+        return {k: v for k, v in json.loads(os.environ["WA_VARS"]).items() if isinstance(v, str)}
     data = rest("GET", f"repos/{repo}/actions/variables?per_page=100")
     return {v["name"]: v["value"] for v in data.get("variables", [])}
 
@@ -2356,6 +2361,125 @@ def op_merge(args):
     emit({"pr": args.pr, "status": result.get("status"), "sha": details.get("sha") or details.get("oid")})
 
 
+# ---------------------------------------------------------------- hooks (board tools other than GitHub)
+
+# `hook` = the board hooks of a board tool that is not GitHub (Plane): run by the reusable workflow
+# .github/workflows/board-plane.yml on a self-hosted runner, or by hand with --event/--payload to replay a
+# recorded event. Same rules as the JavaScript of board.yml for the GitHub board, which stays as it is. One
+# handler per event name; an event without one is a no-op. Each returns {action, reason} and logs one line.
+
+
+def spec_section(text, heading):
+    """Body of `## <heading>` without HTML comments, trimmed: "" when missing or empty. Same as section() in
+    board.yml, so a task file counts as grilled on both boards alike."""
+    parts = re.split(rf"^## {re.escape(heading)}\s*$", text, maxsplit=1, flags=re.M)
+    if len(parts) < 2:
+        return ""
+    body = re.split(r"^## ", parts[1], maxsplit=1, flags=re.M)[0]
+    return re.sub(r"<!--[\s\S]*?-->", "", body).strip()
+
+
+def branch_ticket(board, branch):
+    """Ticket id of a ticket branch <prefix><id>-<slug>, or None (sprint branch, other branch, other board's id)."""
+    prefix = board.config["branch_prefix"]
+    match = re.match(rf"{re.escape(prefix)}({TICKET_ID.pattern})-", branch)
+    if not match:
+        return None
+    number = ticket_id(match.group(1))
+    try:
+        board.check_id(number)
+    except Failure:
+        return None
+    return number
+
+
+def task_file_at(config, number, sha):
+    """(path, text) of the ticket's task file `{tasks}/<id>-*.md` in commit <sha>, or None. Frontmatter
+    `issue:` must name the ticket, as in board.yml."""
+    tasks = config["tasks_path"].rstrip("/")
+    code, listing = rest("GET", f"repos/{config['repo']}/contents/{quote(tasks)}?ref={sha}", check=False)
+    if code != 0 or not isinstance(listing, list):
+        return None
+    name = re.compile(rf"^{re.escape(str(number))}-.*\.md$")
+    found = next((f for f in listing if name.match(f["name"])), None)
+    if not found:
+        return None
+    data = rest("GET", f"repos/{config['repo']}/contents/{quote(found['path'])}?ref={sha}")
+    text = base64.b64decode(data["content"]).decode("utf-8", "replace")
+    if not re.search(rf"^issue:\s*#?{re.escape(str(number))}\s*$", text, re.M):
+        note(f"{found['path']}: frontmatter issue: does not match {shown(number)}")
+        return None
+    return found["path"], text
+
+
+def drop_claim(config, number, phase):
+    """Delete a claim ref; already gone is fine. The hook never touches assignees (same as board.yml)."""
+    rest("DELETE", f"repos/{config['repo']}/git/refs/{CLAIM_NAMESPACE}/{number}/{phase}", check=False)
+
+
+def hook_push(board, payload):
+    """Task file with a non-empty `## Acceptance criteria` pushed on its ticket branch → grilled, from todo
+    or grilling, and the grilling claim dropped. Anything else: no-op."""
+    config = board.config
+    if payload.get("deleted"):
+        return {"action": "none", "reason": "branch deleted"}
+    branch = payload.get("ref", "").removeprefix("refs/heads/")
+    number = branch_ticket(board, branch)
+    if number is None:
+        return {"action": "none", "reason": f"{branch} is not a ticket branch ({config['branch_prefix']}<id>-<slug>)"}
+    sha = payload["after"]
+    task = task_file_at(config, number, sha)
+    if not task:
+        return {"ticket": number, "action": "none", "reason": f"no task file {config['tasks_path']}/{number}-*.md at {sha[:7]}"}
+    path, text = task
+    if not spec_section(text, "Acceptance criteria"):
+        return {"ticket": number, "action": "none", "reason": f"{path}: Acceptance criteria empty, grill not finished"}
+    try:
+        ticket = board.get(number)
+    except Failure as failure:  # sprint root, wa-ignore, unknown card: nothing to move
+        return {"ticket": number, "action": "none", "reason": str(failure)}
+    if ticket["state"] not in ("todo", "grilling"):
+        where = ticket["state"] or f"column {ticket['column']!r}"
+        return {"ticket": number, "action": "none", "reason": f"card in {where}, not todo/grilling"}
+    board.set_state(ticket, "grilled")
+    drop_claim(config, number, "grilling")
+    # sha permalink: the branch is deleted on merge, the commit stays
+    url = f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{config['repo']}/blob/{sha}/{quote(path)}"
+    # link text plain: comment_html keeps `code` literal, so a code span inside [text] would break the link
+    board.comment(number, f"✅ **grilled** — spec [{path.rsplit('/', 1)[-1]}]({url}) on `{branch}`")
+    return {"ticket": number, "action": f"{ticket['state']} → grilled", "reason": f"spec {path} at {sha[:7]}"}
+
+
+HOOKS = {"push": hook_push}
+
+
+def op_hook(args):
+    event = args.event or os.environ.get("GITHUB_EVENT_NAME")
+    source = args.payload or os.environ.get("GITHUB_EVENT_PATH")
+    if not event or not source:
+        raise Failure("no event: run inside GitHub Actions, or pass --event NAME --payload FILE", EXIT_USAGE)
+    payload = json.loads(Path(source).read_text())
+    if board_class() is GitHubBoard:
+        raise Failure("GitHub board hooks run in board.yml (whackagent-board.yml caller), not here", EXIT_USAGE)
+    handler = HOOKS.get(event)
+    if handler:
+        board = open_board()
+        sent_for = (payload.get("repository") or {}).get("full_name")
+        if sent_for and sent_for != board.config["repo"]:
+            raise Failure(f"event is for {sent_for}, this board's repository is {board.config['repo']}", EXIT_USAGE)
+        result = handler(board, payload)
+    else:
+        result = {"action": "none", "reason": f"no hook for {event}"}
+    result = {"event": event, **result}
+    note(f"hook {event}: {shown(result['ticket']) + ' ' if 'ticket' in result else ''}{result['action']} — {result['reason']}")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as out:
+            ticket = f" `{shown(result['ticket'])}`" if "ticket" in result else ""
+            out.write(f"**whackagent board** · `{event}`{ticket}: {result['action']} — {result['reason']}\n")
+    emit(result)
+
+
 # ---------------------------------------------------------------- cli
 
 
@@ -2517,6 +2641,11 @@ def parser():
     s.add_argument("--stale-after-hours", type=int, default=24)
     s.add_argument("--track", action="append", metavar="MILESTONE", help="branch.tracks key: never a default milestone")
     s.set_defaults(func=op_provision)
+
+    s = sub.add_parser("hook", help="board hooks for a non-GitHub board: one GitHub event (Actions env, or --event/--payload)")
+    s.add_argument("--event", help="event name (default: GITHUB_EVENT_NAME)")
+    s.add_argument("--payload", help="event payload JSON file (default: GITHUB_EVENT_PATH)")
+    s.set_defaults(func=op_hook)
 
     s = sub.add_parser("templates", help="project templates an owner offers to provision --template")
     s.add_argument("--owner", help="owner login (default: repo owner)")

@@ -1,0 +1,35 @@
+# whackagent Plane board hooks — template version: 1 · board-contract: 2.3
+# Installed by /wa-setup from the whackagent plugin (providers/plane/whackagent-board-plane.yml).
+# Caller only: the logic lives in rlatapy-luna/whackagent and updates itself through the `hooks-v2` tag,
+# so this file changes only when its triggers, permissions or secrets do (/wa-setup backlog offers it).
+# Runs on a self-hosted runner next to the Plane server: label = repository variable WA_RUNNER_LABEL
+# (default `self-hosted`); the runner needs python3 + gh and must reach WA_PLANE_URL.
+# Settings are repository variables written by `wa-backlog provision`; WA_PLANE_API_KEY secret = Plane API key.
+# Custom branch prefix? Change the `branches` filter below to match WA_BRANCH_PREFIX.
+
+name: whackagent board
+
+on:
+  push:
+    branches: ["wa/**"]
+  # pull request and schedule rules come in later releases: until then these runs end as no-ops
+  pull_request:
+    types: [opened, reopened, edited, synchronize, closed]
+  schedule:
+    - cron: "17 6 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # one pending run per branch, event and action: GitHub cancels an older pending run of the same group
+  group: whackagent-board-${{ github.head_ref || github.ref_name }}-${{ github.event_name }}-${{ github.event.action }}
+  cancel-in-progress: false
+
+jobs:
+  board:
+    uses: rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2
+    secrets:
+      WA_PLANE_API_KEY: ${{ secrets.WA_PLANE_API_KEY }}

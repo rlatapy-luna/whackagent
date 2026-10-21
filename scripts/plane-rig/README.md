@@ -14,6 +14,7 @@ Requirements: Docker Desktop (Compose v2), Python 3, and `gh` logged in as `rlat
 | `.env.local` | **gitignored**, mode 600: generated Django and live-server secrets, admin password, and the bootstrap results (API key, project id) |
 | `factcheck` | replays the API fact checks in a throwaway project `FC` |
 | `plane-ping.yml` | smoke-test workflow for the playground repository |
+| `payloads/` | recorded GitHub event payloads, replayed with `wa-backlog hook --event <name> --payload <file>` |
 
 ## Plane
 
@@ -57,3 +58,18 @@ scripts/plane-rig/rig runner status
 - The runner is **not** installed as a service. Start it only while testing and stop it afterwards. Queued jobs wait (up to 24 hours) until a runner with the label comes online.
 - The job runs on the host, so it reaches Plane at `http://localhost:8390`. Plane is never exposed beyond localhost.
 - Smoke test: `plane-ping.yml` is installed in the playground as `.github/workflows/plane-ping.yml`. With the runner started, `gh workflow run plane-ping -R rlatapy-luna/whackagent-playground-plane`, then `gh run watch`. The job reads project `WA` and its states through the API key secret.
+
+## Hooks on the playground
+
+The whackagent remote is not pushed while a hook change is under test, so the playground cannot call `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@<ref>` with new code. Instead, its `main` holds:
+
+- `.github/workflows/board-plane.yml`, a copy of the reusable workflow;
+- `.github/workflows/whackagent-board-plane.yml`, the caller template with `uses: ./.github/workflows/board-plane.yml`;
+- `.github/board/wa-backlog`, the script under test (the workflow runs it from the default branch);
+- `.whackagent/config.md` with `backlog.provider: plane`.
+
+The repository variable `WA_RUNNER_LABEL=whackagent-plane` sends the job to the rig runner. Copy the three files again after each change. A ticket branch must fork from a `main` that already holds the caller: GitHub runs push workflows from the pushed commit's tree.
+
+- **Replay, no runner.** From a playground clone holding `.whackagent/config.md`, with `eval "$(scripts/plane-rig/rig env)"`: make a throwaway card, claim it, push a task file on `wa/<id>-<slug>`, set `ref` and `after` in a copy of `payloads/push-task-file.json`, then run `wa-backlog hook --event push --payload <copy>`. `push-task-file-empty-criteria.json` and `push-other-branch.json` are the no-op cases.
+- **End to end.** `rig runner start`, push a spec on a ticket branch, watch `gh run list --workflow whackagent-board-plane.yml -R rlatapy-luna/whackagent-playground-plane`, check the card with `wa-backlog get`, then `rig runner stop`. With the runner stopped, a push leaves its run `queued`; it runs once the runner starts again.
+- Cancel the throwaway cards (`wa-backlog cancel <id>`) and delete their branches afterwards.

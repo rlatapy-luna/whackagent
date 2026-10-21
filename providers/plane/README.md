@@ -4,7 +4,7 @@
 
 ## Built so far
 
-`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). The verb left, `link-pr`, exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. No hooks workflow yet: `grilled`, `review` and `done` do not move on their own, so a pushed spec leaves the card in Grilling with its claim held.
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). The verb left, `link-pr`, exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. Hooks: `hook` moves a card to Grilled when its spec is pushed (see *Hooks*); the pull request hooks (`review`, `done`, back to `grilled`) and the board check are not built yet.
 
 ### Claims
 
@@ -80,6 +80,42 @@ On the rig and `whackagent-playground-plane`:
 - `depend WA-12 --on WA-11`: both `get` rows carry sprint `0010-checkout-revamp`, so the skills' same-sprint check sees a related blocker (stacking) instead of an unrelated one.
 - `/wa-release` close step replayed: WA-11 set to Done, `list --milestone 0.2.1 --all` showed it done, `milestones` showed `0.2.1` 1/1, `close-milestone 0.2.1` set the module `completed` and `milestones` dropped it; `0.9.0` closed while holding an open card stayed listed after the open modules with `open: false`. Same shape and order as `milestones` on the GitHub playground.
 
+## Hooks
+
+The board hooks move the data-driven states from GitHub events, as `board.yml` does for a GitHub board, which stays untouched. Hook logic is Python, in the same script as the agents' verbs: `wa-backlog hook` reads the event name and payload from the Actions environment (`GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH`) and drives the same `PlaneBoard` adapter. One handler per event; an event without one is a no-op that exits 0. Each run prints one log line, a JSON result (`event`, `ticket`, `action`, `reason`) and a line in the job summary.
+
+| Event | Rule |
+|---|---|
+| `push` to `<prefix><id>-<slug>` | the task file `{tasks}/<id>-*.md` at the pushed commit (read over the contents API, frontmatter `issue:` naming the ticket) has a non-empty `## Acceptance criteria` (HTML comments ignored, same rule as `board.yml`), and the card is in Todo or Grilling → Grilled, priority kept, claim ref `refs/wa-claims/<id>/grilling` deleted, `✅ grilled` comment with a sha permalink to the spec. Anything else (branch deleted, other branch, no task file, empty criteria, card elsewhere, sprint root, `wa-ignore`) → no-op with the reason. Idempotent: a second run finds the card in Grilled |
+| `pull_request`, `schedule` | no-op for now: `review` / `done` / back to `grilled` and the report-only board check come later |
+
+**Wiring.** The project's caller `.github/workflows/whackagent-board-plane.yml` (template `providers/plane/whackagent-board-plane.yml`, own `template version`, installed by `/wa-setup`) holds the triggers (push on `wa/**`, pull request, schedule, manual), the permissions (`contents: write` for the claim refs, `pull-requests: write` kept for the PR rules) and the concurrency, and calls the reusable `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`, shipped additively under the same tag as the GitHub board's. The reusable workflow:
+
+- runs on `runs-on: ${{ vars.WA_RUNNER_LABEL || 'self-hosted' }}`. In a called workflow `vars` are the caller repository's variables, as for `board.yml`, and `runs-on` may read them;
+- skips the job when `WA_PLANE_URL` is unset, and skips pull requests from forks, so outside code never reaches the self-hosted runner;
+- checks out the **default branch** (sparse: `.github/board`, `.whackagent`, root files) and runs `python3 .github/board/wa-backlog hook`. The script and the config come from the default branch, never from the pushed ref, so a ticket branch cannot change the code that holds the API key. The task file is read from the pushed commit over the API;
+- passes `PLANE_API_KEY` from the caller's `WA_PLANE_API_KEY` secret, `GH_TOKEN` = the caller's `GITHUB_TOKEN`, and `WA_VARS` = `toJSON(vars)`. `GITHUB_TOKEN` cannot list repository variables, so the script reads its settings from `WA_VARS` when set, and the repository from `GITHUB_REPOSITORY` in Actions.
+
+**Runner.** Self-hosted, registered on the repository or its organization, carrying the label in `WA_RUNNER_LABEL` (default `self-hosted`), with `python3` and `gh` on its PATH. It reaches the Plane URL (localhost or the private network) and polls GitHub over outbound HTTPS, so Plane is never exposed. While no runner with the label is online, runs wait in `queued` (up to 24 hours) and the card waits with them. A push on a ticket branch forked before the caller reached the default branch triggers nothing: GitHub runs push workflows from the pushed commit's tree.
+
+**When the card does not move.** The skill that pushed re-reads the card for about two minutes, then looks the run up with `gh run list --workflow whackagent-board-plane.yml --branch <branch> --json status,conclusion,event,url,headSha` and reports it: failed (run URL), queued (runner offline, run URL), in progress, or `not triggered` (no run). It never sets the state itself (**reference/board-plane.md**, *Hooks*).
+
+**Replay locally** (no runner): from a clone of the project, with `PLANE_API_KEY` exported and `gh` logged in,
+
+```sh
+wa-backlog hook --event push --payload scripts/plane-rig/payloads/push-task-file.json
+```
+
+The recorded payloads under `scripts/plane-rig/payloads/` are realistic `push` payloads; edit `ref` and `after` to the ticket branch and commit under test.
+
+### Checked live (issue 0007)
+
+On the rig and `whackagent-playground-plane`:
+
+- Replay, no runner: WA-20 (Grilling, claimed) with criteria → Grilled, claim ref gone, `✅ grilled` comment linking the spec at its sha; a second replay → no-op `card in grilled`. WA-21 with an empty criteria section (comment only) → no-op `Acceptance criteria empty`, still Grilling and claimed. A push to `main` → no-op `not a ticket branch`. An `issues` event → no-op `no hook for issues`. All exit 0.
+- End to end: the playground ran the reusable workflow as a local copy (`uses: ./.github/workflows/board-plane.yml`, the whackagent remote not being pushed), with the vendored script on `main` and `WA_RUNNER_LABEL=whackagent-plane`. Pushing a spec on `wa/WA-22-hook-e2e` ran on the self-hosted runner (job label `whackagent-plane`, run 39592626482, success) and the card went Grilling → Grilled with its claim dropped about 13 seconds after the push.
+- Runner stopped: a push on `wa/WA-21-hook-empty` forked before the caller landed started no run (`gh run list` empty: `not triggered`); rebased onto `main` and pushed again, the run sat `queued` (run 39592874393) with the card still in Grilling, then ran and moved the card once the runner was started.
+
 ## Settings
 
 | Where | Name | Holds |
@@ -88,7 +124,8 @@ On the rig and `whackagent-playground-plane`:
 | | `WA_PLANE_STATES` | JSON `{state: Plane state id}` for the six board states plus `canceled`, so a state renamed in the UI still maps |
 | | `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_SPRINT_PREFIX`, `WA_STALE_AFTER_HOURS`, `WA_TRACKS` | code-host settings, same as the GitHub provider |
 | agent environment | `PLANE_API_KEY` | the API key (header `X-API-Key`). Never in the repo, the config or the cache |
-| Actions secret | `WA_PLANE_API_KEY` | the same key, for the hooks (not built yet) |
+| Actions secret | `WA_PLANE_API_KEY` | the same key, for the hooks |
+| repository variable, set by `/wa-setup` | `WA_RUNNER_LABEL` | label of the self-hosted runner the hooks run on; unset = `self-hosted` |
 
 The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the ids `settings` resolves: project key (`WA`), state names and groups, label ids. It is rebuilt when the variables change, when the board holds a state the cache doesn't know, or on `config --refresh`.
 

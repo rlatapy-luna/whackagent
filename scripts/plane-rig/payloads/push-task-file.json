@@ -1,0 +1,81 @@
+{
+  "ref": "refs/heads/wa/WA-20-hook-probe",
+  "before": "0000000000000000000000000000000000000000",
+  "after": "faec8de7254d1d69f751f92bc2531e528fc7e50c",
+  "created": true,
+  "deleted": false,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/rlatapy-luna/whackagent-playground-plane/compare/wa/WA-20-hook-probe",
+  "commits": [
+    {
+      "id": "faec8de7254d1d69f751f92bc2531e528fc7e50c",
+      "tree_id": null,
+      "distinct": true,
+      "message": "task: grill WA-20 hook-probe",
+      "timestamp": "2026-10-21T14:00:00+02:00",
+      "url": "https://github.com/rlatapy-luna/whackagent-playground-plane/commit/faec8de7254d1d69f751f92bc2531e528fc7e50c",
+      "author": {
+        "name": "rlatapy-luna",
+        "email": "remi.latapy@lunabee.com",
+        "username": "rlatapy-luna"
+      },
+      "committer": {
+        "name": "rlatapy-luna",
+        "email": "remi.latapy@lunabee.com",
+        "username": "rlatapy-luna"
+      },
+      "added": [
+        ".whackagent/tasks/WA-20-hook-probe.md"
+      ],
+      "removed": [],
+      "modified": []
+    }
+  ],
+  "head_commit": {
+    "id": "faec8de7254d1d69f751f92bc2531e528fc7e50c",
+    "tree_id": null,
+    "distinct": true,
+    "message": "task: grill WA-20 hook-probe",
+    "timestamp": "2026-10-21T14:00:00+02:00",
+    "url": "https://github.com/rlatapy-luna/whackagent-playground-plane/commit/faec8de7254d1d69f751f92bc2531e528fc7e50c",
+    "author": {
+      "name": "rlatapy-luna",
+      "email": "remi.latapy@lunabee.com",
+      "username": "rlatapy-luna"
+    },
+    "committer": {
+      "name": "rlatapy-luna",
+      "email": "remi.latapy@lunabee.com",
+      "username": "rlatapy-luna"
+    },
+    "added": [
+      ".whackagent/tasks/WA-20-hook-probe.md"
+    ],
+    "removed": [],
+    "modified": []
+  },
+  "repository": {
+    "default_branch": "main",
+    "full_name": "rlatapy-luna/whackagent-playground-plane",
+    "html_url": "https://github.com/rlatapy-luna/whackagent-playground-plane",
+    "id": 1428174493,
+    "name": "whackagent-playground-plane",
+    "node_id": "R_kgDOVSA2nQ",
+    "owner": {
+      "id": 45555889,
+      "login": "rlatapy-luna",
+      "type": "User"
+    },
+    "private": true,
+    "visibility": "private"
+  },
+  "pusher": {
+    "name": "rlatapy-luna",
+    "email": "remi.latapy@lunabee.com"
+  },
+  "sender": {
+    "login": "rlatapy-luna",
+    "type": "User"
+  }
+}
