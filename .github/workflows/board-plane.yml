@@ -19,7 +19,9 @@
 #                                            on its GitHub stack's base
 #   sprint branch PR merged                → sprint root → Done (sprint landed)
 #   PR closed unmerged                     → grilled, unless a coding claim or another open PR keeps the ticket going
-#   schedule / manual run                  → no-op (board check not built yet)
+#   schedule / manual run                  → report-only check: board vs repository, one comment per problem on the
+#                                            card (resolved in place once fixed) + job summary; never moves cards.
+#                                            Includes claims held with no push for WA_STALE_AFTER_HOURS (default 24)
 # Same rules as board.yml for a GitHub board; no hold against a built-in tool workflow (Plane CE has none).
 # Runs on a self-hosted runner next to the Plane server (Plane stays on a private network, no Actions minutes):
 # label = the caller repository's variable WA_RUNNER_LABEL, default `self-hosted`. The runner needs python3 and gh,

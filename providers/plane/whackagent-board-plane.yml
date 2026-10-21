@@ -14,7 +14,7 @@ on:
     branches: ["wa/**"]
   pull_request:
     types: [opened, reopened, edited, ready_for_review, converted_to_draft, synchronize, closed]
-  # the board check comes in a later release: until then these runs end as no-ops
+  # report-only board check: one comment per problem on the card, never moves a card
   schedule:
     - cron: "17 6 * * 1-5"
   workflow_dispatch:

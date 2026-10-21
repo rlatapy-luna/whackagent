@@ -4,7 +4,7 @@
 
 ## Built so far
 
-`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). `link-pr` (repair: adds the PR as a link on the card). `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. Hooks: `hook` moves a card to Grilled when its spec is pushed, and to Review, Done or back to Grilled on pull request events, linking the PR on the card (see *Hooks*); the board check is not built yet.
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). `link-pr` (repair: adds the PR as a link on the card). `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. Hooks: `hook` moves a card to Grilled when its spec is pushed, and to Review, Done or back to Grilled on pull request events, linking the PR on the card, and a scheduled board check reports contract breaks on the cards without moving any (see *Hooks*).
 
 ### Claims
 
@@ -95,7 +95,7 @@ The board hooks move the data-driven states from GitHub events, as `board.yml` d
 | `pull_request` `closed`, merged | → Done (claims dropped), `🎉 done` comment with the PR body's run report; landed branch = the GitHub stack's base for a stacked PR. Ticket child of an open sprint root, landed elsewhere than the sprint branch, every child now Done or Canceled → root to Done, `🏁 sprint landed`. Already Done → only the sprint check runs |
 | `pull_request` `closed`, sprint branch merged | the open sprint root of that name → Done, `🏁 sprint landed`. The cycle stays as Plane's record |
 | `pull_request` `closed`, unmerged | → Grilled, coding claim dropped, `↩️ grilled` comment, unless the card is in Done or Grilled, a coding claim is held, or another PR linked on the card is still open |
-| `schedule`, `workflow_dispatch` | no-op for now: the report-only board check comes later |
+| `schedule`, `workflow_dispatch` | report-only board check (see *Board check*): one card comment per problem, resolved in place once fixed, every problem in the job summary. Never writes a state |
 
 **Wiring.** The project's caller `.github/workflows/whackagent-board-plane.yml` (template `providers/plane/whackagent-board-plane.yml`, own `template version`, installed by `/wa-setup`) holds the triggers (push on `wa/**`, pull request `opened`, `reopened`, `edited`, `ready_for_review`, `converted_to_draft`, `synchronize`, `closed`, schedule, manual), the permissions (`contents: write` for the claim refs, `pull-requests: write` for the PR comments) and the concurrency, and calls the reusable `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`, shipped additively under the same tag as the GitHub board's. The reusable workflow:
 
@@ -113,9 +113,39 @@ The board hooks move the data-driven states from GitHub events, as `board.yml` d
 ```sh
 wa-backlog hook --event push --payload scripts/plane-rig/payloads/push-task-file.json
 wa-backlog hook --event pull_request --payload scripts/plane-rig/payloads/pr-opened.json
+wa-backlog hook --event schedule --payload scripts/plane-rig/payloads/schedule.json
 ```
 
-The recorded payloads under `scripts/plane-rig/payloads/` are real `push` and `pull_request` payloads from the playground, trimmed to the fields a hook reads (`push-*.json`, `pr-*.json`); edit `ref` and `after` (push), or the PR number, branch and body (pull request) to the ticket under test.
+The recorded payloads under `scripts/plane-rig/payloads/` are real `push` and `pull_request` payloads from the playground, trimmed to the fields a hook reads (`push-*.json`, `pr-*.json`); edit `ref` and `after` (push), or the PR number, branch and body (pull request) to the ticket under test. `schedule.json` needs no edit: the check reads the whole board.
+
+### Board check
+
+The caller's `schedule` (weekdays, 06:17 UTC) and `workflow_dispatch` (`gh workflow run whackagent-board-plane.yml`) run `hook_check`, the rules of `check()` in `board.yml` read against the Plane board. It only reports: no state, claim, assignee or order is ever written.
+
+| Problem (kind) | When |
+|---|---|
+| `lock-no-claim` | card in Grilling or Coding with no claim ref of that phase |
+| `stale-grilling`, `stale-coding` | a claim with nothing new for `WA_STALE_AFTER_HOURS` (default 24): age = newer of the claim commit and the ticket branch head, as `claims` |
+| `merged-not-done` | a PR linked on the card is merged, none is open, and the card is not in Done |
+| `review-no-pr` | card in Review with no open PR for the ticket |
+| `pr-not-review` | an open PR for the ticket while the card sits in Todo or Grilled |
+| `grilled-no-spec` | card in Grilled with no ticket branch `<prefix><id>-…` (the spec lives in the task file on it) |
+| `spec-todo` | the card description holds a non-empty `Acceptance criteria` heading section while the card sits in Todo: on Plane only a task file pushed on the ticket branch moves it (see `reference/board-plane.md`, *Spec in task file only*) |
+
+- **Open PR for a ticket** = an open PR mapped the way the PR hook maps it (head branch naming a card of the board, else the one card link in its body; sprint PRs left out), or an open PR linked on the card. **Merged** comes from the card's PR links (what the hook adds, `link-pr` repairs), the Plane twin of the issue's linked PRs on GitHub.
+- **Not checked, no Plane twin:** `closed-locked`, `closed-not-done` and `done-open` compare a GitHub issue's open/closed with its column; a Plane card's column is its status. Done and Canceled cards, columns outside the six states, sprint roots and `wa-ignore` cards are skipped, as `board.yml` skips an issue without a whackagent column.
+- **Comment** on the card (the GitHub check comments on the issue): `⚠️ board check — <problem>. See BOARD.md; this check only reports, it never moves cards.` Once the problem is gone it is edited in place to `✅ board check — resolved`. Cards that closed (Done, Canceled) in the last 7 days are still read, so a problem cleared by landing gets resolved too.
+- **De-dup marker.** The comment carries `<!-- board-check:<kind> -->` like `board.yml`, and Plane keeps it: `POST comments/` stores `comment_html` byte for byte, HTML comments and `data-` attributes included (checked on 1.4.2, see *Checked live (issue 0011)*). The run does not rely on it, though: a human editing the comment in Plane's editor re-serializes the HTML and drops it. The key is Plane's own integration id instead: `external_source: "whackagent"`, `external_id: "board-check:<key>:<kind>"`. The run reads the card's comments and posts only when no comment has that id, and Plane answers a second `POST` with the same pair `409` (`Work item comment with the same external id and external source already exists`), which counts as already posted. Resolving rewrites the id to `board-check:<key>:<kind>:resolved:<comment id>`, so the problem is reported again if it comes back. Plane's 409 is a check, not a unique index: three runs started at the same second posted three comments. The caller's concurrency group keeps scheduled runs one at a time; a manual run during a scheduled one could still double a comment, the same race `board.yml` has.
+- **Job summary:** the one-line result, then a `Board check` table (ticket, problem, posted or already posted) and the problems resolved; or `Board matches the repository.` The JSON on stdout carries `violations` and `resolved`.
+
+Calls per run (claim and branch head commits counted per claim held):
+
+| Where | Calls |
+|---|---|
+| Plane | 1 work-item list (per 1000 cards) + 2 per ticket card not in Done or Canceled (comments, links) + 1 per card closed in the last 7 days (comments) + 1 `POST` per new problem + 1 `PATCH` per resolved problem |
+| GitHub | 1 claim refs + 1 ticket branches + 1 open PR list (per 100 PRs) + 1 per closed PR linked on the card of a ticket with no open PR (merged or not) + per claim 1 claim commit (+ 1 branch head commit when the ticket has a branch) |
+
+On the playground (36 cards: 9 open tickets, 22 cards closed that day, 1 claim): 41 Plane reads, 6 GitHub reads, plus one write per new or resolved comment.
 
 ### Checked live (issue 0007)
 
@@ -133,6 +163,15 @@ On the rig and `whackagent-playground-plane`, payloads recorded from real PRs (`
 - WA-24: closed unmerged while a coding claim is held → no-op; claim released → Grilled; replayed → no-op. WA-25: PR #3 on `cloud/agent-task-7` with only the card link in its body (`http://localhost:8390/whackagent/browse/WA-25`, no trailing slash; a link to WA-99 inside backticks ignored) → Review and linked; two card links → reported on the PR, nothing moved; no link → no-op; a second PR closing while #3 is open → no-op `#3 still open`.
 - Sprints: WA-26, only child of sprint `hook-sprint-0008`, merged into `main` → Done and the root WA-27 → Done (`🏁 sprint landed`). PR #5 from `sprint/hook-sprint-b0008` merged with a merge commit → root WA-29 → Done; replayed → no-op `no open sprint`.
 - End to end on the self-hosted runner (label `whackagent-plane`): WA-30 grill push → Grilled (run 39595759885); coding round + draft PR #6 with the card link → Review, claim dropped, PR linked (run 39595860994); validate round push + `gh pr ready` → Review, `✅ ready` (runs 39595976917, 39595978931); `wa-backlog merge 6 --method squash` → Done within 10 s (run 39596123989). No step set Review or Done itself. WA-31: draft PR #7 → Review (run 39596301368), closed unmerged → Grilled (run 39596354563).
+
+### Checked live (issue 0011)
+
+On the rig and `whackagent-playground-plane`:
+
+- Marker probe on WA-32: comments posted with `<!-- board-check:… -->` before or inside a `<p>`, a `data-wa-check` attribute, `<code>`, `<sub>` and `<small>` all read back unchanged from `GET …/comments/`. A comment with `external_source` / `external_id` posted twice → `201` then `409` naming the first comment; after a `PATCH` of its `external_id` (`200`) the same pair posted again (`201`).
+- Replay (`hook --event schedule --payload scripts/plane-rig/payloads/schedule.json`), seeded through the API, no claim refs written: WA-33 in Coding → `lock-no-claim`; WA-34 in Review → `review-no-pr`; WA-35 in Todo with an `<h2>Acceptance criteria</h2>` list → `spec-todo`; WA-36 in Grilled linked to merged PR #6 → `merged-not-done` + `grilled-no-spec`; WA-38 in Grilled with draft PR #8 on `cloud/check-0011` holding its card link → `pr-not-review` + `grilled-no-spec`. First run: 7 problems, 7 comments posted, job summary table with the 7 rows. Second run: 7 problems, `already posted` each, no write. Every card's state, `sort_order`, assignees and parent compared before and after: identical.
+- With `WA_STALE_AFTER_HOURS=0` (passed through `WA_VARS`), WA-37 claimed in Grilling → `stale-grilling` posted; back to 24 → resolved in place. WA-33 set to Todo → `lock-no-claim` resolved; back to Coding → a new comment, the resolved one kept.
+- End to end on the self-hosted runner (label `whackagent-plane`), after WA-35 moved to Grilling without a claim: `gh workflow run whackagent-board-plane.yml` → `lock-no-claim` posted on WA-35, its `spec-todo` resolved, the other 6 already posted (run 39598335234); run again → 7 problems, 0 new comments, 0 resolved (run 39598425993). No card changed.
 
 ## Settings
 

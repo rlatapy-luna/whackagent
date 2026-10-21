@@ -1,0 +1,19 @@
+{
+  "schedule": "17 6 * * 1-5",
+  "workflow": ".github/workflows/whackagent-board-plane.yml",
+  "repository": {
+    "default_branch": "main",
+    "full_name": "rlatapy-luna/whackagent-playground-plane",
+    "html_url": "https://github.com/rlatapy-luna/whackagent-playground-plane",
+    "id": 1428174493,
+    "name": "whackagent-playground-plane",
+    "node_id": "R_kgDOVSA2nQ",
+    "owner": {
+      "id": 45555889,
+      "login": "rlatapy-luna",
+      "type": "User"
+    },
+    "private": true,
+    "visibility": "private"
+  }
+}

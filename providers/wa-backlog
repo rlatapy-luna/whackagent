@@ -1667,10 +1667,11 @@ class PlaneBoard(Board):
     def links(self, number):
         return plane_all(self.config["plane_url"], f"{self.base()}/work-items/{self.item(number)['id']}/links/")
 
-    def linked_prs(self, number):
-        """Numbers of this repository's pull requests linked on the card, from its links."""
+    def linked_prs(self, number, links=None):
+        """Numbers of this repository's pull requests linked on the card, from its links (read here unless given)."""
         pattern = re.compile(rf"/{re.escape(self.config['repo'])}/pull/(\d+)/?$")
-        return sorted({int(m.group(1)) for m in (pattern.search(l.get("url") or "") for l in self.links(number)) if m})
+        links = self.links(number) if links is None else links
+        return sorted({int(m.group(1)) for m in (pattern.search(l.get("url") or "") for l in links) if m})
 
     def link_pr(self, number, pr, title=None, url=None):
         """Work-item link to PR <pr>, titled `#<pr> <title>`. Idempotent: Plane refuses the same URL twice on a card
@@ -2749,7 +2750,154 @@ def hook_pull_request(board, payload):
     return none(f"no rule for {action}")
 
 
-HOOKS = {"push": hook_push, "pull_request": hook_pull_request}
+# Board check comments on a Plane card carry external_source + external_id = board-check:<key>:<kind>: Plane refuses
+# a second comment with the same pair (HTTP 409), so a problem is reported once even when a human edits the comment
+# in the UI (the editor rewrites comment_html and would drop the hidden marker board.yml keys on).
+CHECK_SOURCE = "whackagent"
+CHECK_RECENT_DAYS = 7  # closed cards changed this recently still get their check comments resolved
+
+
+def description_spec(markup):
+    """Non-empty `## Acceptance criteria` of a Plane card description (HTML headings read as `## ` lines)."""
+    return spec_section(text_of(re.sub(r"<h[1-6][^>]*>", "\n## ", markup or "", flags=re.I)), "Acceptance criteria")
+
+
+def open_ticket_prs(board):
+    """Tickets with an open PR, each PR mapped like pr_ticket (branch naming a card of the board, else the one card
+    link in its body; sprint PRs left out), read from the open PR list: no comment, no Plane call. Also returns the
+    open PR numbers, so a card link to one of them needs no call."""
+    config = board.config
+    keys = {board.key(i) for i in board.by_id.values()}
+    tickets, numbers = set(), set()
+    for page in itertools.count(1):
+        prs = rest("GET", f"repos/{config['repo']}/pulls?state=open&per_page=100&page={page}") or []
+        for pr in prs:
+            numbers.add(pr["number"])
+            head = pr["head"]["ref"]
+            if config["sprint_prefix"] and head.startswith(config["sprint_prefix"]):
+                continue
+            number = branch_ticket(board, head)
+            found = [number] if number in keys else board.linked_tickets(visible_text(pr.get("body")))
+            if len(found) == 1:
+                tickets.add(found[0])
+        if len(prs) < 100:
+            return tickets, numbers
+
+
+def hook_check(board, payload):
+    """Scheduled / manual run → report-only board check, the rules of check() in board.yml on a Plane board. Never
+    writes a state. Each ticket card in a contract state but done: `grilling` / `coding` with no claim of that phase,
+    a claim with nothing new for WA_STALE_AFTER_HOURS, a linked PR merged while none is open and the card is not
+    done, `review` with no open PR, an open PR while the card sits in `todo` / `grilled`, `grilled` with no ticket
+    branch, acceptance criteria in the description while in `todo`. One card comment per problem (once: external id,
+    Plane refuses a duplicate), flipped to resolved in place once the problem clears (cards that closed in the last
+    CHECK_RECENT_DAYS days included). An issue's open/closed vs its column (board.yml closed-locked, closed-not-done,
+    done-open) has no Plane twin: the column is the card's status. Sprint roots, wa-ignore cards, Canceled and
+    columns outside the six states are skipped."""
+    config = board.config
+    states = {i: s for s, i in config["state_ids"].items() if s in STATES}
+    closed = {i for i, group in config["state_groups"].items() if group in PLANE_CLOSED_GROUPS}
+    ignore = config["label_ids"].get(IGNORE_LABEL)
+    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=CHECK_RECENT_DAYS)
+    changed = lambda item: dt.datetime.fromisoformat(item["updated_at"].replace("Z", "+00:00")) >= since
+    active, recent = [], []
+    for item in board.board_items():
+        if board.is_root(item) or ignore in (item.get("labels") or []):
+            continue
+        state = states.get(item["state"])
+        if state and state != "done":
+            active.append((board.key(item), item, state))
+        elif item["state"] in closed and changed(item):
+            recent.append((board.key(item), item, None))
+    held = claims(config)
+    code, refs = rest("GET", f"repos/{config['repo']}/git/matching-refs/heads/{config['branch_prefix']}", check=False)
+    branches = {}
+    for ref in refs if code == 0 and isinstance(refs, list) else []:
+        number = branch_ticket(board, ref["ref"].removeprefix("refs/heads/"))
+        if number is not None:
+            branches[number] = ref["object"]["sha"]
+    open_tickets, open_numbers = open_ticket_prs(board)
+
+    base = board.base()
+    comments_of = lambda item: plane_all(config["plane_url"], f"{base}/work-items/{item['id']}/comments/")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        comments = dict(zip([key for key, *_ in active + recent], pool.map(lambda row: comments_of(row[1]), active + recent)))
+        links = dict(zip([key for key, *_ in active], pool.map(lambda row: board.links(row[0]), active)))
+
+    pulls = {}
+    def merged(pr):
+        if pr not in pulls:
+            pulls[pr] = rest("GET", f"repos/{config['repo']}/pulls/{pr}")
+        return bool(pulls[pr].get("merged_at"))
+
+    hours = config["stale_after_hours"]
+    now = dt.datetime.now(dt.timezone.utc)
+    def stale(number, claim):
+        """(agent, hours) of a claim with nothing new for `hours`: age = newest of claim and branch head commit."""
+        fields = claim_fields(config, claim["sha"])
+        latest = fields["date"]
+        if number in branches:
+            latest = max(latest, rest("GET", f"repos/{config['repo']}/git/commits/{branches[number]}")["committer"]["date"])
+        age = int((now - dt.datetime.fromisoformat(latest.replace("Z", "+00:00"))).total_seconds() // 3600)
+        return (fields.get("agent", "?"), age) if age >= hours else None
+
+    contract = f"{server_url()}/{config['repo']}/blob/HEAD/BOARD.md"
+    found, resolved = [], []
+    for key, item, state in active + recent:
+        problems = {}
+        if state:
+            phases = [c["phase"] for c in held.get(key, [])]
+            if state in ("grilling", "coding") and state not in phases:
+                problems["lock-no-claim"] = f"card in `{state}` but nobody holds a {state} claim: claim it before working, or a human runs `release {key} {state} --reset-to <state>`"
+            for claim in held.get(key, []):
+                old = stale(key, claim)
+                phase = claim["phase"]
+                ends = "writes the spec or releases" if phase == "grilling" else "opens the PR or releases"
+                if old:
+                    problems[f"stale-{phase}"] = f"{phase} claim held by {old[0]}, nothing new for {old[1]} h: its holder {ends}; only a human clears it for them (`release {key} {phase} --reset-to <state> --reason \"stale: …\"`)"
+            prs = board.linked_prs(key, links[key])
+            is_open = key in open_tickets or any(pr in open_numbers for pr in prs)
+            if not is_open and any(merged(pr) for pr in prs):
+                problems["merged-not-done"] = f"a linked PR is merged but the card sits in `{state}`"
+            if state == "review" and not is_open:
+                problems["review-no-pr"] = "card in `review` but no open PR links this ticket"
+            if state in ("todo", "grilled") and is_open:
+                problems["pr-not-review"] = f"a linked PR is open but the card sits in `{state}`"
+            if state == "grilled" and key not in branches:
+                problems["grilled-no-spec"] = f"card in `grilled` but no spec: no ticket branch `{config['branch_prefix']}{key}-…` holding its task file"
+            if state == "todo" and description_spec(item.get("description_html")):
+                problems["spec-todo"] = "the card description holds acceptance criteria but the card sits in `todo`: on a Plane board only a task file pushed on the ticket branch moves it to `grilled`"
+        mine = {}
+        for c in comments[key]:
+            match = re.fullmatch(rf"board-check:{re.escape(key)}:([a-z-]+)", c.get("external_id") or "")
+            if c.get("external_source") == CHECK_SOURCE and match:
+                mine[match.group(1)] = c
+        path = f"{base}/work-items/{item['id']}/comments/"
+        for kind, text in problems.items():
+            posted = None
+            if kind not in mine:
+                marker = f"<!-- board-check:{kind} -->"
+                body = marker + comment_html(f"⚠️ **board check** — {text}. See [BOARD.md]({contract}); this check only reports, it never moves cards.")
+                # 409 = a comment with this external id already exists (posted by a run racing this one)
+                posted = board.api("POST", path, {"comment_html": body, "external_source": CHECK_SOURCE,
+                                                  "external_id": f"board-check:{key}:{kind}"}, missing=(409,))
+            found.append({"ticket": key, "kind": kind, "problem": text, "comment": "posted" if posted else "already posted"})
+        for kind, c in mine.items():
+            if kind in problems:
+                continue
+            body = (c.get("comment_html") or "").replace(f"<!-- board-check:{kind} -->", f"<!-- board-check:{kind}:resolved -->")
+            body = body.replace("⚠️ <strong>board check</strong>", "✅ <strong>board check — resolved</strong>")
+            # a new external id frees the pair, so the problem is reported again if it comes back
+            board.api("PATCH", f"{path}{c['id']}/", {"comment_html": body, "external_id": f"board-check:{key}:{kind}:resolved:{c['id']}"})
+            resolved.append({"ticket": key, "kind": kind})
+    posted = sum(1 for f in found if f["comment"] == "posted")
+    reason = f"{len(active)} cards checked, {posted} new comments, {len(resolved)} resolved; never moves cards"
+    action = f"{len(found)} problems reported" if found else "none"
+    return {"action": action, "reason": reason if found else f"board matches the repository ({reason})",
+            "violations": found, "resolved": resolved}
+
+
+HOOKS = {"push": hook_push, "pull_request": hook_pull_request, "schedule": hook_check, "workflow_dispatch": hook_check}
 
 
 def op_hook(args):
@@ -2776,6 +2924,12 @@ def op_hook(args):
         with open(summary, "a") as out:
             ticket = f" `{shown(result['ticket'])}`" if "ticket" in result else ""
             out.write(f"**whackagent board** · `{event}`{ticket}: {result['action']} — {result['reason']}\n")
+            if "violations" in result:  # board check: every problem found, as board.yml's job summary
+                out.write("\n### Board check\n\n")
+                cell = lambda text: text.replace("|", r"\|")
+                rows = [f"| {v['ticket']} | {cell(v['problem'])} | {v['comment']} |\n" for v in result["violations"]]
+                out.write("| Ticket | Problem | Comment |\n|---|---|---|\n" + "".join(rows) if rows else "Board matches the repository.\n")
+                out.write("".join(f"\n✅ {r['ticket']} `{r['kind']}` resolved\n" for r in result["resolved"]))
     emit(result)
 
 
