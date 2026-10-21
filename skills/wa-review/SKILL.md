@@ -7,7 +7,7 @@ description: Standalone code review — diff, path, branch or whole project, fou
 
 Standalone review — audit existing code, diff, or whole project. Same engine as `/wa-code` verify phase, usable anywhere.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` · `<branch>` arg under `backlog.provider: github` → + `provider-github.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` · `<branch>` arg under `backlog.provider` ≠ `local` → + `code-github.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -15,7 +15,7 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 
 - **`/wa-review`** → current working diff (git diff vs HEAD / staged).
 - **`/wa-review <path>`** → that file or directory.
-- **`/wa-review <branch>`** → diff of that branch vs base. GitHub provider ticket branch → ticket range (`git diff $start^ <branch>`, **reference/provider-github.md**, *Squash merge*), never `<base>..HEAD`.
+- **`/wa-review <branch>`** → diff of that branch vs base. GitHub provider ticket branch → ticket range (`git diff $start^ <branch>`, **reference/code-github.md**, *Squash merge*), never `<base>..HEAD`.
 - **`/wa-review --all`** → whole project source.
 
 ## Conventions

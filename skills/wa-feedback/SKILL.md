@@ -8,7 +8,7 @@ model: opus
 
 You saw build. You have notes. This apply them **without losing rules**.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider: github` → + `provider-github.md` `pull-requests.md` `commits.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `branch.test_branch: true` → + `test-branch.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -79,16 +79,16 @@ Rules = `/wa-code` → *Resuming, rounds 2+*, in full — delta only, anti-stale
 
 ## GitHub provider
 
-`backlog.provider: github` (rules **reference/provider-github.md**). Two entry points:
+`backlog.provider: github` (rules **reference/code-github.md** + **reference/board-github.md**). Two entry points:
 
-Ticket sits in `review` between rounds (**reference/provider-github.md**, *Agent round*). One round here:
+Ticket sits in `review` between rounds (**reference/code-github.md**, *Agent round*). One round here:
 
-- **Hooks version gate** (**reference/provider-github.md**, *Hooks version gate*) before claim.
+- **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
 - **Claim first** — `wa-backlog claim <n> coding` (exit 3 → someone mid-round, say who, stop). Check out ticket branch, rebase not needed yet.
 - **Input** = user notes **plus PR review threads** (`gh pr view <pr> --comments`, `gh api repos/{repo}/pulls/<pr>/comments`) — quote reviewer words as feedback items, triage same way.
 - **PR already ready** (not draft) → `gh pr ready --undo` right before first commit, not earlier: code moving after validation, nobody merges it meanwhile. Board stays `review`. Undo ran, round then aborts → `gh pr ready` again.
 - **Round ends without push** — nothing to push (all items new scope), user drops round, `BLOCKED:` left open → `release <n> coding --reset-to review --reason "<why>"`. Claim never left dangling.
-- **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) per **reference/commits.md**, push to PR, then **refresh PR body** (**reference/provider-github.md**, *PR body refresh*) — criteria triage moved, new behavior, status line `Draft — feedback round <n> not reviewed yet`. UI changed → refresh screenshots, `pr.screenshots: each_round` only (**reference/provider-github.md**, *Screenshots*). Hook keeps `review`, drops claim, comments on ticket and PR with line permalink to new `## Feedback` round (`### Round <n>` block) — task file stays source, no `gh issue comment` / `gh pr comment` here, would double it. Next: your retest.
+- **Round end** — commit fixes + task file (`phase: review`, `## Feedback` round) per **reference/commits.md**, push to PR, then **refresh PR body** (**reference/code-github.md**, *PR body refresh*) — criteria triage moved, new behavior, status line `Draft — feedback round <n> not reviewed yet`. UI changed → refresh screenshots, `pr.screenshots: each_round` only (**reference/code-github.md**, *Screenshots*). Hook keeps `review`, drops claim, comments on ticket and PR with line permalink to new `## Feedback` round (`### Round <n>` block) — task file stays source, no `gh issue comment` / `gh pr comment` here, would double it. Next: your retest.
 
 Never mark ready, never merge — `/wa-validate` marks ready, `/wa-close` merges on user's yes.
 

@@ -7,7 +7,7 @@ description: Close validated task — commit, land branch, clean up. GitHub: mer
 
 **Task finished.** You retested reviewed code, still does what you asked. `/wa-close` write that down, put branch where belong.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or GitHub → + `pull-requests.md` · `backlog.provider: github` → + `provider-github.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or GitHub → + `pull-requests.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -39,9 +39,9 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 
 ## GitHub provider
 
-`backlog.provider: github` (rules **reference/provider-github.md**). Ticket PR already carries everything — `/wa-validate` synced wiki, rebased, marked it ready. `/wa-close` = **merge it for you**, on your yes. Merging on GitHub yourself is just as good: hook sets `done` either way. Replaces steps 2–9:
+`backlog.provider: github` (rules **reference/code-github.md** + **reference/board-github.md**). Ticket PR already carries everything — `/wa-validate` synced wiki, rebased, marked it ready. `/wa-close` = **merge it for you**, on your yes. Merging on GitHub yourself is just as good: hook sets `done` either way. Replaces steps 2–9:
 
-0. **Hooks version gate** (**reference/provider-github.md**, *Hooks version gate*) before claim.
+0. **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
 1. **Resolve** `#12` / `12` / index. PR = issue's linked PRs (`gh issue view <n> --json closedByPullRequestsReferences`), fallback `gh pr list --head <branch> --state all --json number,state,isDraft,url`. `phase:` in task file plays `status:` in step 1.
    - No PR → not delivered: `/wa-code <n>`, stop.
    - Merged → hook already set `done`: say so, run step 7 cleanup only.
@@ -50,13 +50,13 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
    - **Ready, no task file / `phase` empty** → another work loop's PR (**BOARD.md → Working a ticket** allows it): merge on yes after step 2 checks, no rebase offered — `CONFLICTING` → stop, say so (PR owner rebases).
    - **Ready** → continue.
 2. **Mergeable?** `gh pr view <pr> --json mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,body` (retry while `UNKNOWN`):
-   - Base = another ticket's open branch (stacked, parent not landed) → stop: parent merges first (`/wa-close <parent>`), GitHub then retargets and rebases this one (**reference/provider-github.md**, *Stacked PRs*) — start from `origin/<branch>`.
+   - Base = another ticket's open branch (stacked, parent not landed) → stop: parent merges first (`/wa-close <parent>`), GitHub then retargets and rebases this one (**reference/code-github.md**, *Stacked PRs*) — start from `origin/<branch>`.
    - Checks failing → name them, stop: `/wa-feedback <n>`. Pending → plan says it waits (`gh pr checks <pr> --watch`).
    - `reviewDecision` `REVIEW_REQUIRED` / `CHANGES_REQUESTED` → GitHub refuses: name who's requested, stop. Never `--admin`.
    - `CONFLICTING` → plan adds rebase: ticket range onto PR base (step 4).
    - Criteria left `- [ ]` in PR body → named in plan: merging ships them unproven.
 3. **Plan block + yes**, every time — *Plan block*, GitHub example. Nothing touched before yes.
-4. **Claim** `wa-backlog claim <n> coding` from `review`: no other round pushes while you merge (exit 3 → someone mid-round, say who, stop). Rebase planned → `git rebase --onto origin/<base> $start^` (ticket range, **reference/provider-github.md**; plain `git rebase <base>` replays squashed parents), mechanical conflicts yourself, logic → stop and ask with recommended resolution; build + tests, red → release `--reset-to review`, back to `/wa-feedback`; `push --force-with-lease`. Push ends round: hook drops claim → wait for it (`wa-backlog get <n>` shows `review`, no claim), re-claim `coding`, re-run step 2 checks (pending → `gh pr checks <pr> --watch`), then merge.
+4. **Claim** `wa-backlog claim <n> coding` from `review`: no other round pushes while you merge (exit 3 → someone mid-round, say who, stop). Rebase planned → `git rebase --onto origin/<base> $start^` (ticket range, **reference/code-github.md**, *Squash merge*; plain `git rebase <base>` replays squashed parents), mechanical conflicts yourself, logic → stop and ask with recommended resolution; build + tests, red → release `--reset-to review`, back to `/wa-feedback`; `push --force-with-lease`. Push ends round: hook drops claim → wait for it (`wa-backlog get <n>` shows `review`, no claim), re-claim `coding`, re-run step 2 checks (pending → `gh pr checks <pr> --watch`), then merge.
 5. **Merge** — `wa-backlog merge <pr>` (async merge: only way GitHub merges stacked PR, fine for any; waits for result; ticket carrying `lands: <track>` → `--method merge`, **reference/tracks.md**). Exit 4 → PR below in stack still open or PR not ready: say so. Remote branch goes with `delete_branch_on_merge` (provision sets it; off → say so, leave it — deleting by hand closes PRs stacked on it). Refused → claim still held → `release <n> coding --reset-to review --reason "merge refused: <why>"`; say why, stop.
 6. **Board** — hook sets `done`, drops claim, closes issue. Confirm `wa-backlog get <n>` shows `done` (re-read once after ~30 s). Never set state yourself.
 7. **Cleanup** — worktree removed when clean (dirty → stop and ask), local branch `git branch -D` (squash leaves it unmerged to git; PR merged = code on base), `git fetch --prune`. `close.delete_branch: never` → keep local branch, say so. Never `push --delete`. Test branch of PR base → rebuilt or deleted, as local step 6.

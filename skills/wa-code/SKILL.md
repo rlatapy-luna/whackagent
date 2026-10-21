@@ -8,7 +8,7 @@ model: opus
 
 You **PM**. Plan and dispatch, never write code. One task: **plan → code → verify → report**.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider: github` → + `provider-github.md` `pull-requests.md` `commits.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -37,16 +37,16 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 
 ## 0b. GitHub provider — claim before code
 
-`backlog.provider: github` (rules **reference/provider-github.md**) replaces grill gate, status write and step 0:
+`backlog.provider: github` (rules **reference/code-github.md** + **reference/board-github.md**) replaces grill gate, status write and step 0:
 
-0. **Hooks version gate** (**reference/provider-github.md**, *Hooks version gate*) before claim.
+0. **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
 1. **Resolve** arg: `#12` / `12` / display index. No arg → top unclaimed `grilled` from `wa-backlog list --state grilled`. Blocker gate on `wa-backlog get <n>` → `blocked_by`, before claim, per **BOARD.md → Dependencies**: open **related** blocker (same sprint or track) → never code it from base. Arg given → wait, or `/wa-autopilot` stacks it — say so, stop. No arg → skip it like exit 3 (`#12 skipped — blocked by #9, same sprint`), try next `grilled`. Unrelated → warn as above; yes → PR body `Blocked by #<x>: merge order is yours.`
 2. **Claim** `wa-backlog claim <n> coding`. Exit 3 → `#12 coded by <agent>` — no arg given: try next `grilled`; arg given: stop. Exit 4 → not `grilled`/`review`: `todo` means not grilled → suggest `/wa-grill <n>`; stop.
-3. **Branch** — ticket branch exists (grilling pushed it): `wa-backlog branch <n>`, fetch, check out **in current worktree**. Dirty tree → stop and ask first. Never create fresh branch when one exists: spec lives on it. Exists but holds no `{tasks}/<n>-*.md` (earlier round on issue-body spec dropped before first commit) → build task file from issue body as *Spec in issue body*, commit `task: spec #<n> <slug>`. **None** (spec in issue body, **reference/provider-github.md**, *Spec in issue body*) → create it linked, first commit = task file from issue body. Git refusing because another local worktree holds branch → say which, stop. `branch.worktree: true` → reuse or add `{worktrees}/<n>-<slug>` on that branch instead (**reference/worktrees.md**); worktree already there = yours to reuse, not a refusal.
+3. **Branch** — ticket branch exists (grilling pushed it): `wa-backlog branch <n>`, fetch, check out **in current worktree**. Dirty tree → stop and ask first. Never create fresh branch when one exists: spec lives on it. Exists but holds no `{tasks}/<n>-*.md` (earlier round on issue-body spec dropped before first commit) → build task file from issue body as *Spec in issue body*, commit `task: spec #<n> <slug>`. **None** (spec in issue body, **reference/board-github.md**, *Spec in issue body*) → create it linked, first commit = task file from issue body. Git refusing because another local worktree holds branch → say which, stop. `branch.worktree: true` → reuse or add `{worktrees}/<n>-<slug>` on that branch instead (**reference/worktrees.md**); worktree already there = yours to reuse, not a refusal.
 4. **Spec** = `{tasks}/<n>-<slug>.md` on that branch (just built from issue body when step 3 created it). Set `phase: in-progress` there (local writes `status:`). **No push mid-round** — any push to branch with open PR fires `synchronize`: hook ends round and drops your claim while you still code.
 5. **Track check** — only when `branch.tracks` non-empty: ticket milestone vs PR base / fork commit disagree on trunk → say so, offer move (**reference/tracks.md**), never code on wrong trunk. Then step 0.6 (sync offer, landing merge).
 6. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `#<n>` + PR URL.
-7. **Deliver = end of round** (**reference/provider-github.md**, *Agent round*, *Screenshots* — `each_round` only): commit code + task file (per **reference/commits.md**), push, open **draft PR** (or push to existing one + refresh its body, **reference/provider-github.md**, *PR body refresh*). Board moves to `review` by itself: ticket never waits for your test in `coding`. First push of ticket = outward-facing → one-line plan (`push wa/12-… + draft PR → sprint/x`) + yes, first time only; later rounds push without asking.
+7. **Deliver = end of round** (**reference/code-github.md**, *Agent round*, *Screenshots* — `each_round` only): commit code + task file (per **reference/commits.md**), push, open **draft PR** (or push to existing one + refresh its body, **reference/code-github.md**, *PR body refresh*). Board moves to `review` by itself: ticket never waits for your test in `coding`. First push of ticket = outward-facing → one-line plan (`push wa/12-… + draft PR → sprint/x`) + yes, first time only; later rounds push without asking.
 8. **Blocked / user drops it** → `wa-backlog release <n> coding --reset-to grilled --reason "<why>"` (`--reset-to review` when PR already open). Round created branch, never pushed commit → delete it, local + remote (`git push origin --delete <branch>`: holds only fork point), as `/wa-grill` abort. Coding lock never left dangling on abandon.
 
 ## 1. Plan
@@ -86,7 +86,7 @@ Local provider → `comment` is no-op, nothing to do. Later round re-plans brick
 
 - **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, modules (`review.modules` per **reference/paths.md**), test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**reference/worktrees.md**).
 - **Glossary** — `{wiki}/glossary.md` exists → brick 1 also gets its path (step 3 verifier too). Absent → nothing passed.
-- **Screenshots** — GitHub provider + `pr.screenshots: each_round` (or key missing) → every brick dispatch asks: *diff changes UI → return final-state `SCREENSHOTS:`* (**reference/provider-github.md**, *Screenshots*). Last receipt's shots = upload. `validation`, `off` or local provider → never asked.
+- **Screenshots** — GitHub provider + `pr.screenshots: each_round` (or key missing) → every brick dispatch asks: *diff changes UI → return final-state `SCREENSHOTS:`* (**reference/code-github.md**, *Screenshots*). Last receipt's shots = upload. `validation`, `off` or local provider → never asked.
 - **Bricks 2..n** — `SendMessage` that id next brick **alone**. No modules, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
 
 Receipts:

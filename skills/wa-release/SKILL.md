@@ -7,7 +7,7 @@ description: Ship one milestone — check its tasks landed, then walk project's 
 
 **Milestone ready to ship.** `/wa-release` check scope landed, then follow **project's** release flow — the one written down, not one Claude know from elsewhere. Every app ship different (store, registry, deploy, tag, nothing). Guessing = shipping wrong thing.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `provider.md` `milestones.md` `commits.md` · `backlog.provider: github` → + `provider-github.md` · `branch.tracks` non-empty → + `tracks.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `provider.md` `milestones.md` `commits.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `branch.tracks` non-empty → + `tracks.md`.
 
 Wording (screen + reports): **reference/voice.md**. Every question: recommendation + one-line reason, **wa-grill → Question format**. Milestone rules: **reference/milestones.md**.
 
@@ -86,7 +86,7 @@ version  : 0.2.0            (doc: version = milestone title)
 
 ## GitHub provider
 
-Same flow, provider verbs only (**reference/provider-github.md**). Readiness via `wa-backlog list --milestone <m> --all`; `close-milestone` through `wa-backlog`. Doc says open release PR / GitHub release → `gh` commands shown in plan as ⚠️, own yes each. Hooks untouched: release PR is not a ticket PR.
+Same flow, provider verbs only (**reference/code-github.md**, **reference/board-github.md**). Readiness via `wa-backlog list --milestone <m> --all`; `close-milestone` through `wa-backlog`. Doc says open release PR / GitHub release → `gh` commands shown in plan as ⚠️, own yes each. Hooks untouched: release PR is not a ticket PR.
 
 ## Never
 
