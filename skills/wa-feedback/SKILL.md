@@ -81,6 +81,8 @@ Rules = `/wa-code` → *Resuming, rounds 2+*, in full — delta only, anti-stale
 
 `backlog.provider: github` (rules **reference/code-github.md** + **reference/board-github.md**). Two entry points:
 
+**Plane board** (`backlog.provider: plane`, experimental, **reference/board-plane.md**) — same round, card instead of issue: body refresh keeps card link (**reference/board-plane.md**, *PR link*); hook keeps `review`, drops claim, comments on card (feedback permalinks) and PR — confirm per **reference/board-plane.md**, *Hooks*, *Confirm card moved*.
+
 Ticket sits in `review` between rounds (**reference/code-github.md**, *Agent round*). One round here:
 
 - **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.

@@ -47,6 +47,8 @@ Review every round burn one verifier per note, review code about to change anywa
 
 **Clean verdict = ready PR.** Here ticket PR leaves draft; `/wa-close` only merges.
 
+**Plane board** (`backlog.provider: plane`, experimental, **reference/board-plane.md**) — same round, card instead of issue: body keeps card link (**reference/board-plane.md**, *PR link*); step 5 hook sets `review`, drops claim, `✅ ready` lands on card — confirm per **reference/board-plane.md**, *Hooks*, *Confirm card moved*.
+
 0. **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
 1. **Entry.** `phase: validated`, code untouched since its review: PR draft (validated before this rule, or autofix touched code since user's test) → straight to step 3 readiness, no verifier; PR ready → nothing to do, nothing claimed, say `/wa-close <id>` merges it.
 2. **Verify + autofix** — steps 3–7 above.

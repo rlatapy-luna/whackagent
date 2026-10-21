@@ -4,7 +4,7 @@
 
 ## Built so far
 
-`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). The verb left, `link-pr`, exits 2 with `not built yet on a Plane board`. `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. Hooks: `hook` moves a card to Grilled when its spec is pushed (see *Hooks*); the pull request hooks (`review`, `done`, back to `grilled`) and the board check are not built yet.
+`provision`, `config`, `list`, `get` (with `blocked_by`, read from Plane relations), `create`, the claim verbs (`claim`, `release` with `--reset-to`, `claims`, `whoami`), `set-state`, `comment`, `move`, `depend`, `cancel`, sprints (`split`, `create --sprint`, `set-field sprint`, `list --sprint`) and milestones (`milestones`, `close-milestone`, `create --milestone`, `set-field milestone`, `list --milestone`). `link-pr` (repair: adds the PR as a link on the card). `set-field size` exits 2 for good: Plane CE cannot create estimates over its API (see below), so a Plane board has no size, and `create --size` drops the size with a note. Hooks: `hook` moves a card to Grilled when its spec is pushed, and to Review, Done or back to Grilled on pull request events, linking the PR on the card (see *Hooks*); the board check is not built yet.
 
 ### Claims
 
@@ -87,26 +87,35 @@ The board hooks move the data-driven states from GitHub events, as `board.yml` d
 | Event | Rule |
 |---|---|
 | `push` to `<prefix><id>-<slug>` | the task file `{tasks}/<id>-*.md` at the pushed commit (read over the contents API, frontmatter `issue:` naming the ticket) has a non-empty `## Acceptance criteria` (HTML comments ignored, same rule as `board.yml`), and the card is in Todo or Grilling → Grilled, priority kept, claim ref `refs/wa-claims/<id>/grilling` deleted, `✅ grilled` comment with a sha permalink to the spec. Anything else (branch deleted, other branch, no task file, empty criteria, card elsewhere, sprint root, `wa-ignore`) → no-op with the reason. Idempotent: a second run finds the card in Grilled |
-| `pull_request`, `schedule` | no-op for now: `review` / `done` / back to `grilled` and the report-only board check come later |
+| `pull_request` (any action) | **Ticket**: the head branch `<prefix><id>-<slug>` naming a card of this project, else the one card link in the body (`<WA_PLANE_URL>/<workspace>/browse/WA-42/`; scheme, case and trailing slash ignored; links inside code, HTML comments and the run report ignored, as `Closes #n` is in `board.yml`). Several card links → reported on the PR (`board-check:several-tickets` marker, once), no move. A sprint branch PR (`WA_SPRINT_PREFIX`) is not a ticket PR. Every event that finds a ticket adds the PR as a work-item link `#<n> <title>` (read first, so a replay adds nothing). A card in a column outside the six states is left alone, unless a coding claim is held (then treated as `coding`) |
+| `pull_request` `opened` / `reopened` | → Review from any state but Done, coding and grilling claims dropped, `🔀 review` comment. Already in Review → claims dropped, no comment |
+| `pull_request` `edited` | → Review only when the PR is open and the card still sits in Todo or Grilled (the link was found late); coding claim dropped |
+| `pull_request` `ready_for_review` / `converted_to_draft` | ready → `✅ ready` comment; nothing moves (already Review) |
+| `pull_request` `synchronize` | coding claim held (end of an agent round) → Review, claim dropped, `🔀 review — round <sha> pushed` comment linking the new `## Feedback` rounds of the task file, and a `📝 feedback` comment on the PR with their line permalinks. No claim: Done or a GitHub merge commit (`web-flow`) → nothing; a round this hook already ended (its comment names the sha) → nothing; else reported on the PR (`board-check:push-no-claim-<sha>`, once) |
+| `pull_request` `closed`, merged | → Done (claims dropped), `🎉 done` comment with the PR body's run report; landed branch = the GitHub stack's base for a stacked PR. Ticket child of an open sprint root, landed elsewhere than the sprint branch, every child now Done or Canceled → root to Done, `🏁 sprint landed`. Already Done → only the sprint check runs |
+| `pull_request` `closed`, sprint branch merged | the open sprint root of that name → Done, `🏁 sprint landed`. The cycle stays as Plane's record |
+| `pull_request` `closed`, unmerged | → Grilled, coding claim dropped, `↩️ grilled` comment, unless the card is in Done or Grilled, a coding claim is held, or another PR linked on the card is still open |
+| `schedule`, `workflow_dispatch` | no-op for now: the report-only board check comes later |
 
-**Wiring.** The project's caller `.github/workflows/whackagent-board-plane.yml` (template `providers/plane/whackagent-board-plane.yml`, own `template version`, installed by `/wa-setup`) holds the triggers (push on `wa/**`, pull request, schedule, manual), the permissions (`contents: write` for the claim refs, `pull-requests: write` kept for the PR rules) and the concurrency, and calls the reusable `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`, shipped additively under the same tag as the GitHub board's. The reusable workflow:
+**Wiring.** The project's caller `.github/workflows/whackagent-board-plane.yml` (template `providers/plane/whackagent-board-plane.yml`, own `template version`, installed by `/wa-setup`) holds the triggers (push on `wa/**`, pull request `opened`, `reopened`, `edited`, `ready_for_review`, `converted_to_draft`, `synchronize`, `closed`, schedule, manual), the permissions (`contents: write` for the claim refs, `pull-requests: write` for the PR comments) and the concurrency, and calls the reusable `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`, shipped additively under the same tag as the GitHub board's. The reusable workflow:
 
 - runs on `runs-on: ${{ vars.WA_RUNNER_LABEL || 'self-hosted' }}`. In a called workflow `vars` are the caller repository's variables, as for `board.yml`, and `runs-on` may read them;
-- skips the job when `WA_PLANE_URL` is unset, and skips pull requests from forks, so outside code never reaches the self-hosted runner;
+- skips pull requests from forks, so outside code never reaches the self-hosted runner, and fails with a clear error when `WA_PLANE_URL` is unset (a skipped job would read as a success while no card moved);
 - checks out the **default branch** (sparse: `.github/board`, `.whackagent`, root files) and runs `python3 .github/board/wa-backlog hook`. The script and the config come from the default branch, never from the pushed ref, so a ticket branch cannot change the code that holds the API key. The task file is read from the pushed commit over the API;
 - passes `PLANE_API_KEY` from the caller's `WA_PLANE_API_KEY` secret, `GH_TOKEN` = the caller's `GITHUB_TOKEN`, and `WA_VARS` = `toJSON(vars)`. `GITHUB_TOKEN` cannot list repository variables, so the script reads its settings from `WA_VARS` when set, and the repository from `GITHUB_REPOSITORY` in Actions.
 
 **Runner.** Self-hosted, registered on the repository or its organization, carrying the label in `WA_RUNNER_LABEL` (default `self-hosted`), with `python3` and `gh` on its PATH. It reaches the Plane URL (localhost or the private network) and polls GitHub over outbound HTTPS, so Plane is never exposed. While no runner with the label is online, runs wait in `queued` (up to 24 hours) and the card waits with them. A push on a ticket branch forked before the caller reached the default branch triggers nothing: GitHub runs push workflows from the pushed commit's tree.
 
-**When the card does not move.** The skill that pushed re-reads the card for about two minutes, then looks the run up with `gh run list --workflow whackagent-board-plane.yml --branch <branch> --json status,conclusion,event,url,headSha` and reports it: failed (run URL), queued (runner offline, run URL), in progress, or `not triggered` (no run). It never sets the state itself (**reference/board-plane.md**, *Hooks*).
+**When the card does not move.** The skill that pushed, opened or merged the PR re-reads the card for up to about three minutes, then looks the run up with `gh run list --workflow whackagent-board-plane.yml --branch <branch> --json status,conclusion,event,url,headSha` and reports it: failed (run URL), queued (runner offline, run URL), in progress, success (the summary line says why nothing moved), or `not triggered` (no run). It never sets the state itself (**reference/board-plane.md**, *Hooks*).
 
 **Replay locally** (no runner): from a clone of the project, with `PLANE_API_KEY` exported and `gh` logged in,
 
 ```sh
 wa-backlog hook --event push --payload scripts/plane-rig/payloads/push-task-file.json
+wa-backlog hook --event pull_request --payload scripts/plane-rig/payloads/pr-opened.json
 ```
 
-The recorded payloads under `scripts/plane-rig/payloads/` are realistic `push` payloads; edit `ref` and `after` to the ticket branch and commit under test.
+The recorded payloads under `scripts/plane-rig/payloads/` are real `push` and `pull_request` payloads from the playground, trimmed to the fields a hook reads (`push-*.json`, `pr-*.json`); edit `ref` and `after` (push), or the PR number, branch and body (pull request) to the ticket under test.
 
 ### Checked live (issue 0007)
 
@@ -115,6 +124,15 @@ On the rig and `whackagent-playground-plane`:
 - Replay, no runner: WA-20 (Grilling, claimed) with criteria → Grilled, claim ref gone, `✅ grilled` comment linking the spec at its sha; a second replay → no-op `card in grilled`. WA-21 with an empty criteria section (comment only) → no-op `Acceptance criteria empty`, still Grilling and claimed. A push to `main` → no-op `not a ticket branch`. An `issues` event → no-op `no hook for issues`. All exit 0.
 - End to end: the playground ran the reusable workflow as a local copy (`uses: ./.github/workflows/board-plane.yml`, the whackagent remote not being pushed), with the vendored script on `main` and `WA_RUNNER_LABEL=whackagent-plane`. Pushing a spec on `wa/WA-22-hook-e2e` ran on the self-hosted runner (job label `whackagent-plane`, run 39592626482, success) and the card went Grilling → Grilled with its claim dropped about 13 seconds after the push.
 - Runner stopped: a push on `wa/WA-21-hook-empty` forked before the caller landed started no run (`gh run list` empty: `not triggered`); rebased onto `main` and pushed again, the run sat `queued` (run 39592874393) with the card still in Grilling, then ran and moved the card once the runner was started.
+
+### Checked live (issue 0008)
+
+On the rig and `whackagent-playground-plane`, payloads recorded from real PRs (`scripts/plane-rig/payloads/pr-*.json`):
+
+- Replay, no runner: WA-23 coding, draft PR #1 on `wa/WA-23-pr-replay` → `opened`: Review, coding claim gone, link `#1 hook pr 0008 replay` on the card; replayed → no-op `card already in review`. A feedback round pushed under a coding claim → `synchronize`: Review, claim gone, card comment linking the `### Round 1` lines, `📝 feedback` comment on the PR with the line permalink; replayed → no-op `already handled`. A push without a claim → reported once on the PR (replayed: no second comment). `ready_for_review` → `✅ ready`. Merged with `wa-backlog merge 1 --method squash` while `/wa-close`'s coding claim was held → Done, claim gone; replayed → no-op `card already in done`.
+- WA-24: closed unmerged while a coding claim is held → no-op; claim released → Grilled; replayed → no-op. WA-25: PR #3 on `cloud/agent-task-7` with only the card link in its body (`http://localhost:8390/whackagent/browse/WA-25`, no trailing slash; a link to WA-99 inside backticks ignored) → Review and linked; two card links → reported on the PR, nothing moved; no link → no-op; a second PR closing while #3 is open → no-op `#3 still open`.
+- Sprints: WA-26, only child of sprint `hook-sprint-0008`, merged into `main` → Done and the root WA-27 → Done (`🏁 sprint landed`). PR #5 from `sprint/hook-sprint-b0008` merged with a merge commit → root WA-29 → Done; replayed → no-op `no open sprint`.
+- End to end on the self-hosted runner (label `whackagent-plane`): WA-30 grill push → Grilled (run 39595759885); coding round + draft PR #6 with the card link → Review, claim dropped, PR linked (run 39595860994); validate round push + `gh pr ready` → Review, `✅ ready` (runs 39595976917, 39595978931); `wa-backlog merge 6 --method squash` → Done within 10 s (run 39596123989). No step set Review or Done itself. WA-31: draft PR #7 → Review (run 39596301368), closed unmerged → Grilled (run 39596354563).
 
 ## Settings
 
@@ -147,6 +165,7 @@ The per-clone cache (`<git-common-dir>/whackagent/github-cache.json`) holds the 
 | dependencies | relations `blocked_by`: `depend` adds (never removes), `get` reads back |
 | cancel | Canceled state (cancelled group), priority kept |
 | web link | `<url>/<slug>/browse/WA-42/` |
+| pull request | work-item link `#<n> <title>` to the PR, added by the hooks (`link-pr` repairs); the PR body names the card by its web link |
 
 ## Provision
 

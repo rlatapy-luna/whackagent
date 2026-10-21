@@ -7,7 +7,7 @@ description: Close validated task — commit, land branch, clean up. GitHub: mer
 
 **Task finished.** You retested reviewed code, still does what you asked. `/wa-close` write that down, put branch where belong.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or GitHub → + `pull-requests.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or `backlog.provider` ≠ `local` → + `pull-requests.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -62,6 +62,8 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 7. **Cleanup** — worktree removed when clean (dirty → stop and ask), local branch `git branch -D` (squash leaves it unmerged to git; PR merged = code on base), `git fetch --prune`. `close.delete_branch: never` → keep local branch, say so. Never `push --delete`. Test branch of PR base → rebuilt or deleted, as local step 6.
 8. **Sprint** — ticket was its sprint's last open sub-issue → *Sprint landing*: sprint PR onto `close.target` (track sprint: its trunk) per **reference/pull-requests.md** (`{title}` = sprint name), body names sprint parent (`Sprint #<parent>`). Offer merging it (`--merge`, never squash, second yes) only when step 2 checks already pass; else say it merges once reviewed — on GitHub, or `/wa-close <sprint>` later. Merge → hook closes parent.
 9. **Next** (`branch.checkout_next`) → next ticket only through **claim**: `/wa-code` without arg picks top unclaimed `grilled`. Never check out ticket branch you don't hold.
+
+**Plane board** (`backlog.provider: plane`, experimental, **reference/board-plane.md**) — same steps, card instead of issue: step 1 PR = `gh pr list --head <branch> --state all …` (card's PR links, `get` → `url`, show same PRs); step 6 hook sets `done`, drops claim (no issue to close) — confirm per **reference/board-plane.md**, *Hooks*, *Confirm card moved*; step 8 last open child of sprint → sprint PR body `Sprint [<#root>](<url>)`, merge → hook moves root to Done (**reference/board-plane.md**, *Sprint*). *Sprint arg* steps 1 and 3 close root by hand: no verb — tell user to move root card to Done (Canceled when nothing shipped) in Plane.
 
 Local provider with `close.strategy: pr` keeps *PR landing* below: PR left ready, never merged.
 

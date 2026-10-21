@@ -12,9 +12,9 @@ name: whackagent board
 on:
   push:
     branches: ["wa/**"]
-  # pull request and schedule rules come in later releases: until then these runs end as no-ops
   pull_request:
-    types: [opened, reopened, edited, synchronize, closed]
+    types: [opened, reopened, edited, ready_for_review, converted_to_draft, synchronize, closed]
+  # the board check comes in a later release: until then these runs end as no-ops
   schedule:
     - cron: "17 6 * * 1-5"
   workflow_dispatch:
@@ -24,7 +24,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  # one pending run per branch, event and action: GitHub cancels an older pending run of the same group
+  # one pending run per branch, event and action: GitHub cancels an older pending run of the same group, so a
+  # force push (synchronize) followed by `gh pr ready` (ready_for_review) never drops one of them
   group: whackagent-board-${{ github.head_ref || github.ref_name }}-${{ github.event_name }}-${{ github.event.action }}
   cancel-in-progress: false
 

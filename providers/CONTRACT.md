@@ -8,7 +8,7 @@ Config picks provider: `backlog.provider: local | github | plane` in `.whackagen
 |---|---|---|
 | `local` | prompt-implemented, files — `providers/local.md` | no — one agent, one checkout |
 | `github` | script `providers/wa-backlog` (`GitHubBoard`; `providers/github/wa-backlog` links to it) + board workflow — `providers/github/README.md` | yes — atomic claims, hooks drive state |
-| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | claims yes (atomic, same refs); priority, dependencies, comments, cancel, sprints (parent + cycle), milestones (modules) yes; hooks (`wa-backlog hook`, self-hosted runner): spec push → `grilled` yes, PR events and board check not built yet; PR links not built yet |
+| `plane` | **experimental** — same script (`PlaneBoard`), Plane CE board, code on GitHub — `providers/plane/README.md` | claims yes (atomic, same refs); priority, dependencies, comments, cancel, sprints (parent + cycle), milestones (modules) yes; hooks (`wa-backlog hook`, self-hosted runner): spec push → `grilled`, PR opened / round pushed → `review`, merged → `done`, closed unmerged → `grilled`, sprint root closed on landing yes; PR = card link (ticket from branch, else card link in PR body) yes; board check not built yet |
 
 ## States
 

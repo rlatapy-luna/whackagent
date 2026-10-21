@@ -7,11 +7,25 @@
 # The logic is not here: `wa-backlog hook` (providers/wa-backlog, vendored in the project as .github/board/wa-backlog)
 # reads the event from the Actions environment and drives the same board adapter the agents use:
 #   push to wa/<id>-<slug> holding its spec → grilled, from todo or grilling (drops the grilling claim)
-#   any other event                         → no-op (pull request and schedule rules not built yet)
+#   PR → ticket                            = its wa/<id>-… branch, else the one card link in its body; every
+#                                            event adds the PR as a link on the card
+#   PR opened / reopened, draft or not      → review (drops the claims)
+#   PR edited, link found late              → review, when the card still sits in todo/grilled
+#   draft marked ready / back to draft      → ✅ comment on ready, nothing moves (already review)
+#   push to an open PR while coding claimed → review (end of an agent round), new `## Feedback` rounds linked
+#   push to a ticket PR, no coding claim    → reported on the PR, board untouched
+#   PR merged (any base)                   → done, run report posted on the card; sprint root → Done when the
+#                                            sprint has no branch and its last child is done. Stacked PR: landed
+#                                            on its GitHub stack's base
+#   sprint branch PR merged                → sprint root → Done (sprint landed)
+#   PR closed unmerged                     → grilled, unless a coding claim or another open PR keeps the ticket going
+#   schedule / manual run                  → no-op (board check not built yet)
+# Same rules as board.yml for a GitHub board; no hold against a built-in tool workflow (Plane CE has none).
 # Runs on a self-hosted runner next to the Plane server (Plane stays on a private network, no Actions minutes):
 # label = the caller repository's variable WA_RUNNER_LABEL, default `self-hosted`. The runner needs python3 and gh,
 # and must reach WA_PLANE_URL. The script comes from the default branch, never from the pushed ref: a ticket branch
-# can't change the code that holds the API key. Fork pull requests never reach the runner.
+# can't change the code that holds the API key. Fork pull requests never reach the runner. WA_PLANE_URL unset
+# fails the run (`/wa-setup backlog` provisions it): a skipped job would read as success while no card moved.
 # Settings are the caller repository's variables (`vars`), written by `wa-backlog provision`, handed over whole
 # (GITHUB_TOKEN cannot list them). The Plane API key is the WA_PLANE_API_KEY secret, passed by the caller.
 # Claim refs are deleted with the caller's GITHUB_TOKEN (contents: write).
@@ -26,7 +40,7 @@ on:
 
 jobs:
   board:
-    if: vars.WA_PLANE_URL != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ vars.WA_RUNNER_LABEL || 'self-hosted' }}
     timeout-minutes: 10
     steps:
@@ -42,7 +56,12 @@ jobs:
           PLANE_API_KEY: ${{ secrets.WA_PLANE_API_KEY }}
           GH_TOKEN: ${{ github.token }}
           WA_VARS: ${{ toJSON(vars) }}
+          WA_PLANE_URL: ${{ vars.WA_PLANE_URL }}
         run: |
+          if [ -z "$WA_PLANE_URL" ]; then
+            echo "::error::WA_PLANE_URL repository variable missing: /wa-setup backlog provisions the Plane board"
+            exit 1
+          fi
           if [ -z "$PLANE_API_KEY" ]; then
             echo "::error::WA_PLANE_API_KEY secret missing (the caller passes it): Plane API key for the hooks"
             exit 1

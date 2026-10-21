@@ -39,7 +39,7 @@ base method, which exits 2 with a clear message. A ticket id of the other board'
   Sprints     split(ticket, name)         ticket becomes the root of sprint <name>, off the board
               set_sprint(number, sprint)  sprint membership, "" detaches
   Other       depend(number, blockers)    → (added, already there)
-              link_pr(number, pr)         closing link from the pull request to the ticket
+              link_pr(number, pr)         the pull request linked on the ticket (GitHub: closing link, Plane: card link)
               provision(args, repo)       create or adopt the board, write the repo variables → report
               templates(owner)            board templates provision can copy
               ticket_url(number)
@@ -198,6 +198,8 @@ def code_settings(variables):
     return {
         "tasks_path": variables.get("WA_TASKS_PATH", ".whackagent/tasks"),
         "branch_prefix": variables.get("WA_BRANCH_PREFIX", "wa/"),
+        # "none" = sprints have no branch (an empty variable reads as unset), as WA_SPRINT_PREFIX in board.yml
+        "sprint_prefix": "" if variables.get("WA_SPRINT_PREFIX") == "none" else variables.get("WA_SPRINT_PREFIX", "sprint/"),
         "stale_after_hours": int(variables.get("WA_STALE_AFTER_HOURS", "24")),
         "tracks": json.loads(variables.get("WA_TRACKS", "[]")),
     }
@@ -221,7 +223,8 @@ def load(refresh=False):
     cached = json.loads(path.read_text()) if path.exists() else None
     repo = cached["repo"] if cached else current_repo()
     variables = repo_variables(repo)
-    if cached and not refresh and cached.get("fingerprint") == fingerprint(variables):
+    # a cache written before a code setting existed is rebuilt, never read with the setting missing
+    if cached and not refresh and cached.get("fingerprint") == fingerprint(variables) and set(code_settings(variables)) <= set(cached):
         return cached
     config = {
         "repo": repo,
@@ -1155,13 +1158,13 @@ class PlaneBoard(Board):
     plus Canceled), priority = sort_order (lower = higher, one order over the board, so each column shows it
     too), excluded = label wa-ignore, blocked by = relation blocked_by, canceled = Canceled state, sprint =
     parent work item labeled wa-sprint (the truth) mirrored by a cycle of the same name (Plane's sprint view),
-    milestone = module (one per ticket, the adapter enforces it). No size (Plane CE estimates are UI-only). PR
-    links: not built yet. Account = the Plane user owning the API key (shown by display name, compared by id),
+    milestone = module (one per ticket, the adapter enforces it). No size (Plane CE estimates are UI-only). Pull
+    request = work-item link (the hooks add it). Account = the Plane user owning the API key (shown by display name, compared by id),
     not the GitHub login that writes claim refs, branches and PRs."""
 
     name = "a Plane"
-    # Contract operations later issues build (hooks, PR links): "not yet", not "never".
-    PENDING = {"link-pr"}
+    # Contract operations later issues build: "not yet", not "never". None left for now.
+    PENDING = set()
 
     def __init__(self, config):
         super().__init__(config)
@@ -1391,6 +1394,14 @@ class PlaneBoard(Board):
 
     def ticket_url(self, number):
         return f"{self.config['plane_url']}/{self.config['workspace']}/browse/{number}/"
+
+    def linked_tickets(self, text):
+        """Keys of this board's card links (ticket_url shape) in <text>, first seen first: scheme, case and the
+        trailing slash ignored, another workspace's or project's cards left out."""
+        host = re.sub(r"^https?://", "", self.config["plane_url"])
+        key = self.config["project_key"]
+        pattern = re.compile(rf"https?://{re.escape(host)}/{re.escape(self.config['workspace'])}/browse/({re.escape(key)}-\d+)(?!\d)", re.I)
+        return list(dict.fromkeys(m.group(1).upper() for m in pattern.finditer(text or "")))
 
     # ------------------------------------------------ writing
 
@@ -1650,6 +1661,59 @@ class PlaneBoard(Board):
             self.remember(self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {"labels": labels + [label]}))
         self.sprint_cycle(name)
         self.comment(number, f"🌳 **split** — sprint `{name}`: its tickets are the children of this work item, in cycle `{name}`")
+
+    # ------------------------------------------------ pull requests (work-item links)
+
+    def links(self, number):
+        return plane_all(self.config["plane_url"], f"{self.base()}/work-items/{self.item(number)['id']}/links/")
+
+    def linked_prs(self, number):
+        """Numbers of this repository's pull requests linked on the card, from its links."""
+        pattern = re.compile(rf"/{re.escape(self.config['repo'])}/pull/(\d+)/?$")
+        return sorted({int(m.group(1)) for m in (pattern.search(l.get("url") or "") for l in self.links(number)) if m})
+
+    def link_pr(self, number, pr, title=None, url=None):
+        """Work-item link to PR <pr>, titled `#<pr> <title>`. Idempotent: Plane refuses the same URL twice on a card
+        (HTTP 400), so the links are read first, and a 400 from a racing writer counts as linked once re-read.
+        Returns True when the link was added."""
+        if not url or not title:
+            pull = rest("GET", f"repos/{self.config['repo']}/pulls/{pr}")
+            url, title = url or pull["html_url"], title or pull["title"]
+        if pr in self.linked_prs(number):
+            return False
+        path = f"{self.base()}/work-items/{self.item(number)['id']}/links/"
+        try:
+            self.api("POST", path, {"url": url, "title": f"#{pr} {title}"})
+        except Failure:
+            if pr not in self.linked_prs(number):
+                raise
+            return False
+        return True
+
+    # ------------------------------------------------ sprint landing (hooks)
+
+    def open_sprint(self, name):
+        """Key of sprint <name>'s root while it is open (not in Done or Canceled), else None."""
+        roots = [r for r in self.sprint_roots(name) if self.config["state_groups"].get(r["state"]) not in PLANE_CLOSED_GROUPS]
+        return self.key(roots[0]) if roots else None
+
+    def sprint_parent(self, number):
+        """(key, name) of the ticket's sprint root while it is open, else None."""
+        parent = self.parent_of(self.item(number))
+        if not parent or not self.is_root(parent) or self.config["state_groups"].get(parent["state"]) in PLANE_CLOSED_GROUPS:
+            return None
+        return self.key(parent), sprint_name(parent["name"])
+
+    def sprint_complete(self, root):
+        """Every child of sprint root <root> sits in Done or Canceled (the same as every sub-issue closed on GitHub)."""
+        root_id = self.item(root)["id"]
+        children = [i for i in self.board_items() if i.get("parent") == root_id]
+        return all(self.config["state_groups"].get(i["state"]) in PLANE_CLOSED_GROUPS for i in children)
+
+    def close_sprint(self, root, why):
+        """Sprint landed: its root to Done (priority kept), 🏁 comment. The cycle stays as Plane's record of it."""
+        self.set_state({"number": root}, "done")
+        self.comment(root, f"🏁 **sprint landed** — {why}")
 
     # ------------------------------------------------ other
 
@@ -2080,8 +2144,9 @@ def op_depend(args):
 
 
 def op_link_pr(args):
-    """Manual closing link from PR <pr> to ticket <n>. Idempotent. Repair only: the hooks link every
-    open PR whose ticket they find (`Closes #n` in the body, or a wa/<n>-… branch)."""
+    """Manual link from PR <pr> to ticket <n>. Idempotent. Repair only: the hooks link every PR whose ticket
+    they find. GitHub board: closing link (Development), from `Closes #n` in the body or a wa/<n>-… branch.
+    Plane board: work-item link on the card, from a wa/<id>-… branch or the card link in the body."""
     open_board().link_pr(args.number, args.pr)
     emit({"number": args.number, "pr": args.pr, "linked": True})
 
@@ -2366,7 +2431,10 @@ def op_merge(args):
 # `hook` = the board hooks of a board tool that is not GitHub (Plane): run by the reusable workflow
 # .github/workflows/board-plane.yml on a self-hosted runner, or by hand with --event/--payload to replay a
 # recorded event. Same rules as the JavaScript of board.yml for the GitHub board, which stays as it is. One
-# handler per event name; an event without one is a no-op. Each returns {action, reason} and logs one line.
+# handler per event name (push, pull_request); an event without one is a no-op. Each returns {action, reason}
+# and logs one line. A board adapter the hooks drive also provides: linked_tickets(text) (card links in a PR
+# body), link_pr / linked_prs (PR links on the card), open_sprint(name), sprint_parent(number),
+# sprint_complete(root), close_sprint(root, why).
 
 
 def spec_section(text, heading):
@@ -2450,7 +2518,238 @@ def hook_push(board, payload):
     return {"ticket": number, "action": f"{ticket['state']} → grilled", "reason": f"spec {path} at {sha[:7]}"}
 
 
-HOOKS = {"push": hook_push}
+def claim_held(config, number, phase):
+    return any(c["phase"] == phase for c in claims(config, number))
+
+
+def server_url():
+    return os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+
+
+def visible_text(body):
+    """PR body as a reader sees it: no run report, HTML comments or code (same filter as ticketOf in board.yml)."""
+    text = re.sub(r"<!-- wa-report -->[\s\S]*?<!-- /wa-report -->", "", body or "")
+    text = re.sub(r"<!--[\s\S]*?-->", "", text)
+    text = re.sub(r"```[\s\S]*?```", "", text)
+    return re.sub(r"`[^`\n]*`", "", text)
+
+
+def report_on_pr(config, pr, kind, text):
+    """Contract break reported once on the PR, keyed by a hidden marker (same comment as report() in board.yml)."""
+    marker = f"<!-- board-check:{kind} -->"
+    comments = rest("GET", f"repos/{config['repo']}/issues/{pr}/comments?per_page=100") or []
+    if any(marker in (c.get("body") or "") for c in comments):
+        return
+    contract = f"{server_url()}/{config['repo']}/blob/HEAD/BOARD.md"
+    body = f"{marker}\n⚠️ **board check** — {text}. See [BOARD.md]({contract}); this check only reports, it never moves cards."
+    rest("POST", f"repos/{config['repo']}/issues/{pr}/comments", {"body": body})
+
+
+def pr_ticket(board, pr):
+    """(ticket, why) of a PR: its <prefix><id>-<slug> branch first, else the one card link in its body (a PR from a
+    cloud agent naming its own branch). A sprint PR lands a sprint, not a ticket. Several card links → reported
+    on the PR, no ticket (a PR links exactly one)."""
+    config = board.config
+    head = pr["head"]["ref"]
+    if config["sprint_prefix"] and head.startswith(config["sprint_prefix"]):
+        return None, f"sprint PR ({head})"
+    number = branch_ticket(board, head)
+    if number is not None:
+        try:
+            board.item(number)  # another project's key, or no such card: the body may still name the ticket
+            return number, "branch"
+        except Failure:
+            pass
+    found = board.linked_tickets(visible_text(pr.get("body")))
+    if len(found) > 1:
+        report_on_pr(config, pr["number"], "several-tickets", f"#{pr['number']} links {', '.join(found)}: a PR links exactly one ticket")
+        return None, f"body links {', '.join(found)}: a PR links exactly one ticket"
+    if found:
+        return found[0], "card link in body"
+    return None, f"{head} is not a ticket branch and the body links no card"
+
+
+def feedback_rounds(text):
+    """`### ` blocks of `## Feedback`: [(first line, last line, text)], 1-based (feedbackRounds() in board.yml)."""
+    lines = text.split("\n")
+    start = next((i for i, line in enumerate(lines) if re.match(r"^## Feedback\s*$", line)), None)
+    if start is None:
+        return []
+    rounds = []
+    for i in range(start + 1, len(lines)):
+        if lines[i].startswith("## "):
+            break
+        if lines[i].startswith("### "):
+            rounds.append([i + 1, i + 1])
+        elif rounds and lines[i].strip():
+            rounds[-1][1] = i + 1
+    return [(a, b, "\n".join(lines[a - 1:b])) for a, b in rounds]
+
+
+def new_feedback(config, number, before, after):
+    """[(path, first, last, permalink)] of the `## Feedback` rounds new since <before>; a force push that dropped
+    <before> → the last round only (newFeedback() in board.yml)."""
+    task = task_file_at(config, number, after)
+    rounds = feedback_rounds(task[1]) if task else []
+    if not rounds:
+        return []
+    code, _ = rest("GET", f"repos/{config['repo']}/commits/{before}", check=False)
+    if code != 0:
+        rounds = rounds[-1:]
+    else:
+        previous = task_file_at(config, number, before)
+        old = {r[2] for r in feedback_rounds(previous[1])} if previous else set()
+        rounds = [r for r in rounds if r[2] not in old]
+    path = task[0]
+    return [(path, a, b, f"{server_url()}/{config['repo']}/blob/{after}/{quote(path)}?plain=1#L{a}-L{b}") for a, b, _ in rounds]
+
+
+def run_report(body):
+    """Run report of the PR body (between <!-- wa-report --> markers), as plain Markdown for a card comment."""
+    match = re.search(r"<!-- wa-report -->([\s\S]*?)<!-- /wa-report -->", body or "")
+    if not match:
+        return ""
+    text = re.sub(r"<summary>(.*?)</summary>", r"**\1**\n", match.group(1))
+    return re.sub(r"</?details>", "", text).strip()
+
+
+def hook_pull_request(board, payload):
+    """PR events → review / done / grilled, the rules of board.yml (GitHub board) on another board:
+    opened / reopened → review (drops coding + grilling claims) · edited → review when the card still sits in
+    todo / grilled (link found late) · ready_for_review → ✅ comment, converted_to_draft → nothing (already review) ·
+    synchronize with a coding claim → review (end of an agent round, new `## Feedback` rounds linked), without one →
+    reported on the PR · merged → done, run report posted, sprint root closed when the sprint has no branch and its
+    last ticket landed · sprint branch merged → sprint root closed · closed unmerged → grilled, unless a coding claim
+    or another open PR keeps the ticket going. Every event adds the PR as a link on the card. A column outside the
+    six states is a human's: untouched, unless a coding claim proves a round is running. A replay moves nothing
+    twice. No hold against a built-in tool workflow: Plane CE has no GitHub integration (single writer)."""
+    config = board.config
+    pr = payload["pull_request"]
+    action = payload.get("action")
+    if (pr["head"].get("repo") or {}).get("full_name") != pr["base"]["repo"]["full_name"]:
+        return {"action": "none", "reason": "pull request from a fork"}
+    number, why = pr_ticket(board, pr)
+    link = f"[#{pr['number']}]({pr['html_url']})"
+    if number is None:
+        prefix, head = config["sprint_prefix"], pr["head"]["ref"]
+        if not (prefix and head.startswith(prefix) and action == "closed" and pr.get("merged")):
+            return {"action": "none", "reason": why}
+        name = head[len(prefix):]
+        root = board.open_sprint(name)
+        if not root:
+            return {"action": "none", "reason": f"sprint branch {head} merged, no open sprint {name!r}"}
+        board.close_sprint(root, f"{link} merged `{head}` into `{pr['base']['ref']}`")
+        return {"ticket": root, "action": "sprint landed", "reason": f"#{pr['number']} merged {head}"}
+    try:
+        ticket = board.get(number)
+    except Failure as failure:  # sprint root, wa-ignore, unknown card: nothing to move
+        return {"ticket": number, "action": "none", "reason": str(failure)}
+    linked = board.link_pr(number, pr["number"], pr["title"], pr["html_url"])
+    found = f"#{pr['number']} → {number} by {why}" + (", PR linked on the card" if linked else "")
+    none = lambda reason: {"ticket": number, "action": "none", "reason": f"{reason} ({found})"}
+    state = ticket["state"]
+    reclaimed = False
+    if ticket["column"] and not state:
+        reclaimed = action in ("opened", "reopened", "edited", "synchronize") and claim_held(config, number, "coding")
+        if not reclaimed:
+            return none(f"card in column {ticket['column']!r}, not a whackagent state: untouched")
+        state = "coding"
+    draft = "draft " if pr.get("draft") else ""
+    moved = lambda to: {"ticket": number, "action": f"{state} → {to}", "reason": f"{action} ({found})"}
+
+    if action in ("opened", "reopened"):
+        if state == "done":
+            return none("card in done")
+        drop_claim(config, number, "coding")
+        drop_claim(config, number, "grilling")
+        if state == "review":  # replay, or a second PR: the card already says it
+            return none("card already in review, claims dropped")
+        board.set_state(ticket, "review")
+        board.comment(number, f"🔀 **review** — {draft}{link} → `{pr['base']['ref']}`")
+        return moved("review")
+
+    if action == "edited":
+        # link added after `opened` (body refreshed with the card link): the board learns of the PR late.
+        # Never from `coding`: an agent may be mid-round on a PR already known.
+        if pr["state"] != "open" or not (reclaimed or state in ("todo", "grilled")):
+            return none(f"edited, card in {state}")
+        board.set_state(ticket, "review")
+        drop_claim(config, number, "coding")
+        board.comment(number, f"🔀 **review** — {draft}{link} → `{pr['base']['ref']}`")
+        return moved("review")
+
+    if action in ("ready_for_review", "converted_to_draft"):
+        # draft ↔ ready changes who looks next (tester or merger), not the state. Never touches the claim: an
+        # agent mid-round may flip it (`gh pr ready --undo` before a fix), its push ends the round.
+        if action == "ready_for_review" and state != "done":
+            board.comment(number, f"✅ **ready** — {link} ready to merge")
+            return {"ticket": number, "action": "commented ready", "reason": found}
+        return none(action)
+
+    if action == "synchronize":
+        after = payload["after"]
+        mark = f"round {after[:7]} pushed"
+        if not claim_held(config, number, "coding"):
+            # no round open: a push nobody claimed. GitHub's own merges (Update branch button) are fine.
+            if state == "done":
+                return none("push to a landed ticket")
+            head = rest("GET", f"repos/{config['repo']}/commits/{after}")
+            if (head.get("committer") or {}).get("login") == "web-flow":
+                return none("GitHub merge commit (Update branch)")
+            comments = plane_all(config["plane_url"], f"{board.base()}/work-items/{ticket['item_id']}/comments/")
+            if any(mark in text_of(c.get("comment_html")) for c in comments):
+                return none(f"{mark}: already handled")  # replay of a round this hook ended
+            report_on_pr(config, pr["number"], f"push-no-claim-{after[:7]}",
+                         f"push {after[:7]} to #{pr['number']} while {shown(number)} holds no coding claim: claim before changing a ticket's code, every round")
+            return none(f"push {after[:7]} without a coding claim: reported on the PR")
+        board.set_state(ticket, "review")
+        drop_claim(config, number, "coding")
+        rounds = new_feedback(config, number, payload["before"], after)
+        notes = "".join(f"\n\n[{p.rsplit('/', 1)[-1]} lines {a}–{b}]({url})" for p, a, b, url in rounds)
+        board.comment(number, f"🔀 **review** — {mark} to {link}{notes}")
+        if rounds:
+            permalinks = "".join(f"\n\n{url}" for *_, url in rounds)  # bare line permalink: GitHub embeds the snippet
+            body = f"📝 **feedback** — round pushed for [{number}]({board.ticket_url(number)}){permalinks}"
+            rest("POST", f"repos/{config['repo']}/issues/{pr['number']}/comments", {"body": body})
+        return moved("review")
+
+    if action == "closed" and pr.get("merged"):
+        # mid-stack PR keeps its parent branch as base; a stack merge lands it on the stack base
+        landed = ((pr.get("stack") or {}).get("base") or {}).get("ref") or pr["base"]["ref"]
+        drop_claim(config, number, "grilling")
+        drop_claim(config, number, "coding")
+        result = none("card already in done")  # replay: the sprint check below still runs
+        if state != "done":
+            board.set_state(ticket, "done")
+            report = run_report(pr.get("body"))
+            board.comment(number, f"🎉 **done** — {link} merged into `{landed}`" + (f"\n\n{report}" if report else ""))
+            result = moved("done")
+        # Sprint without branch: tickets land straight on the target, so the last one lands the sprint.
+        # With a branch, they land in it and the sprint lands with the sprint branch PR (above).
+        parent = board.sprint_parent(number)
+        if parent and landed != config["sprint_prefix"] + parent[1] and board.sprint_complete(parent[0]):
+            board.close_sprint(parent[0], f"last ticket {number} landed")
+            result["reason"] += f"; sprint {parent[1]} landed ({parent[0]} → done)"
+        return result
+
+    if action == "closed":
+        if state in ("done", "grilled"):
+            return none(f"closed unmerged, card in {state}")
+        # another round is live (a coding claim, or another open PR for the ticket): this PR was superseded
+        if claim_held(config, number, "coding"):
+            return none("closed unmerged while a coding claim is held")
+        for other in board.linked_prs(number):
+            if other != pr["number"] and rest("GET", f"repos/{config['repo']}/pulls/{other}")["state"] == "open":
+                return none(f"closed unmerged, #{other} still open for the ticket")
+        board.set_state(ticket, "grilled")
+        drop_claim(config, number, "coding")
+        board.comment(number, f"↩️ **grilled** — {link} closed unmerged, spec kept")
+        return moved("grilled")
+
+    return none(f"no rule for {action}")
+
+
+HOOKS = {"push": hook_push, "pull_request": hook_pull_request}
 
 
 def op_hook(args):
@@ -2574,7 +2873,7 @@ def parser():
     s.add_argument("--on", required=True, type=lambda v: [ticket_id(x) for x in v.split(",") if x], help="blocker ids, comma-separated")
     s.set_defaults(func=op_depend)
 
-    s = sub.add_parser("link-pr", help="repair: closing link PR → ticket (Development); hooks link on their own")
+    s = sub.add_parser("link-pr", help="repair: link PR → ticket (GitHub: Development link, Plane: card link); hooks link on their own")
     s.add_argument("number", type=ticket_id)
     s.add_argument("pr", type=int)
     s.set_defaults(func=op_link_pr)
