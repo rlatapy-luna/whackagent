@@ -228,6 +228,23 @@ Not copied: size (a Plane board has none), assignees (re-assign in Plane; the re
 - **A card moved with no hook run behind it**: a second writer is moving cards, most likely Plane's own GitHub integration. Re-run `wa-backlog check-integration`.
 - **A card sits in a column outside the seven states** (a team column such as `Blocked`): agents never claim it and the hooks leave it alone, except that a held coding claim makes the next PR hook take it back. While it sits there, it is a human's card.
 
+## To do
+
+### Deploy Plane and the runner on a shared Mac (Colima)
+
+The target is to run Plane CE and the hooks runner on the team's Mac Studio, next to TeamCity. Colima is the container runtime: free and open source, headless, and it runs the plain Docker engine, so Plane's Compose files work unchanged. Docker Desktop needs a logged-in GUI session and is free only below 250 employees and $10 M revenue. OrbStack is paid for commercial use. **None of this has been tested yet**: the maintainer rig runs on Docker Desktop.
+
+- [ ] **Runtime.** `brew install colima docker docker-compose`, then point Docker at the Compose plugin: `"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]` in `~/.docker/config.json`.
+- [ ] **Cap the VM** so TeamCity builds keep their share: `colima start --vm-type vz --cpu 4 --memory 6 --disk 60`. Four CPUs also caps the Celery worker, which starts one process per CPU it sees. Measure idle RAM and compare it with the rig's 2.3 GiB on 18 CPUs.
+- [ ] **Start at boot.** `brew services start colima` installs a LaunchAgent, which only runs once the user is logged in. Either set up auto-login for a dedicated service user, or install a LaunchDaemon. Check which one survives a power cut.
+- [ ] **No sleep:** `sudo pmset -a sleep 0 disksleep 0`, and turn on *Start up automatically after a power failure*.
+- [ ] **Plane.** Use the steps in *1. Install Plane*: pin v1.4.2, replace `minio/minio:latest` with `pgsty/silo`, set `API_KEY_RATE_LIMIT=1000000/second`, and give every service `restart: unless-stopped`. Pick a port that doesn't clash with TeamCity (8111 by default); the rig uses 8390.
+- [ ] **URL.** Publish Plane on a LAN or VPN hostname that both the runner and developers' laptops resolve, and set `WA_PLANE_URL` to it. Never use `localhost`: agents on laptops read the same variable.
+- [ ] **Runner.** Register one runner at the **organization** level with label `whackagent-plane`, in a runner group limited to the Plane repositories. Make sure `python3` and `gh` are on its PATH, and set `WA_RUNNER_LABEL=whackagent-plane` in each project. On macOS, `./svc.sh install` creates a LaunchAgent, so the same login requirement as Colima applies.
+- [ ] **Backups.** Run a nightly `pg_dump` of the `plane-db` volume to storage outside the Mac, and also back up the object-storage volume (uploads).
+- [ ] **Failure drill.** Stop Colima during a push and check two things: the hook run waits in the queue, and the card moves once Colima is back. Then reboot the Mac and check that Plane, the runner and TeamCity all come back on their own.
+- [ ] **Docs.** Once this works, move these steps into *1. Install Plane* and *3. The runner*, and record the measured footprint in `providers/plane/README.md`.
+
 ## Not built yet
 
 - Moving a card to Grilled from a spec in the card description (it would need a webhook relay from Plane).
