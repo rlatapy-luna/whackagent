@@ -61,15 +61,24 @@ scripts/plane-rig/rig runner status
 
 ## Hooks on the playground
 
-The whackagent remote is not pushed while a hook change is under test, so the playground cannot call `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@<ref>` with new code. Instead, its `main` holds:
+The playground's `main` holds:
 
-- `.github/workflows/board-plane.yml`, a copy of the reusable workflow;
-- `.github/workflows/whackagent-board-plane.yml`, the caller template with `uses: ./.github/workflows/board-plane.yml`;
+- `.github/workflows/whackagent-board-plane.yml`, the caller template as projects get it, calling `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`;
+- `.github/workflows/board-plane.yml`, a copy of the reusable workflow, used only while testing a change to it;
 - `.github/board/wa-backlog`, the script under test (the workflow runs it from the default branch);
 - `.whackagent/config.md` with `backlog.provider: plane`.
 
-The repository variable `WA_RUNNER_LABEL=whackagent-plane` sends the job to the rig runner. Copy the three files again after each change. A ticket branch must fork from a `main` that already holds the caller: GitHub runs push workflows from the pushed commit's tree.
+The repository variable `WA_RUNNER_LABEL=whackagent-plane` sends the job to the rig runner.
+
+- **A hook rule change** lives in `wa-backlog`: copy the script to `.github/board/wa-backlog` on the playground's `main`. The released workflow runs it, so the caller can stay on `hooks-v2`.
+- **A change to `board-plane.yml` itself** is not on `hooks-v2` until a release moves the tag. Copy the workflow to the playground and point the caller at it (`uses: ./.github/workflows/board-plane.yml`) while testing, then point it back at `@hooks-v2`.
+
+A ticket branch must fork from a `main` that already holds the caller: GitHub runs push workflows from the pushed commit's tree.
 
 - **Replay, no runner.** From a playground clone holding `.whackagent/config.md`, with `eval "$(scripts/plane-rig/rig env)"`: make a throwaway card, claim it, push a task file on `wa/<id>-<slug>`, set `ref` and `after` in a copy of `payloads/push-task-file.json`, then run `wa-backlog hook --event push --payload <copy>`. `push-task-file-empty-criteria.json` and `push-other-branch.json` are the no-op cases. Pull request payloads `pr-opened.json`, `pr-synchronize.json`, `pr-ready.json`, `pr-merged.json`, `pr-closed-unmerged.json`, `pr-opened-body-link.json` (PR on a non-ticket branch, card link in the body) and `pr-merged-sprint.json` (sprint branch PR) were recorded from real playground PRs: point `number`, `head.ref`, `body` and, for `synchronize`, `before` / `after` at a PR of your own, then `wa-backlog hook --event pull_request --payload <copy>`. `schedule.json` runs the board check as is (`wa-backlog hook --event schedule --payload scripts/plane-rig/payloads/schedule.json`): seed a problem first, for example a card set to Coding through the API with no claim.
 - **End to end.** `rig runner start`, push a spec on a ticket branch, watch `gh run list --workflow whackagent-board-plane.yml -R rlatapy-luna/whackagent-playground-plane`, check the card with `wa-backlog get`, then `rig runner stop`. With the runner stopped, a push leaves its run `queued`; it runs once the runner starts again.
 - Cancel the throwaway cards (`wa-backlog cancel <id>`) and delete their branches afterwards.
+
+## Migration playground
+
+`wa-backlog migrate` (GitHub board to Plane) is tested on `rlatapy-luna/whackagent-playground-migrate` (private, a GitHub board on user Project 9), migrating into the rig's Plane project `MIG`. The same repository identity check applies before any write: `gh api repos/rlatapy-luna/whackagent-playground-migrate --jq .full_name`. The seeding and the checks of the last run are in `providers/plane/README.md` → *Checked live (issue 0013)*.

@@ -23,7 +23,7 @@ def md_files(*globs):
 
 PROMPTS = md_files("skills/**/*.md", "agents/*.md", "reference/*.md")
 DOCS = PROMPTS + md_files("templates/*.md", "conventions/**/*.md", "providers/**/*.md",
-                          "CLAUDE.md", "README.md", "WORKFLOW.md", "GITHUB.md")
+                          "CLAUDE.md", "README.md", "WORKFLOW.md", "GITHUB.md", "PLANE.md")
 
 
 def lines_outside_code(path):

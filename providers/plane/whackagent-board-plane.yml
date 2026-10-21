@@ -1,7 +1,8 @@
 # whackagent Plane board hooks — template version: 1 · board-contract: 2.4
 # Installed by /wa-setup from the whackagent plugin (providers/plane/whackagent-board-plane.yml).
-# Caller only: the logic lives in rlatapy-luna/whackagent and updates itself through the `hooks-v2` tag,
-# so this file changes only when its triggers, permissions or secrets do (/wa-setup backlog offers it).
+# Caller only: the workflow steps live in rlatapy-luna/whackagent and update through the `hooks-v2` tag; the hook
+# logic is the vendored .github/board/wa-backlog, refreshed by /wa-setup. This file changes only when its
+# triggers, permissions or secrets do (/wa-setup backlog offers it).
 # Runs on a self-hosted runner next to the Plane server: label = repository variable WA_RUNNER_LABEL
 # (default `self-hosted`); the runner needs python3 + gh and must reach WA_PLANE_URL.
 # Settings are repository variables written by `wa-backlog provision`; WA_PLANE_API_KEY secret = Plane API key.

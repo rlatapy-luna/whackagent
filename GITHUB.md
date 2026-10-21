@@ -6,6 +6,8 @@ With the default `local` provider, the backlog is a Markdown file and one agent 
 
 For the script-level details (every verb, every field mapping, setup internals), see [`providers/github/README.md`](providers/github/README.md).
 
+The board can also live on your own Plane server while code stays on GitHub (experimental): [PLANE.md](PLANE.md) walks through that provider.
+
 ## The one rule
 
 **Agents take tickets. The repo moves them.**

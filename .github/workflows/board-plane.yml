@@ -2,7 +2,8 @@
 # Projects never copy this file: their caller (providers/plane/whackagent-board-plane.yml, installed by /wa-setup)
 # holds the triggers, permissions and concurrency, and runs this through
 # `uses: rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`. Each release moves `hooks-v2`, so
-# every project runs the new logic on its next event. A change callers must follow (new trigger, permission,
+# every project runs the new workflow steps on its next event; the hook logic itself is the project's vendored
+# script, which changes only when /wa-setup refreshes it. A change callers must follow (new trigger, permission,
 # secret) needs a new caller template version (and a new tag once callers below it must keep working).
 # The logic is not here: `wa-backlog hook` (providers/wa-backlog, vendored in the project as .github/board/wa-backlog)
 # reads the event from the Actions environment and drives the same board adapter the agents use:

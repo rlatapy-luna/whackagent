@@ -173,6 +173,10 @@ On the rig and `whackagent-playground-plane`:
 - With `WA_STALE_AFTER_HOURS=0` (passed through `WA_VARS`), WA-37 claimed in Grilling → `stale-grilling` posted; back to 24 → resolved in place. WA-33 set to Todo → `lock-no-claim` resolved; back to Coding → a new comment, the resolved one kept.
 - End to end on the self-hosted runner (label `whackagent-plane`), after WA-35 moved to Grilling without a claim: `gh workflow run whackagent-board-plane.yml` → `lock-no-claim` posted on WA-35, its `spec-todo` resolved, the other 6 already posted (run 39598335234); run again → 7 problems, 0 new comments, 0 resolved (run 39598425993). No card changed.
 
+### Checked live (issue 0014)
+
+Cross-repository call, the way projects run it: the playground's caller switched from its local copy to `uses: rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2` (the tag on the 1.8.0 release commit; `rlatapy-luna/whackagent` is public, so no Actions access setting is involved). `gh workflow run whackagent-board-plane.yml` ran the board check on the self-hosted runner picked by the caller repository's `WA_RUNNER_LABEL=whackagent-plane` (job label `whackagent-plane`, runner `rlatapy-macbook-whackagent`, log `Uses: rlatapy-luna/whackagent/.github/workflows/board-plane.yml@refs/tags/hooks-v2`), success (run 39605230271): `vars` inside the called workflow are the caller's, so `runs-on` reads them across repositories too.
+
 ## Migration
 
 `wa-backlog migrate` moves a project from its GitHub board to Plane. `/wa-setup` reconfigure drives it (*Switch board to Plane*) after `check-integration` and `provision --plane-url …`, which writes the `WA_PLANE_*` variables beside the GitHub board's: the source is the board those GitHub variables name, the target the provisioned Plane project (`--plane-url`, `--workspace`, `--project` are only checked against the variables). It is a provider switch, not a setup migration: it writes board data, never project files. The config, the caller swap and `BOARD.md` for `plane` go in the setup PR afterwards, like every board file.
