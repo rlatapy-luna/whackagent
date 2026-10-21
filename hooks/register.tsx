@@ -214,7 +214,7 @@ async function refreshFocusFiles($: EngineInterface) {
 
 async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, isForced: boolean) {
   if (!isForced) return refreshFocusFiles($)
-  const script = `${$.plugin.root}/providers/github/wa-backlog`
+  const script = `${$.plugin.root}/providers/wa-backlog`
   const [rows, milestones, pulls, refs, sprints] = await Promise.all([
     runJson($, ['python3', script, 'list', '--all', '--owners'], at.root, 'wa-backlog list'),
     runJson($, ['python3', script, 'milestones'], at.root, 'wa-backlog milestones'),

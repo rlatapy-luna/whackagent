@@ -7,7 +7,7 @@ Config picks provider: `backlog.provider: local | github` in `.whackagent/config
 | Provider | Implementation | Multi-agent |
 |---|---|---|
 | `local` | prompt-implemented, files — `providers/local.md` | no — one agent, one checkout |
-| `github` | script `providers/github/wa-backlog` + board workflow — `providers/github/README.md` | yes — atomic claims, hooks drive state |
+| `github` | script `providers/wa-backlog` (`GitHubBoard`; `providers/github/wa-backlog` links to it) + board workflow — `providers/github/README.md` | yes — atomic claims, hooks drive state |
 
 ## States
 
