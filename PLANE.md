@@ -128,6 +128,27 @@ The hooks are live once the setup PR is merged and the runner is online. Ticket 
 
 `/wa-setup` run again later checks that the caller, `BOARD.md` and the vendored CLI match the plugin, re-runs the integration check, and offers one PR refreshing the board files when they fall behind.
 
+### Recommended: the Plane MCP server
+
+Plane publishes an MCP server, [`makeplane/plane-mcp-server`](https://developers.plane.so/dev-tools/mcp-server). Once it is installed, Claude Code and other MCP clients can read the board directly: search cards, read a card's description and comments, and list modules, cycles, labels and relations. whackagent doesn't need it, because skills read the board through `wa-backlog`. It helps with everything else, such as asking "what is left in 0.11.0?" or pulling a ticket's history into a conversation. Install it on each developer machine.
+
+Use its **stdio** mode, which talks to a self-hosted Community Edition server with your personal API key. The HTTP mode needs OAuth and a public HTTPS URL. The server runs through `uvx`, so install [uv](https://docs.astral.sh/uv/) first (`brew install uv` on macOS), then add it to Claude Code:
+
+```sh
+claude mcp add plane -s user \
+  -e PLANE_API_KEY="$PLANE_API_KEY" \
+  -e PLANE_WORKSPACE_SLUG=<workspace> \
+  -e PLANE_BASE_URL=https://plane.example.com \
+  -- uvx plane-mcp-server stdio
+```
+
+- `PLANE_BASE_URL` is the server's root URL, without `/api`. With v1.4.2 that is what connects.
+- `$PLANE_API_KEY` is expanded when you run the command. The key is then stored in `~/.claude.json`, so keep that file private.
+- If `/mcp` reports `ENOENT`, `uvx` is not on the PATH Claude Code sees.
+- Tools for paid Plane features (customers, initiatives, releases, Plane milestones, work item types) are listed but fail on Community Edition. On a whackagent board, a milestone is a module.
+
+**Read only.** The MCP can also update, move and delete cards, but changing a card's state, assignees, module, parent or relations through it goes around the claims and hooks. That is the second writer the board contract forbids, and the board check reports the result. Make every board write through the skills or the board CLI.
+
 ## 5. A ticket's life
 
 Same states as on GitHub; only the board writes go to Plane.
