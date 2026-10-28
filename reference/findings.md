@@ -8,7 +8,7 @@ Review finding = **claim, not order**. Verifier finding, PR reviewer comment (hu
   - Half true → fix true part, reject rest, say which.
   - Can't settle from code → rejected `can't confirm: <what would settle it>`. Never fix blind to end argument.
 - **Severity proves nothing.** 🔴 checked same as 🟡. Finding citing line diff never touched, rule module lacks, criterion task lacks → check twice: usual false positive.
-- **`tool:` findings exempt** — tool output is fact, tool re-run is the check. False positive of tool itself (suppression, config) = user's call, never silent.
+- **`tool:` findings exempt** — tool output is fact, tool re-run is the check. `tool:build` (open build warning) too: rebuild that recompiles its file is the check. False positive of tool itself (suppression, config) = user's call, never silent.
 - **Rejection goes back to its author, once.** Verifier → next round gets rejection + evidence, re-states it `withdrawn` (evidence holds) or `still open` + new evidence. New evidence → fixer checks again: confirmed → fix, rejected again → **disputed**. Neither side drops one silently.
 - **Disputed → user.** Out of autofix loop (counts as no progress, never re-sent). Shown with both sides, one line each, plus recommendation. User decides: fix (`/wa-feedback`), accept, or drop. Open disputed finding = verdict not clean.
 - **Record** in task `## Review`, round block: per finding `fixed` / `withdrawn — <evidence>` / `disputed — <both sides>`. Report: count of withdrawn + disputed next to fixed. Withdrawn 🔴 named in report, never only counted.

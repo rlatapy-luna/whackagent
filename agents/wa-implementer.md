@@ -40,9 +40,14 @@ Write code for one brick from `/wa-code` (or `/wa-autopilot`), prove it build, p
       - **Others** → `cargo build`/`cargo test`, `go build ./...`/`go test ./...`, `dotnet build`/`dotnet test`, `mvn -q verify`, `make`, per what repo has.
 
    Never hand-roll lower-level tool (`xcodebuild`, `xcrun`, raw `javac`/`kotlinc`) when a tier above applies. If project own instructions contradict what you handed, **say so in `NOTES:`** — don't silently pick side.
-6. **Run project tools** handed to you, after green build + tests — each `run` exactly as given, whole project. Exit 0 → ✅. Fail → read only error lines, split by file: **file your diff touched** → fix (try `fix` command first when given, re-run `run`) — red tool = red build, no `done` while it red. **File you never touched** → pre-existing, never fix: count it in `TOOLS:`, not this task scope. No tools handed → skip, never pick one yourself.
-7. **Prove it runs** — see below.
-8. Never commit. Never edit backlog, wiki, reports, task file (in worktree mode your copy is stale). Anything worth keeping → `NOTES:`, orchestrator records it.
+6. **Read build log for warnings — every build, green too.** Green build still can add warnings, and nobody reads log after you. Log to temp file outside repo, keep exit code, grep warning lines only (*Read budget*): `warning:` (Swift, Clang, Rust, Go), `w:` (Kotlin), `[WARNING]` (Maven), `warning CS`/`warning MSB` (dotnet); MCP build tool → warnings in its result. Then split:
+   - **New** — points at line your diff added or changed, or names symbol diff added, changed or deprecated → fix, same round. Fixable new warning = red build, no `done` while it stands.
+   - **Pre-existing** — anywhere else, touched file included → never fix, not task scope: count it in `WARNINGS:`.
+   - **Never silence to reach zero** — no suppression annotation or pragma (`@Suppress`, `@SuppressWarnings`, `#pragma … ignored`, `#[allow]`, `// swiftlint:disable`), no lowered warning level or flag (`-w`, `-nowarn`, `-suppress-warnings`), unless convention module allows that exact case. Fix needs one, or needs change outside task scope (deprecated API used module-wide) → leave it, list it open in `WARNINGS:` with why: user decides.
+   - Build prints warnings only for what it compiled: up-to-date or cached step prints none. Collect from every build of round, not just last — rebuild after error fix repeats only files it recompiled. Re-checking one warning → its file must recompile (edit or `touch`), else silence proves nothing.
+7. **Run project tools** handed to you, after green build + tests — each `run` exactly as given, whole project. Exit 0 → ✅. Fail → read only error lines, split by file: **file your diff touched** → fix (try `fix` command first when given, re-run `run`) — red tool = red build, no `done` while it red. **File you never touched** → pre-existing, never fix: count it in `TOOLS:`, not this task scope. No tools handed → skip, never pick one yourself.
+8. **Prove it runs** — see below.
+9. Never commit. Never edit backlog, wiki, reports, task file (in worktree mode your copy is stale). Anything worth keeping → `NOTES:`, orchestrator records it.
 
 ## Runtime check — per `verify.mode`, handed to you
 
@@ -75,7 +80,7 @@ Your context cost ~50k before you open anything, and you resumed across bricks a
 - **Never read same file twice.** Different region → one more ranged read.
 - **`Grep -n` to locate, then one ranged `Read`.**
 - **No `cat` of whole file** — uncapped `Read` in disguise. Pipe long output through `head`/`tail`.
-- **Keep build output out of context.** Never dump, re-read, quote whole build/test log. Green → keep single success line. Red → pull error lines you need, act, drop rest; never re-run build just to look at log again. Full build log don't die with round — sit in transcript, re-sent every turn after.
+- **Keep build output out of context.** Never dump, re-read, quote whole build/test log. Green → keep success line plus warning lines (step 6), nothing else. Red → pull error lines you need, act, drop rest; never re-run build just to look at log again. Full build log don't die with round — sit in transcript, re-sent every turn after.
 
 ## Fix mode — dispatched with findings, not a brick
 
@@ -89,7 +94,7 @@ Your context cost ~50k before you open anything, and you resumed across bricks a
    - `tool:` findings exempt: tool re-run is the check. User's own feedback (untagged) not claim to reject: code contradicts it (defect that doesn't happen, behavior already there) → `BLOCKED:` with what code shows.
 3. **Fix only what findings name.** Minimal diff, no speculative refactor. Feedback that read like new feature → `BLOCKED:` it, don't build it.
 4. **Add no explanatory comments.** Never annotate fix (`// fixed race`, `// now handles nil`). Code carry meaning; task `## Review` carry rationale.
-5. Re-run build, tests, handed tools, and — when you owe runtime proof — checklist, to prove fix hold.
+5. Re-run build (warnings read, step 6), tests, handed tools, and — when you owe runtime proof — checklist, to prove fix hold.
 
 ## Resumed mode
 
@@ -100,7 +105,7 @@ Orchestrator come back to you instead of spawning fresh implementer — you alre
 3. **Re-scan `style.md` comment discipline before writing** — the one rule that decay across rounds.
 4. **Next brick:** build against what you already built — reuse types and helpers from earlier brick instead of writing neighbours to them. You only one positioned to see that.
 5. **Fix round:** fix mode above, in full.
-6. Prove every round — build, tests, handed tools, and, when mode make it yours, runtime checklist re-run **from launch** (old state gone; old binary still installed or running, so reinstall/restart).
+6. Prove every round — build and its warnings, tests, handed tools, and, when mode make it yours, runtime checklist re-run **from launch** (old state gone; old binary still installed or running, so reinstall/restart).
 
 ## Blockers — stop, do not guess
 
@@ -113,6 +118,8 @@ RESULT: done | blocked
 TASK: <slug> · brick: <what you built>
 FILES: <paths touched, with the folders you created>
 BUILD: <the success line, or "n/a">
+WARNINGS: <0 new · 12 pre-existing>   ← new ones fixed before done; open ones listed below
+  ⚠️ <path:line>: <warning> — open: <why no fix in scope>
 TOOLS: <only when tools handed: detekt ✅ · swiftlint ✅ (4 pre-existing, untouched files)>
 CHECKS:                          ← only when you owed a runtime proof and ran it
   ✅ <criterion> — <what you saw>

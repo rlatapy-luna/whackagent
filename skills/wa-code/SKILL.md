@@ -92,7 +92,7 @@ Local provider → `comment` is no-op, nothing to do. Later round re-plans brick
 - **Bricks 2..n** — `SendMessage` that id next brick **alone**. No modules, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.
 
 Receipts:
-- `RESULT: done` → record files + build/test/tools/run proof + `NOTES:` worth keeping in `## Implementation`, continue.
+- `RESULT: done` → record files + build/test/tools/run proof + `NOTES:` worth keeping in `## Implementation`, continue. `WARNINGS:` line recorded too, open new warnings verbatim: `/wa-validate` turns them into findings.
 - `RESULT: blocked` → **stop and ask** the `BLOCKED:` question. Dispatch nothing further until resolved.
 
 **Runtime proof — `verify.mode` decides, and here you attended:**
@@ -131,7 +131,7 @@ Then:
 ## 4. Report
 
 - **Show** the **Report card** below — `review → /wa-validate` in status line when step 3 skipped, so user know what still owed.
-- **Save** to `{reports}/<slug>.md`: same card, plus full file/folder list, key decisions, review findings.
+- **Save** to `{reports}/<slug>.md`: same card, plus full file/folder list, key decisions, review findings, open new warnings.
 - Set `status: review` — means *waiting for user to test it*, nothing more.
 - **Test branch** (`branch.test_branch: true`) — rebuild for this task's base per **reference/test-branch.md**, after delivery (GitHub: after push). Git only, no build. Built → checked out last, clean tree only (*Checkout* there). Result goes in card's 📍 line.
 - **Say what to do next, in this order**: test it where 📍 line says. Notes → **`/wa-feedback`**. Matches spec → **`/wa-validate <slug>`**, which fires verifier; **`/wa-close <slug>`** ends it after your retest. GitHub: `/wa-validate` syncs wiki + readies PR; merge on GitHub or `/wa-close <id>`.
@@ -169,7 +169,7 @@ build ✅ · tests ✅ · run ✅ · review → /wa-validate
 - **Done** — what changes for the user, key file as short ref. **5 bullets max.** Full file list only in saved report.
 - **To test** — checklist: acceptance criteria agent did **not** prove, plus regression zones the diff touches. Agent proved everything → `nothing required` + one optional smoke test. Never empty silently.
 - **✅ verified by agent** — one line, criteria the runtime check proved (+ screenshot path or command). Omit when nothing proven.
-- **Status line** — build · tests · tools (only when `code`-stage tools configured) · run (`✅` / `yours`) · review (`clean` / `→ /wa-validate`). Never claim check nobody ran.
+- **Status line** — build · tests · tools (only when `code`-stage tools configured) · run (`✅` / `yours`) · review (`clean` / `→ /wa-validate`). Never claim check nobody ran. `build ✅` = compiled, no new warning; open new ones → `build ⚠️ <n> new warnings`.
 - **📍 Where line** — where user tests, after status line. Main checkout → `📍 you're on <branch>` (`git branch --show-current` at report time). Worktree mode → `📍 test in <worktree> (<branch>)`. Test branch built → its line instead, plus its `⚠️` lines (**reference/test-branch.md**, *Where line*).
 - Headings follow `discussion_language` (translated when not `en`).
 
