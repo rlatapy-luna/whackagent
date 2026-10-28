@@ -91,9 +91,22 @@ review:
                                # context before reading a line, and every lens judge same diff
                                # against same rulebook — splitting pay twice, leave duplicate
                                # findings to dedupe. It sweep style, elegance, structure and
-                               # correctness in one pass and report which ran.
+                               # correctness in one pass and report which ran. Exception you
+                               # opt into: `focus` below.
                                # Legacy `categories: {conventions: [...], correctness: []}` read as
                                # union of its lists.
+  focus: []                    # FOCUSED verifiers — topic the single verifier keep missing
+                               # (concurrency, recomposition…): long rulebook dilute attention.
+                               # Each entry = one more wa-verifier, own context, that topic only,
+                               # its own modules only, spawned beside main one ONLY when `when`
+                               # regex match diff's changed lines or file paths. Main one then
+                               # leave topic to it. ~50k tokens per spawn — list only topics
+                               # worth it. Entry:
+                               #   - name: concurrency      # topic = finding tag
+                               #     modules: [skill:lunabee-android:kotlin-concurrency-review]
+                               #     when: 'suspend |Flow\b|launch|Dispatchers|Mutex'
+                               # `modules` resolve like `modules` above (reference/paths.md).
+                               # [] → single verifier, as before.
 
 build:                         # how THIS project build — project win over plugin default
   command: ""                  # e.g. "make build", "./scripts/build.sh", "./gradlew assembleDebug".

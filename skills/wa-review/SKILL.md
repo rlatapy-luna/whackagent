@@ -28,7 +28,8 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 
 1. Resolve scope + changed/target files.
 2. **Dispatch one **wa-verifier**.** **Note `agentId`** — how later rounds resume it. Pass modules (`review.modules` per **reference/paths.md**), target files **plus diff hunks when scope is diff**, and toggles.
-3. **Check `LENSES:` line** — `style`, `elegance`, `structure`, `correctness`, all four ✓; missing one goes back for that lens alone. Then show findings severity-ordered, grouped by lens tag.
+   **Plus focused verifiers** (`review.focus`), same message, per **wa-code → 3. Verify**, *Focused verifiers*. `when` matched against diff hunks, or target files' content when scope has no diff (`<path>`, `--all`). No config → none.
+3. **Check `LENSES:` lines** — main: `style`, `elegance`, `structure`, `correctness`, all four ✓; focused: its topic ✓. Missing one goes back for that lens alone. Then show findings severity-ordered, grouped by lens tag (focus name = own group).
 4. **Fix?**
    - Default → **report only**. No mutate existing code unasked.
    - `--fix` → dispatch **wa-implementer** in **fix mode** with aggregated findings + modules (tell it: check each finding before fixing, fix only what holds, re-read style, add no comments), note `agentId`, then re-review. Rejections go back to verifier with their evidence, disputed ones leave loop and go to user (**reference/findings.md**). Loop until clean or no progress (cap 3 rounds). `BLOCKED:` → stop and ask.
@@ -37,7 +38,7 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 
 ## Lenses
 
-**style** — how written. **elegance** — idiomatic for project language, not patterns ported from another. **structure** — layers, boundaries, naming, file tree. **correctness** — real bugs, and whether code does what it claims. One agent sweep all four: isolated agent cost ~50k tokens context before it read a line, and every lens judge same diff against same rulebook. Cost of one agent: forgetting lens now silent — that what `LENSES:` line is for.
+**style** — how written. **elegance** — idiomatic for project language, not patterns ported from another. **structure** — layers, boundaries, naming, file tree. **correctness** — real bugs, and whether code does what it claims. One agent sweep all four: isolated agent cost ~50k tokens context before it read a line, and every lens judge same diff against same rulebook. Cost of one agent: forgetting lens now silent — that what `LENSES:` line is for. Topic it keep missing anyway → project lists it in `review.focus`: own verifier, own context, that topic only.
 
 ## Note
 

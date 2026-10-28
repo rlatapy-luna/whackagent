@@ -4,6 +4,14 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Focused reviewers: `review.focus` gives a topic the single verifier keeps missing (concurrency, Compose recomposition…) a verifier of its own. Each entry names the topic, its rulebook modules (files or `skill:` entries) and a `when` regex; when the regex matches the diff, one more verifier runs in parallel with the main one, loads only that rulebook, reports only that topic with the mechanism behind each finding, and the main verifier leaves the topic to it. Works in `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-autopilot` and `/wa-review`. `/wa-setup` offers entries when an installed plugin ships one-topic review checklists. No key, or `[]`, keeps the single verifier.
+
+### Changed
+
+- Kotlin `compose.md` convention: no `ImmutableList`, `@Immutable` or `@Stable` by reflex. Strong skipping (default since Kotlin 2.0.20) already skips an unstable parameter that is the same instance, so the fix is to keep the instance across emissions; per the Compose stability guide, `equals` on a large list runs on every recomposition and can cost more than recomposing.
+
 ## [1.9.0] - 2026-10-28
 
 ### Added

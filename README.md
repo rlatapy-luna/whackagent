@@ -249,7 +249,7 @@ The order matters, and it's the whole point of the flow: **code → you test →
 
 `/wa-validate <task>` is that green light. It says *"this matches my spec"* — nothing more. It does **not** close the task:
 
-1. It dispatches one `wa-verifier`, which sweeps four lenses over the diff — **style**, **elegance**, **structure** (layers, boundaries, file tree) and **correctness** (real bugs, plus whether the diff meets the acceptance criteria) — and reports which ones ran. It's handed the diff hunks, so it judges the change instead of hunting for it, then autofix loops until clean. One agent rather than one per lens is a measured call: an isolated agent costs ~50k tokens of context before it reads a line, and every lens judges the same diff against the same rulebook — paying that twice bought nothing but duplicate findings to dedupe. And every round resumes the *same* agent rather than spawning a new one — it already holds its modules and the code, so round 2 costs a diff instead of a full re-read.
+1. It dispatches one `wa-verifier`, which sweeps four lenses over the diff — **style**, **elegance**, **structure** (layers, boundaries, file tree) and **correctness** (real bugs, plus whether the diff meets the acceptance criteria) — and reports which ones ran. It's handed the diff hunks, so it judges the change instead of hunting for it, then autofix loops until clean. One agent rather than one per lens is a measured call: an isolated agent costs ~50k tokens of context before it reads a line, and every lens judges the same diff against the same rulebook — paying that twice bought nothing but duplicate findings to dedupe. And every round resumes the *same* agent rather than spawning a new one — it already holds its modules and the code, so round 2 costs a diff instead of a full re-read. A topic that single verifier keeps missing can get a verifier of its own ([Focused reviewers](#focused-reviewers)).
 
 2. The scope is the **whole diff** — the code plus every feedback round, in one pass. Sending three notes costs three fixes, not three reviews.
 3. Findings are severity-ordered, autofixed in a loop, and written to the task's `## Review`. A clean verdict (or findings you explicitly accept) moves the task to `validated`, **not** `done` — the autofix may have changed code you'd tested, so you get to retest. Findings left open keep it in `review`.
@@ -530,6 +530,30 @@ review:
 The verifier and the implementer load exactly `review.modules`, in order, and nothing else in the tree.
 
 With Xcode 27 or later, `/wa-setup` can also export Apple's own SwiftUI guidance from your Xcode (`xcrun agent skills export`) into `conventions/apple/`, indexed by the `swift/apple.md` module. The pages are a reference library, not rules: agents open only the page for the API they touch. Setup asks whether to commit the folder (about 170 KB, so teammates without Xcode 27 get it too) or gitignore it (better on a public repo, since it is Apple's text). Run `/wa-setup` again after an Xcode update to refresh it.
+
+### Focused reviewers
+
+One verifier sweeping every lens is the right default, but a long rulebook dilutes its attention: a topic like coroutines or Compose recomposition gets a skim among style, architecture and correctness. `review.focus` gives such a topic a verifier of its own:
+
+```yaml
+review:
+  modules: [skill:lunabee-android:android-development, android-development.md]
+  focus:
+    - name: concurrency
+      modules: [skill:lunabee-android:kotlin-concurrency-review]
+      when: 'suspend|Flow\b|Channel\b|\blaunch|\basync\b|Deferred|CoroutineScope|Dispatchers|withContext|flowOn|Mutex|Semaphore|stateIn|shareIn|collect|runBlocking|runInterruptible|runCatching|withTimeout|GlobalScope|launchWhen|LaunchedEffect|rememberCoroutineScope|produceState|snapshotFlow|runTest'
+    - name: recomposition
+      modules: [skill:lunabee-android:compose-recomposition-review]
+      when: '@Composable|UiState|Presenter|Reducer|Mapper|remember|derivedStateOf|computedStateOf|Lazy(Column|Row|Vertical|Horizontal)|CompositionLocal|@Stable|@Immutable|onSizeChanged|onGloballyPositioned'
+```
+
+- Each entry spawns one more `wa-verifier`, in parallel with the main one, only when `when` (a regex) matches the diff's changed lines or file paths. A diff that never touches the topic costs nothing.
+- It loads only that entry's `modules` and reports only that topic, with the mechanism behind each finding (what leaks, races or recomposes, and when). A clean verdict is a valid answer.
+- It reads the whole diff, not just the matching files, because the cause often sits elsewhere: the mapper behind a recomposition, the caller behind a race.
+- The main verifier is told which topics are delegated and leaves them alone, so findings don't come twice.
+- Each one costs about 50k tokens per review it runs in. List only the topics your reviews keep missing.
+
+`/wa-setup` offers entries when an installed plugin ships one-topic review checklists (the Lunabee plugin's `kotlin-concurrency-review` and `compose-recomposition-review`, for example), with the trigger regex the checklist carries. `review.focus: []`, or no key, keeps the single verifier.
 
 ## Glossary
 
