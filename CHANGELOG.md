@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-28
+
 ### Added
 
 - Experimental Plane board: move an existing GitHub-board project to Plane. `/wa-setup` reconfigure (switching `backlog.provider` from `github` to `plane`) provisions the Plane project, then runs `wa-backlog migrate`: a dry run first lists every card it will create, branch it will rename and issue it will close, and it refuses while any ticket is in grilling, coding or review, holds a claim or has an open PR. On your yes it recreates every todo and grilled ticket in Plane in the same order, with its body, comments (under a line naming the original author, with the original date), sprint and milestone (modules created from your GitHub milestones) and dependencies, renames each ticket branch to the new id with its task file in one commit (pushed only on a second yes), and closes each GitHub issue as not planned with a link to its card and a `wa-moved` label. Size and assignees are not copied, and the report lists which tickets had them. The GitHub Project stays as a read-only archive. A run that stops halfway picks up where it left off when run again, without duplicates. The setup PR then switches the config, swaps the hooks caller for the Plane one and renders `BOARD.md` for Plane.
