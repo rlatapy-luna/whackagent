@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-28
+
 ### Changed
 
 - The code and review loop now reads the build log for warnings, green builds included. In `/wa-code`, `/wa-feedback` (inline fixes too), the autofix rounds of `/wa-validate`, `/wa-review --fix` and `/wa-autopilot`, a new warning on a line the task wrote or changed counts as a red build and is fixed in the same round. Warnings are never silenced to get there (suppression annotation, pragma, lowered warning level) unless a convention module allows it. Warnings already in the code are counted in the receipt, not fixed. A new warning the implementer can't fix within the task stays open: the report shows `build ⚠️ <n> new warnings`, and `/wa-validate` turns it into a `tool:build` finding you accept or send back. The verifier flags a warning the diff silences.
