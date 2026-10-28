@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-28
+
 ### Added
 
 - Focused reviewers: `review.focus` gives a topic the single verifier keeps missing (concurrency, Compose recomposition…) a verifier of its own. Each entry names the topic, its rulebook modules (files or `skill:` entries) and a `when` regex; when the regex matches the diff, one more verifier runs in parallel with the main one, loads only that rulebook, reports only that topic with the mechanism behind each finding, and the main verifier leaves the topic to it. Works in `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-autopilot` and `/wa-review`. `/wa-setup` offers entries when an installed plugin ships one-topic review checklists. No key, or `[]`, keeps the single verifier.
