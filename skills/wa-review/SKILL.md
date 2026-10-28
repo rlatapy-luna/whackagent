@@ -7,7 +7,7 @@ description: Standalone code review — diff, path, branch or whole project, fou
 
 Standalone review — audit existing code, diff, or whole project. Same engine as `/wa-code` verify phase, usable anywhere.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` · `<branch>` arg under `backlog.provider` ≠ `local` → + `code-github.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` · `--fix` → + `findings.md` · `<branch>` arg under `backlog.provider` ≠ `local` → + `code-github.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -31,7 +31,7 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 3. **Check `LENSES:` line** — `style`, `elegance`, `structure`, `correctness`, all four ✓; missing one goes back for that lens alone. Then show findings severity-ordered, grouped by lens tag.
 4. **Fix?**
    - Default → **report only**. No mutate existing code unasked.
-   - `--fix` → dispatch **wa-implementer** in **fix mode** with aggregated findings + modules (tell it: fix only what findings name, re-read style, add no comments), note `agentId`, then re-review. Loop until clean or no progress (cap 3 rounds). `BLOCKED:` → stop and ask.
+   - `--fix` → dispatch **wa-implementer** in **fix mode** with aggregated findings + modules (tell it: check each finding before fixing, fix only what holds, re-read style, add no comments), note `agentId`, then re-review. Rejections go back to verifier with their evidence, disputed ones leave loop and go to user (**reference/findings.md**). Loop until clean or no progress (cap 3 rounds). `BLOCKED:` → stop and ask.
    - **Rounds 2+ resume same agent by id** instead of respawn — per **`/wa-code` → step 3** (delta only, anti-stale warning, respawn fresh past 3 rounds, fall back to fresh spawn if id lost).
 5. If invoked on whackagent task (path is task files), record findings in task `## Review`.
 

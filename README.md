@@ -253,7 +253,32 @@ The order matters, and it's the whole point of the flow: **code → you test →
 
 2. The scope is the **whole diff** — the code plus every feedback round, in one pass. Sending three notes costs three fixes, not three reviews.
 3. Findings are severity-ordered, autofixed in a loop, and written to the task's `## Review`. A clean verdict (or findings you explicitly accept) moves the task to `validated`, **not** `done` — the autofix may have changed code you'd tested, so you get to retest. Findings left open keep it in `review`.
+
+   The autofix never fixes on the verifier's word alone. A finding is a claim: the implementer checks each one against the code first, fixes the ones that hold, and rejects the others with evidence (the file and line, and what the code, the convention or the acceptance criterion actually says). The verifier then re-checks every rejection on its next round: it withdraws the finding, or holds it with new evidence. If the implementer still rejects it, the finding is **disputed**: it leaves the loop and comes to you with both sides, and you decide. Withdrawn and disputed findings are recorded in `## Review` with their evidence.
 4. `/wa-validate` never closes anything. On the local provider it never touches git: retest, then **`/wa-close`** — next section. Under the GitHub provider a clean verdict syncs the wiki and marks the ticket PR ready (it stays a draft when autofix changed code since your test, until you retest and run `/wa-validate` again).
+
+The whole loop, from code to a clean review:
+
+```mermaid
+flowchart TD
+    code(["/wa-code"]) --> impl["wa-implementer<br/>bricks · build · tests · runtime check"]
+    impl --> you{"you test it"}
+    you -->|notes| fb["/wa-feedback<br/>defect · adjustment · rule → fixed<br/>new scope → /wa-task · invalid → evidence"]
+    fb --> you
+    you -->|"matches the spec"| val(["/wa-validate"])
+    subgraph loop ["verify loop · up to 3 rounds"]
+        ver["wa-verifier<br/>style · elegance · structure · correctness"]
+        ver -->|findings| check{"wa-implementer checks<br/>each finding against the code"}
+        check -->|holds| fix["fixed"]
+        check -->|"doesn't hold"| rej["rejected<br/>file:line evidence"]
+        fix --> ver
+        rej --> ver
+        ver -->|"rejection wrong:<br/>still open + new evidence"| check
+    end
+    val --> ver
+    ver -->|"clean: fixed or withdrawn"| validated(["validated → you retest → /wa-close"])
+    check -->|"rejected twice: disputed"| decide["you decide<br/>both sides shown"]
+```
 
 `review.when: each_round` restores a review after `/wa-code` and after every `/wa-feedback` if you'd rather catch drift early — `/wa-validate` still runs the final pass. **No task closes unreviewed either way: `/wa-close` refuses a task the verifier never saw.**
 
@@ -265,7 +290,7 @@ Iterating before that green light is `/wa-feedback`:
 
 Feedback is where quality usually leaks: the change looks small, so it gets patched inline — outside the conventions, outside the review, and nothing gets re-run. This command refuses to work that way, without making a one-liner cost an agent either. Each note is **routed by size**: a **micro-fix** (≤2 files, ≤~20 lines, no new file/type, no layer or public-API change) is applied straight away — convention module read first, build + tests re-run, hunks tagged so the verifier looks at them harder. Anything bigger goes back through `wa-implementer`, which re-reads every convention module before touching a line. Both paths get the runtime check when `verify.mode` puts it on the agent, and both end up in front of the verifier at `/wa-validate` — inline hunks flagged as written without a convention pass, so they get the harder look.
 
-It also triages what you said: a **defect** gets fixed, an **adjustment** updates the acceptance criteria too, a **new feature** in disguise is sent back to `/wa-task` instead of being silently built — and a **rule** ("always do X") is offered up for your conventions file, so it stops being forgotten on the next task.
+It also triages what you said: a **defect** gets fixed, an **adjustment** updates the acceptance criteria too, a **new feature** in disguise is sent back to `/wa-task` instead of being silently built — and a **rule** ("always do X") is offered up for your conventions file, so it stops being forgotten on the next task. A PR reviewer's comment is checked against the code like a verifier finding: one that doesn't hold is **invalid**, nothing changes, and the reply shows the file and line that prove it. Your own notes are never dismissed that way: when the code contradicts one, you're told what the code shows and asked.
 
 **5. Close it — `/wa-close <task>`**
 
