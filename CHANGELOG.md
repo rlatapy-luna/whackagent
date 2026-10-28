@@ -11,6 +11,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Fixed
 
+- Experimental Plane board: card descriptions and comments now render their Markdown in Plane (headings, task lists, code blocks, tables, italics, links) instead of showing raw `##`, `**` or `[ ]`. This covers new tickets, sprint cards, the claim trail, board check comments, and the bodies and comments `wa-backlog migrate` copies from GitHub. Cards written before keep their raw text.
 - Experimental Plane board: `wa-backlog provision --plane-url …` reports the Plane project URL and leaves the GitHub board's cache alone in a project still configured for another board, and the script rebuilds its per-clone cache when `backlog.provider` changes instead of reading the previous board's settings.
 
 ## [1.8.0] - 2026-10-21

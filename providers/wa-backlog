@@ -1078,43 +1078,218 @@ def plane_probe(url, path, key=None):
         return status, None
 
 
-def html_of(markdown):
-    """Ticket body → Plane description (stored as HTML): one <p> per paragraph, line breaks kept."""
-    paragraphs = [p for p in re.split(r"\n\s*\n", (markdown or "").strip()) if p.strip()]
-    return "".join("<p>" + "<br>".join(html.escape(line) for line in p.splitlines()) + "</p>" for p in paragraphs) or "<p></p>"
+# Markdown → Plane HTML. Plane stores description_html / comment_html as sent, and its editor (TipTap) parses HTML
+# only: Markdown sent as text shows its raw `##`, `**`, `[ ]`. plane_html renders the GitHub-flavored subset tickets
+# and comments use into the HTML Plane's editor writes itself. Raw HTML in the text stays text; HTML comment lines
+# are dropped, as GitHub hides them.
+MD_FENCE = re.compile(r" {0,3}(`{3,}|~{3,})[ \t]*([^\s`]*)[^`]*$")
+MD_HEADING = re.compile(r" {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")
+MD_RULE = re.compile(r" {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$")
+MD_QUOTE = re.compile(r" {0,3}> ?(.*)")
+MD_ITEM = re.compile(r"( *)([-*+]|\d{1,9}[.)])(?:[ \t]+(.*)|$)")
+MD_TASK = re.compile(r"\[([ xX])\](?:[ \t]+(.*)|$)")
+MD_TABLE_RULE = re.compile(r"\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
+MD_CODE = re.compile(r"(?<![`\\])(`+)(?!`)(.+?)(?<!`)\1(?!`)", re.S)
+MD_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
+MD_AUTOLINK = re.compile(r"<((?:https?|mailto):[^\s<>]+)>", re.I)
+MD_LINK = re.compile(r"!?\[((?:\\.|[^\[\]\\])*)\]\(\s*<?((?:[^\s()<>]|\([^\s()<>]*\))*)>?(?:\s+\"[^\"]*\")?\s*\)")
+MD_URL = re.compile(r"\bhttps?://[^\s<>\x00]+", re.I)
+MD_TOKEN = re.compile(r"\x00(\d+)\x00")
+MD_MARKS = (
+    (re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.S), "strong"),
+    (re.compile(r"(?<!\w)__(?=\S)(.+?)(?<=\S)__(?!\w)", re.S), "strong"),
+    (re.compile(r"(?<!\*)\*(?=[^\s*])(.+?)(?<=[^\s*])\*(?!\*)", re.S), "em"),
+    (re.compile(r"(?<![\w_])_(?=[^\s_])(.+?)(?<=[^\s_])_(?![\w_])", re.S), "em"),
+    (re.compile(r"(?<!~)~~(?=\S)(.+?)(?<=\S)~~(?!~)", re.S), "s"),
+)
 
 
-def inline_html(text):
-    """One line of Markdown → HTML: escaped, `code` kept literal, **bold** and [text](https://…) links."""
-    parts = re.split(r"(`[^`]+`)", text)
-    out = []
-    for index, part in enumerate(parts):
-        if index % 2:
-            out.append(f"<code>{html.escape(part[1:-1])}</code>")
-            continue
-        part = html.escape(part)
-        part = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", part)
-        out.append(re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', part))
-    return "".join(out)
+def plane_html(markdown):
+    """Markdown → Plane HTML, for description_html and comment_html."""
+    lines = (markdown or "").replace("\r\n", "\n").expandtabs(4).split("\n")
+    return "".join(md_blocks(lines)) or "<p></p>"
 
 
-LIST_ITEM = {"ul": re.compile(r"\s*[-*]\s+"), "ol": re.compile(r"\s*\d+[.)]\s+")}
+def md_blocks(lines):
+    """Markdown lines → Plane HTML blocks."""
+    out, i = [], 0
+    while i < len(lines):
+        line = lines[i]
+        fence, heading = MD_FENCE.match(line), MD_HEADING.match(line)
+        if not line.strip():
+            i += 1
+        elif line.lstrip().startswith("<!--"):
+            while i < len(lines) and "-->" not in lines[i]:
+                i += 1
+            i += 1
+        elif fence:
+            indent = len(line) - len(line.lstrip(" "))
+            close = re.compile(rf" {{0,3}}{re.escape(fence[1][0])}{{{len(fence[1])},}}[ \t]*$")
+            body, i = [], i + 1
+            while i < len(lines) and not close.match(lines[i]):
+                body.append(re.sub(rf"^ {{0,{indent}}}", "", lines[i]))
+                i += 1
+            i += 1
+            language = f' class="language-{html.escape(fence[2])}"' if fence[2] else ""
+            out.append(f"<pre><code{language}>{html.escape(chr(10).join(body), quote=False)}</code></pre>")
+        elif heading:
+            level = len(heading[1])
+            out.append(f"<h{level}>{md_inline(heading[2] or '')}</h{level}>")
+            i += 1
+        elif MD_RULE.match(line):
+            out.append("<hr>")
+            i += 1
+        elif MD_QUOTE.match(line):
+            body = []
+            while i < len(lines) and MD_QUOTE.match(lines[i]):
+                body.append(MD_QUOTE.match(lines[i])[1])
+                i += 1
+            out.append(f"<blockquote>{''.join(md_blocks(body)) or '<p></p>'}</blockquote>")
+        elif MD_ITEM.match(line):
+            markup, i = md_list(lines, i)
+            out.append(markup)
+        elif "|" in line and i + 1 < len(lines) and MD_TABLE_RULE.match(lines[i + 1]) \
+                and len(md_cells(line)) == len(md_cells(lines[i + 1])):
+            rows, i = [line], i + 2
+            while i < len(lines) and "|" in lines[i] and lines[i].strip():
+                rows.append(lines[i])
+                i += 1
+            out.append(md_table(rows))
+        else:
+            paragraph, i = [line.strip()], i + 1
+            while i < len(lines) and lines[i].strip() and not md_interrupts(lines[i]):
+                paragraph.append(lines[i].strip())
+                i += 1
+            text = "\n".join(re.sub(r"\\$", "", part) for part in paragraph)  # trailing `\` = hard break
+            out.append(f"<p>{md_inline(text)}</p>")
+    return out
 
 
-def comment_html(markdown):
-    """Comment → Plane comment HTML: paragraphs (line breaks kept), `-` / `1.` lists, inline as inline_html.
-    Enough for the claim trail, release reasons and skill notes; anything else shows as plain text."""
-    blocks = []
-    for paragraph in re.split(r"\n\s*\n", (markdown or "").strip()):
-        kind = lambda line: next((k for k, item in LIST_ITEM.items() if item.match(line)), "p")
-        for block, lines in itertools.groupby(paragraph.splitlines(), key=kind):
-            lines = list(lines)
-            if block == "p":
-                blocks.append("<p>" + "<br>".join(inline_html(line) for line in lines) + "</p>")
-            else:
-                items = "".join(f"<li><p>{inline_html(LIST_ITEM[block].sub('', line, 1))}</p></li>" for line in lines)
-                blocks.append(f"<{block}>{items}</{block}>")
-    return "".join(b for b in blocks if b != "<p></p>") or "<p></p>"
+def md_interrupts(line):
+    """Whether a line starts a block that ends the paragraph above it (a list only when it has text and, numbered,
+    starts at 1)."""
+    item = MD_ITEM.match(line)
+    return bool(MD_FENCE.match(line) or MD_HEADING.match(line) or MD_RULE.match(line) or MD_QUOTE.match(line)
+                or line.lstrip().startswith("<!--")
+                or item and item[3] and (not item[2][0].isdigit() or item[2][:-1] == "1"))
+
+
+def md_list(lines, start):
+    """(HTML, next line) of the list at lines[start]. An item owns the lines indented to its text (nested lists, code)
+    and lazy paragraph lines right under it. Task items (`[ ]`, `[x]`) form Plane task lists."""
+    first = MD_ITEM.match(lines[start])
+    ordered, items, column, i = first[2][0].isdigit(), [], 0, start
+    while i < len(lines):
+        line = lines[i]
+        indent, item = len(line) - len(line.lstrip(" ")), MD_ITEM.match(line)
+        if item and (not items or indent < column):
+            if item[2][0].isdigit() != ordered:
+                break
+            column = item.start(3) if item[3] is not None else len(item[0]) + 1
+            items.append([item[3] or ""])
+        elif not line.strip():
+            items[-1].append("")
+        elif indent >= column:
+            items[-1].append(line[column:])
+        elif items[-1][-1].strip() and not md_interrupts(line):
+            items[-1].append(line.strip())
+        else:
+            break
+        i += 1
+    out, number = [], int(first[2][:-1]) if ordered else 1
+    for task, group in itertools.groupby(items, key=lambda entry: bool(MD_TASK.match(entry[0]))):
+        group = list(group)
+        body = "".join(md_item(entry) for entry in group)
+        if task:
+            out.append(f'<ul data-type="taskList">{body}</ul>')
+        elif ordered:
+            out.append(f'<ol start="{number}">{body}</ol>' if number != 1 else f"<ol>{body}</ol>")
+        else:
+            out.append(f"<ul>{body}</ul>")
+        number += len(group)
+    return "".join(out), i
+
+
+def md_item(lines):
+    """One list item → <li>, a Plane task item when it opens with `[ ]` / `[x]`. Plane wants a paragraph first."""
+    task = MD_TASK.match(lines[0])
+    if task:
+        lines = [task[2] or ""] + lines[1:]
+    body = "".join(md_blocks(lines))
+    if not body.startswith("<p>"):
+        body = "<p></p>" + body
+    if not task:
+        return f"<li>{body}</li>"
+    checked = task[1] != " "
+    box = '<input type="checkbox" checked>' if checked else '<input type="checkbox">'
+    return f'<li data-checked="{"true" if checked else "false"}" data-type="taskItem"><label>{box}<span></span></label><div>{body}</div></li>'
+
+
+def md_cells(row):
+    row = row.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    return [cell.strip() for cell in re.split(r"(?<!\\)\|", row)]
+
+
+def md_table(rows):
+    """GFM pipe table → Plane table: first row as header cells, each cell one paragraph."""
+    width = len(md_cells(rows[0]))
+
+    def row(line, tag):
+        cells = (md_cells(line) + [""] * width)[:width]
+        return "<tr>" + "".join(f"<{tag}><p>{md_inline(cell)}</p></{tag}>" for cell in cells) + "</tr>"
+
+    return f"<table><tbody>{row(rows[0], 'th')}{''.join(row(line, 'td') for line in rows[1:])}</tbody></table>"
+
+
+def md_marks(text):
+    """Escaped text with **strong**, *em* / _em_ and ~~strike~~ marks."""
+    text = html.escape(text, quote=False)
+    for pattern, tag in MD_MARKS:
+        text = pattern.sub(rf"<{tag}>\1</{tag}>", text)
+    return text
+
+
+def md_inline(text):
+    """One paragraph's inline Markdown → HTML, line breaks as <br>. Code, escapes and links are set aside as tokens
+    first, so emphasis never reaches into them. Code inside a link shows as plain text: Plane's inline code mark
+    excludes every other mark, the link included. Images show as links (Plane hosts its own images only)."""
+    tokens = []
+
+    def keep(markup):
+        tokens.append(markup)
+        return f"\x00{len(tokens) - 1}\x00"
+
+    def anchor(url, label):
+        return keep(f'<a href="{html.escape(url)}">{label}</a>')
+
+    def code(match):
+        body = match[2].replace("\n", " ")
+        if body.strip() and body[0] == body[-1] == " ":
+            body = body[1:-1]
+        return keep(f"<code>{html.escape(body, quote=False)}</code>")
+
+    def link(match):
+        url = match[2]
+        if re.match(r"[a-z][a-z0-9+.-]*:", url, re.I) and not re.match(r"(?:https?|mailto):", url, re.I):
+            return match[0]  # javascript: and other schemes stay text
+        return anchor(url, md_marks(match[1]) or html.escape(url, quote=False))
+
+    def bare(match):
+        url = match[0]
+        while url[-1] in ".,:;!?'\"*_~" or url[-1] == ")" and url.count(")") > url.count("("):
+            url = url[:-1]
+        return anchor(url, html.escape(url, quote=False)) + match[0][len(url):]
+
+    text = MD_CODE.sub(code, text.replace("\x00", ""))
+    text = MD_ESCAPE.sub(lambda match: keep(html.escape(match[1])), text)
+    text = MD_AUTOLINK.sub(lambda match: anchor(match[1], html.escape(match[1], quote=False)), text)
+    text = md_marks(MD_URL.sub(bare, MD_LINK.sub(link, text)))
+    while MD_TOKEN.search(text):
+        text = MD_TOKEN.sub(lambda match: tokens[int(match[1])], text)
+    text = re.sub(r"<a [^>]*>.*?</a>", lambda match: re.sub(r"</?code>", "", match[0]), text, flags=re.S)
+    return text.replace("\n", "<br>")
 
 
 def text_of(markup):
@@ -1477,7 +1652,7 @@ class PlaneBoard(Board):
             self.set_assignees(number, lambda ids: [i for i in ids if i != user])
 
     def comment(self, number, text):
-        self.api("POST", f"{self.base()}/work-items/{self.item(number)['id']}/comments/", {"comment_html": comment_html(text)})
+        self.api("POST", f"{self.base()}/work-items/{self.item(number)['id']}/comments/", {"comment_html": plane_html(text)})
 
     def cancel(self, ticket):
         """Card to the Canceled column (cancelled group: closed + not_planned), priority kept like any state change."""
@@ -1578,7 +1753,7 @@ class PlaneBoard(Board):
         module = self.latest_module() if milestone is None else self.module(milestone)
         # Explicit todo state: Plane puts the card at the bottom of that column (highest sort_order + 10000).
         item = self.remember(self.api("POST", f"{self.base()}/work-items/", {
-            "name": title, "description_html": html_of(body), "state": self.config["state_ids"]["todo"],
+            "name": title, "description_html": plane_html(body), "state": self.config["state_ids"]["todo"],
         }))
         key = self.key(item)
         if module:
@@ -1658,7 +1833,7 @@ class PlaneBoard(Board):
             return self.items[self.key(root)]
         body = "Sprint: whackagent groups its tickets here as children; the cycle of the same name shows them."
         return self.remember(self.api("POST", f"{self.base()}/work-items/", {
-            "name": name, "description_html": html_of(body), "state": self.config["state_ids"]["todo"],
+            "name": name, "description_html": plane_html(body), "state": self.config["state_ids"]["todo"],
             "labels": [self.sprint_label()],
         }))
 
@@ -2588,7 +2763,7 @@ class Migration:
         text = (issue.get("body") or "").strip()
         footer = f"↪ Moved from GitHub [{self.repo}#{entry['number']}]({issue['html_url']}), opened by @{issue['user']['login']} on {day(issue['created_at'])}."
         body = {
-            "name": entry["title"], "description_html": comment_html(f"{text}\n\n{footer}" if text else footer),
+            "name": entry["title"], "description_html": plane_html(f"{text}\n\n{footer}" if text else footer),
             "state": plane.config["state_ids"][entry["state"]], "sort_order": order,
             "external_source": MOVED_SOURCE, "external_id": external,
         }
@@ -2630,7 +2805,7 @@ class Migration:
                 continue
             header = f"**@{comment['user']['login']}** on GitHub, {day(comment['created_at'])} (originally posted there):"
             plane.api("POST", path, {
-                "comment_html": comment_html(f"{header}\n\n{comment.get('body') or ''}"),
+                "comment_html": plane_html(f"{header}\n\n{comment.get('body') or ''}"),
                 "created_at": comment["created_at"], "external_source": MOVED_SOURCE, "external_id": external,
             }, missing=(409,))
             self.step(f"{entry['key']} comment {comment['id']}")
@@ -3081,7 +3256,6 @@ def hook_push(board, payload):
     drop_claim(config, number, "grilling")
     # sha permalink: the branch is deleted on merge, the commit stays
     url = f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{config['repo']}/blob/{sha}/{quote(path)}"
-    # link text plain: comment_html keeps `code` literal, so a code span inside [text] would break the link
     board.comment(number, f"✅ **grilled** — spec [{path.rsplit('/', 1)[-1]}]({url}) on `{branch}`")
     return {"ticket": number, "action": f"{ticket['state']} → grilled", "reason": f"spec {path} at {sha[:7]}"}
 
@@ -3444,7 +3618,7 @@ def hook_check(board, payload):
             posted = None
             if kind not in mine:
                 marker = f"<!-- board-check:{kind} -->"
-                body = marker + comment_html(f"⚠️ **board check** — {text}. See [BOARD.md]({contract}); this check only reports, it never moves cards.")
+                body = marker + plane_html(f"⚠️ **board check** — {text}. See [BOARD.md]({contract}); this check only reports, it never moves cards.")
                 # 409 = a comment with this external id already exists (posted by a run racing this one)
                 posted = board.api("POST", path, {"comment_html": body, "external_source": CHECK_SOURCE,
                                                   "external_id": f"board-check:{key}:{kind}"}, missing=(409,))
