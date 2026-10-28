@@ -1,4 +1,4 @@
-<!-- board-contract: 2.4 -->
+<!-- board-contract: 2.5 -->
 <!-- Installed by setup, its angle-bracket placeholders filled for this repository and only its board tool's section kept. Update through the setup PR, never by hand: the hooks,
      the board CLI and the PR template carry the same contract version. -->
 
@@ -29,7 +29,7 @@ The board is a GitHub Project: <project-url>. Its tickets are this repository's 
 | Size | the Project `Size` field: `quickwin`, `medium`, `large` |
 | Spec | the issue body (`## Acceptance criteria`), or a task file `<tasks-path>/<id>-<slug>.md` on the ticket's branch |
 | Lock | a claim, git ref `refs/wa-claims/<id>/<phase>`, created by the board CLI |
-| Reservation | issue assignees: a ticket assigned to another account is not yours to take |
+| Reservation | issue assignees: a ticket assigned to another account is not yours to take. A ticket moving to `review` unassigned goes to the account that opened the PR or pushed the round, else to the PR's author, if that account can push |
 | Sprint | a parent issue labeled `wa-sprint`; its tickets are its sub-issues |
 | Milestone | the repository's GitHub milestones (release scope) |
 | Dependency | issue relationships ("blocked by") |
@@ -79,7 +79,7 @@ The board is a Plane project on a self-hosted Plane server: <plane-project-url>.
 | Size | none: this board has no size |
 | Spec | a task file `<tasks-path>/<id>-<slug>.md` on the ticket's branch, only |
 | Lock | a claim, git ref `refs/wa-claims/<id>/<phase>` on the GitHub repository, created by the board CLI |
-| Reservation | card assignees: a ticket assigned to another Plane user is not yours to take |
+| Reservation | card assignees: a ticket assigned to another Plane user is not yours to take. A card moving to `review` unassigned goes to the Plane user named in the round's claim; a PR opened without a claim leaves it unassigned |
 | Sprint | a parent card labeled `wa-sprint`, plus a cycle of the same name; its tickets are its child cards |
 | Milestone | a Plane module (release scope) |
 | Dependency | Plane relations ("blocked by") |
@@ -140,8 +140,8 @@ The board workflow reports, as a comment on the card or PR:
 | `grilling` | **locked**: one worker is writing its spec | `claim <id> grilling` |
 | `grilled` | spec written, ready to code | workflow: spec found (see *3a. Spec*) |
 | `coding` | **locked**: one worker is changing its code | `claim <id> coding` |
-| `review` | a PR is open, humans are on turn | workflow: PR opened, or a claimed round pushed to it |
-| `done` | the change landed | workflow: PR merged |
+| `review` | a PR is open, humans are on turn | workflow: PR opened, or a claimed round pushed to it; an unassigned ticket gets its developer assigned |
+| `done` | the change landed | workflow: PR merged; every assignee removed |
 
 Allowed claims: `grilling` from `todo` (first spec) or `grilled` (re-spec, when scope changed). `coding` from `grilled` (first round) or `review` (any later round). Anything else is refused.
 
@@ -181,7 +181,10 @@ Take the top ticket of the state you need (`todo` to spec, `grilled` to code) th
 
 `<board-cli> claim <id> <phase>` before you change anything: spec, branch, code, PR. Exit `3` → someone holds it: never retry, never steal; pick another ticket or tell your user who holds it. Exit `4` → it is not in a state you can claim: say which, stop.
 
-A winning claim assigns your account to the ticket. Leave that assignment alone.
+A winning claim assigns your account to the ticket. Leave that assignment alone. The board workflow handles assignees after that:
+
+- When a ticket moves to `review` with nobody assigned, the workflow assigns the developer whose round moved it there. The *Reservation* row of *This board → What lives where* says how it finds that developer.
+- When a ticket lands (`done`), the workflow removes every assignee.
 
 ### 3a. Spec (`grilling`)
 
@@ -281,4 +284,4 @@ Read those comments when you take a ticket, and fix what they name.
 
 ## Version
 
-This file carries `board-contract: 2.4` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when this file's version differs from its own: update them together with the setup PR, never one file by hand.
+This file carries `board-contract: 2.5` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when this file's version differs from its own: update them together with the setup PR, never one file by hand.

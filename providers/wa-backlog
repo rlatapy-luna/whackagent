@@ -26,6 +26,8 @@ base method, which exits 2 with a clear message. A ticket id of the other board'
               get(number)                 one ticket, read fresh; a ticket missing from the board is added
               blocked_by(number)          blockers, [{number, state}]
               me()                        the account a claim assigns, `reserved` compares against
+              account()                   that account as assign() takes it back, unique (GitHub: login, Plane:
+                                          user id), recorded in every claim so a hook can assign the round's dev
               assigned_to_me(ticket)      that account already among the ticket's assignees
   Writing     set_state(ticket, state)    move the card to a state's column
               move(number, before, after, bottom)    priority: top when all empty
@@ -78,7 +80,7 @@ CLAIM_NAMESPACE = "wa-claims"
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
 # Board contract this script implements: the project's BOARD.md, its PR template sections and its workflow
 # caller carry the same stamp. Installed and updated together by the setup PR.
-CONTRACT_VERSION = "2.4"
+CONTRACT_VERSION = "2.5"
 
 
 class Failure(Exception):
@@ -293,6 +295,9 @@ class Board:
 
     def me(self):
         raise self.unsupported("assignment")
+
+    def account(self):
+        return self.me()
 
     def assigned_to_me(self, ticket):
         return self.me() in ticket["assignees"]
@@ -1597,12 +1602,18 @@ class PlaneBoard(Board):
     def me(self):
         return self.user()["display_name"]
 
+    def account(self):
+        return self.user()["id"]
+
     def assigned_to_me(self, ticket):
         return self.user()["id"] in (self.item(ticket["number"]).get("assignees") or [])
 
     def member_id(self, login):
+        """User id of <login>: a display name (the key's user first: names are not unique), or already an id."""
         if login == self.me():
             return self.user()["id"]
+        if login in self.member_names():
+            return login
         return next((i for i, name in self.member_names().items() if name == login), None)
 
     def ticket_url(self, number):
@@ -1650,6 +1661,12 @@ class PlaneBoard(Board):
         user = self.member_id(login)
         if user:
             self.set_assignees(number, lambda ids: [i for i in ids if i != user])
+
+    def unassign_all(self, number):
+        """Every assignee removed (hooks: the ticket landed). Returns the display names removed."""
+        removed = []
+        self.set_assignees(number, lambda ids: removed.extend(ids) or [])
+        return self.logins(removed)
 
     def comment(self, number, text):
         self.api("POST", f"{self.base()}/work-items/{self.item(number)['id']}/comments/", {"comment_html": plane_html(text)})
@@ -2072,7 +2089,7 @@ def claims(config, number=None):
 
 
 def claim_fields(config, sha):
-    """Trailer lines of a claim commit (agent, claimed, assigned), plus its commit date."""
+    """Trailer lines of a claim commit (agent, claimed, account, assigned), plus its commit date."""
     commit = rest("GET", f"repos/{config['repo']}/git/commits/{sha}")
     fields = dict(
         line.split(": ", 1) for line in commit["message"].splitlines()[1:] if ": " in line
@@ -2246,7 +2263,8 @@ def op_claim(args):
             )
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     # The winner assigns its account, so other accounts' agents see the ticket reserved. Recorded
-    # in the claim so `release` gives back only an assignment this claim made.
+    # in the claim so `release` gives back only an assignment this claim made. `account:` names the
+    # claimer whatever happens, so the review hook can assign the round's dev to a ticket left unassigned.
     login = board.me()
     assigning = not board.assigned_to_me(ticket)
     trailer = f"assigned: {login}\n" if assigning else ""
@@ -2254,7 +2272,7 @@ def op_claim(args):
         "POST",
         f"repos/{config['repo']}/git/commits",
         {
-            "message": f"wa-claim {phase} {shown(args.number)}\n\nagent: {agent}\nclaimed: {now}\n{trailer}",
+            "message": f"wa-claim {phase} {shown(args.number)}\n\nagent: {agent}\nclaimed: {now}\naccount: {board.account()}\n{trailer}",
             "tree": claim_tree(config),
             "parents": [],
         },
@@ -3177,7 +3195,7 @@ def op_merge(args):
 # handler per event name (push, pull_request); an event without one is a no-op. Each returns {action, reason}
 # and logs one line. A board adapter the hooks drive also provides: linked_tickets(text) (card links in a PR
 # body), link_pr / linked_prs (PR links on the card), open_sprint(name), sprint_parent(number),
-# sprint_complete(root), close_sprint(root, why).
+# sprint_complete(root), close_sprint(root, why), unassign_all(number), logins(ids) (accounts as shown).
 
 
 def spec_section(text, heading):
@@ -3224,8 +3242,32 @@ def task_file_at(config, number, sha):
 
 
 def drop_claim(config, number, phase):
-    """Delete a claim ref; already gone is fine. The hook never touches assignees (same as board.yml)."""
+    """Delete a claim ref; already gone is fine. Assignees stay: only review and done change them."""
     rest("DELETE", f"repos/{config['repo']}/git/refs/{CLAIM_NAMESPACE}/{number}/{phase}", check=False)
+
+
+def claimer(config, number, phases):
+    """Board account of the first claim held among <phases>: the dev whose round moves the ticket. Read before the
+    hook drops the claim. A claim from before the `account:` trailer gives the account it assigned, if any."""
+    held = {c["phase"]: c["sha"] for c in claims(config, number)}
+    for phase in (p for p in phases if p in held):
+        fields = claim_fields(config, held[phase])
+        if fields.get("account") or fields.get("assigned"):
+            return fields.get("account") or fields.get("assigned")
+    return None
+
+
+def assign_developer(board, ticket, account):
+    """Ticket moved to review with nobody assigned (an assignment removed, a claim that could not assign): the round's
+    dev takes it. A GitHub login says nothing about a board account, so the dev is the claim's; no claim, nobody.
+    The `; …` the hook appends to its reason."""
+    if ticket["assignees"]:
+        return ""
+    if not account:
+        return "; unassigned, no claim names its dev"
+    if not board.assign(ticket["number"], account):
+        return f"; could not assign {account}"
+    return f"; assigned {board.logins([account])[0]}"
 
 
 def hook_push(board, payload):
@@ -3360,9 +3402,10 @@ def hook_pull_request(board, payload):
     opened / reopened → review (drops coding + grilling claims) · edited → review when the card still sits in
     todo / grilled (link found late) · ready_for_review → ✅ comment, converted_to_draft → nothing (already review) ·
     synchronize with a coding claim → review (end of an agent round, new `## Feedback` rounds linked), without one →
-    reported on the PR · merged → done, run report posted, sprint root closed when the sprint has no branch and its
-    last ticket landed · sprint branch merged → sprint root closed · closed unmerged → grilled, unless a coding claim
-    or another open PR keeps the ticket going. Every event adds the PR as a link on the card. A column outside the
+    reported on the PR · review on an unassigned card → the round's claimer assigned · merged → done, every assignee
+    removed, run report posted, sprint root closed when the sprint has no branch and its last ticket landed · sprint
+    branch merged → sprint root closed · closed unmerged → grilled, unless a coding claim or another open PR keeps the
+    ticket going. Every event adds the PR as a link on the card. A column outside the
     six states is a human's: untouched, unless a coding claim proves a round is running. A replay moves nothing
     twice. No hold against a built-in tool workflow: Plane CE has no GitHub integration (single writer)."""
     config = board.config
@@ -3397,28 +3440,32 @@ def hook_pull_request(board, payload):
             return none(f"card in column {ticket['column']!r}, not a whackagent state: untouched")
         state = "coding"
     draft = "draft " if pr.get("draft") else ""
-    moved = lambda to: {"ticket": number, "action": f"{state} → {to}", "reason": f"{action} ({found})"}
+    moved = lambda to, more="": {"ticket": number, "action": f"{state} → {to}", "reason": f"{action} ({found}){more}"}
 
     if action in ("opened", "reopened"):
         if state == "done":
             return none("card in done")
+        developer = claimer(config, number, ("coding", "grilling"))
         drop_claim(config, number, "coding")
         drop_claim(config, number, "grilling")
+        assigned = assign_developer(board, ticket, developer)
         if state == "review":  # replay, or a second PR: the card already says it
-            return none("card already in review, claims dropped")
+            return none(f"card already in review, claims dropped{assigned}")
         board.set_state(ticket, "review")
         board.comment(number, f"🔀 **review** — {draft}{link} → `{pr['base']['ref']}`")
-        return moved("review")
+        return moved("review", assigned)
 
     if action == "edited":
         # link added after `opened` (body refreshed with the card link): the board learns of the PR late.
         # Never from `coding`: an agent may be mid-round on a PR already known.
         if pr["state"] != "open" or not (reclaimed or state in ("todo", "grilled")):
             return none(f"edited, card in {state}")
+        developer = claimer(config, number, ("coding",))
         board.set_state(ticket, "review")
         drop_claim(config, number, "coding")
+        assigned = assign_developer(board, ticket, developer)
         board.comment(number, f"🔀 **review** — {draft}{link} → `{pr['base']['ref']}`")
-        return moved("review")
+        return moved("review", assigned)
 
     if action in ("ready_for_review", "converted_to_draft"):
         # draft ↔ ready changes who looks next (tester or merger), not the state. Never touches the claim: an
@@ -3444,8 +3491,10 @@ def hook_pull_request(board, payload):
             report_on_pr(config, pr["number"], f"push-no-claim-{after[:7]}",
                          f"push {after[:7]} to #{pr['number']} while {shown(number)} holds no coding claim: claim before changing a ticket's code, every round")
             return none(f"push {after[:7]} without a coding claim: reported on the PR")
+        developer = claimer(config, number, ("coding",))
         board.set_state(ticket, "review")
         drop_claim(config, number, "coding")
+        assigned = assign_developer(board, ticket, developer)
         rounds = new_feedback(config, number, payload["before"], after)
         notes = "".join(f"\n\n[{p.rsplit('/', 1)[-1]} lines {a}–{b}]({url})" for p, a, b, url in rounds)
         board.comment(number, f"🔀 **review** — {mark} to {link}{notes}")
@@ -3453,19 +3502,23 @@ def hook_pull_request(board, payload):
             permalinks = "".join(f"\n\n{url}" for *_, url in rounds)  # bare line permalink: GitHub embeds the snippet
             body = f"📝 **feedback** — round pushed for [{number}]({board.ticket_url(number)}){permalinks}"
             rest("POST", f"repos/{config['repo']}/issues/{pr['number']}/comments", {"body": body})
-        return moved("review")
+        return moved("review", assigned)
 
     if action == "closed" and pr.get("merged"):
         # mid-stack PR keeps its parent branch as base; a stack merge lands it on the stack base
         landed = ((pr.get("stack") or {}).get("base") or {}).get("ref") or pr["base"]["ref"]
         drop_claim(config, number, "grilling")
         drop_claim(config, number, "coding")
-        result = none("card already in done")  # replay: the sprint check below still runs
+        # landed: nobody holds the ticket any more (claims and review assigned it). Before the state, so a run that
+        # fails half-way and is rerun still clears them
+        removed = board.unassign_all(number)
+        unassigned = f"; unassigned {', '.join(removed)}" if removed else ""
+        result = none(f"card already in done{unassigned}")  # replay: the sprint check below still runs
         if state != "done":
             board.set_state(ticket, "done")
             report = run_report(pr.get("body"))
             board.comment(number, f"🎉 **done** — {link} merged into `{landed}`" + (f"\n\n{report}" if report else ""))
-            result = moved("done")
+            result = moved("done", unassigned)
         # Sprint without branch: tickets land straight on the target, so the last one lands the sprint.
         # With a branch, they land in it and the sprint lands with the sprint branch PR (above).
         parent = board.sprint_parent(number)

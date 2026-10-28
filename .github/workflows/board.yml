@@ -1,4 +1,4 @@
-# whackagent board hooks — reusable logic, board contract 2.4 (templates/BOARD.md, installed in each project as
+# whackagent board hooks — reusable logic, board contract 2.5 (templates/BOARD.md, installed in each project as
 # BOARD.md). Projects never copy this file: their caller (providers/github/whackagent-board.yml, installed by
 # /wa-setup) holds the triggers, permissions and concurrency, and runs this through
 # `uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v2`. Each release moves `hooks-v2`, so every
@@ -19,8 +19,10 @@
 #   push to an open PR while coding claimed → review (end of an agent round); new `## Feedback`
 #                                            rounds of the task file linked (line permalinks) on the ticket and the PR
 #   push to a ticket PR, no coding claim    → reported on the PR, board untouched
-#   PR merged (any base)                   → done, issue closed, run report of the PR body (between
-#                                            <!-- wa-report --> markers) posted on it; sprint parent closed when the
+#   → review, issue unassigned              → assigned to the event's sender, else the PR author (a human who can
+#                                            push); claims assign on their own
+#   PR merged (any base)                   → done, issue closed, every assignee removed, run report of the PR body
+#                                            (between <!-- wa-report --> markers) posted on it; sprint parent closed when the
 #                                            sprint has no branch and its last sub-issue is done. Stacked PR: landed
 #                                            on its GitHub stack's base, not on the parent branch it targeted
 #   sprint branch PR merged                → sprint parent issue closed (sprint landed)
@@ -154,6 +156,36 @@ jobs:
               await github.rest.issues.updateComment({ owner, repo, comment_id: commentId,
                 body: body.replace(marker(kind), `<!-- board-check:${kind}:resolved -->`)
                   .replace("⚠️ **board check**", "✅ **board check — resolved**") });
+            }
+
+            // Write access or more: someone who can push here. An outsider, a reader or a bot is not a developer.
+            async function canPush(login) {
+              const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel(
+                { owner, repo, username: login }).catch(() => ({ data: { permission: "none" } }));
+              return ["admin", "maintain", "write"].includes(access.permission);
+            }
+
+            // Ticket moved to review with nobody assigned (a PR opened or pushed without a claim, an assignment
+            // removed): the developer behind the event takes it, else the PR's author. Claims assign on their own.
+            async function assignDeveloper(ticket, pr) {
+              if (ticket.issue.assignees?.length) return;
+              const seen = new Set();
+              for (const user of [payload.sender, pr.user]) {
+                if (!user || user.type === "Bot" || seen.has(user.login)) continue;
+                seen.add(user.login);
+                if (!(await canPush(user.login))) continue;
+                await github.rest.issues.addAssignees({ owner, repo, issue_number: ticket.issue.number, assignees: [user.login] });
+                core.info(`#${ticket.issue.number} assigned to @${user.login}`);
+                return;
+              }
+            }
+
+            // Landed: nobody holds the ticket any more, so every assignee goes (claims and review assigned them).
+            async function unassignAll(ticket) {
+              const logins = (ticket.issue.assignees ?? []).map((a) => a.login);
+              if (!logins.length) return;
+              await github.rest.issues.removeAssignees({ owner, repo, issue_number: ticket.issue.number, assignees: logins });
+              core.info(`#${ticket.issue.number} unassigned ${logins.map((l) => `@${l}`).join(", ")}`);
             }
 
             // A merged PR's `Closes #n` closes the issue itself, racing this call: 422 then means already closed.
@@ -421,9 +453,7 @@ jobs:
               // spec in the issue body: written in one edit at the end of a grill, or by a human on a todo ticket
               if (!["todo", "grilling"].includes(ticket.state) || !section(issue.body ?? "", "Acceptance criteria")) return;
               // only from someone who can push: an outsider's text never becomes a spec an agent codes unattended
-              const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel(
-                { owner, repo, username: payload.sender.login }).catch(() => ({ data: { permission: "none" } }));
-              if (!["admin", "maintain", "write"].includes(access.permission)) {
+              if (!(await canPush(payload.sender.login))) {
                 await report(issue.number, "spec-todo",
                   `acceptance criteria written by @${payload.sender.login}, who can't push here: a maintainer edits the issue body to accept them as the spec`);
                 return;
@@ -486,6 +516,7 @@ jobs:
                 await setState(ticket, "review");
                 await release(number, "coding");
                 await release(number, "grilling");
+                await assignDeveloper(ticket, pr);
                 const kind = pr.draft ? "draft " : "";
                 await comment(number, `🔀 **review** — ${kind}#${pr.number} → \`${pr.base.ref}\``);
                 await holdAgainstBuiltIn(number, "review");
@@ -498,6 +529,7 @@ jobs:
                 if (pr.state !== "open" || !(reclaimed || ["todo", "grilled"].includes(ticket.state))) return;
                 await setState(ticket, "review");
                 await release(number, "coding");
+                await assignDeveloper(ticket, pr);
                 await comment(number, `🔀 **review** — ${pr.draft ? "draft " : ""}#${pr.number} → \`${pr.base.ref}\``);
                 await holdAgainstBuiltIn(number, "review");
                 return;
@@ -524,6 +556,7 @@ jobs:
                 }
                 await setState(ticket, "review");
                 await release(number, "coding");
+                await assignDeveloper(ticket, pr);
                 const rounds = await newFeedback(number, payload.before, payload.after);
                 const notes = rounds.length ? `\n\n${rounds.join("\n\n")}` : "";
                 await comment(number, `🔀 **review** — round pushed to #${pr.number}${notes}`);
@@ -544,6 +577,7 @@ jobs:
                 await setState(ticket, "done");
                 await release(number, "grilling");
                 await release(number, "coding");
+                await unassignAll(ticket);
                 if (ticket.issue.state === "open") await closeIssue(number);
                 // run report: local file the skills copy into the PR body, posted only when there
                 const report = /<!-- wa-report -->([\s\S]*?)<!-- \/wa-report -->/.exec(pr.body ?? "")?.[1].trim();

@@ -1,4 +1,4 @@
-# whackagent board hooks for a Plane board — reusable logic, board contract 2.4 (templates/BOARD.md).
+# whackagent board hooks for a Plane board — reusable logic, board contract 2.5 (templates/BOARD.md).
 # Projects never copy this file: their caller (providers/plane/whackagent-board-plane.yml, installed by /wa-setup)
 # holds the triggers, permissions and concurrency, and runs this through
 # `uses: rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`. Each release moves `hooks-v2`, so
@@ -15,9 +15,11 @@
 #   draft marked ready / back to draft      → ✅ comment on ready, nothing moves (already review)
 #   push to an open PR while coding claimed → review (end of an agent round), new `## Feedback` rounds linked
 #   push to a ticket PR, no coding claim    → reported on the PR, board untouched
-#   PR merged (any base)                   → done, run report posted on the card; sprint root → Done when the
-#                                            sprint has no branch and its last child is done. Stacked PR: landed
-#                                            on its GitHub stack's base
+#   → review, card unassigned               → assigned to the Plane user of the claim it drops (`account:` trailer);
+#                                            no claim → stays unassigned (a GitHub login is no Plane account)
+#   PR merged (any base)                   → done, every assignee removed, run report posted on the card; sprint
+#                                            root → Done when the sprint has no branch and its last child is done.
+#                                            Stacked PR: landed on its GitHub stack's base
 #   sprint branch PR merged                → sprint root → Done (sprint landed)
 #   PR closed unmerged                     → grilled, unless a coding claim or another open PR keeps the ticket going
 #   schedule / manual run                  → report-only check: board vs repository, one comment per problem on the

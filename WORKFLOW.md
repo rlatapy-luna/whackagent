@@ -5,7 +5,7 @@ Ticket from idea to merged code. Who moves it, what board shows, what you do nex
 - **Board state** — six contract states, GitHub Project `Status` column (`backlog.provider: github`) or Plane card column (`plane`, experimental: [Plane board](#plane-board)). Rules: project's `BOARD.md`.
 - **Task phase (whackagent only)** — `phase:` field of whackagent's task file `{tasks}/<n>-<slug>.md`, committed on ticket branch: `in-progress` → `review` → `validated`. Says how far whackagent loop got inside one board state (verifier run or not). Board never shows it. Dev without whackagent: no task file, no phase — PR draft / ready tells same story.
 
-Matches board contract 2.4, hooks `hooks-v2`: GitHub caller template version 16, Plane caller template version 1. Sections below describe GitHub board; [Plane board](#plane-board) lists what differs.
+Matches board contract 2.5, hooks `hooks-v2`: GitHub caller template version 16, Plane caller template version 1. Sections below describe GitHub board; [Plane board](#plane-board) lists what differs.
 
 ## Big picture
 
@@ -234,17 +234,19 @@ flowchart LR
 | `issues: opened` | no `wa-ignore` / `wa-sprint` label | card added, `todo` |
 | `issues: edited` | body holds non-empty `## Acceptance criteria`, card `todo` / `grilling`, editor can push | `grilled`, grilling claim dropped. Editor can't push → reported, card stays |
 | `push` to `wa/**` | task file `issue: <n>` with non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped |
-| `pull_request: opened` / `reopened` | links one ticket of this repo, not a sprint PR, not `done` | `review`, claims dropped, Development link added if missing; card watched ~30 s against built-in workflow |
-| `pull_request: edited` | link found late, card `todo` / `grilled` | `review` |
-| `pull_request: synchronize` | coding claim held | `review`, claim dropped, new `## Feedback` round linked |
+| `pull_request: opened` / `reopened` | links one ticket of this repo, not a sprint PR, not `done` | `review`, claims dropped, Development link added if missing, dev assigned if none; card watched ~30 s against built-in workflow |
+| `pull_request: edited` | link found late, card `todo` / `grilled` | `review`, dev assigned if none |
+| `pull_request: synchronize` | coding claim held | `review`, claim dropped, dev assigned if none, new `## Feedback` round linked |
 | `pull_request: synchronize` | no claim (not GitHub's own merge) | comment on PR, board untouched |
 | `pull_request: ready_for_review` / `converted_to_draft` | — | nothing moves |
-| `pull_request: closed`, merged | ticket PR | `done`, issue closed, claims dropped. Sprint without branch, last ticket → sprint parent closed |
+| `pull_request: closed`, merged | ticket PR | `done`, issue closed, claims dropped, every assignee removed. Sprint without branch, last ticket → sprint parent closed |
 | `pull_request: closed`, merged | head = sprint branch | sprint parent closed |
 | `pull_request: closed`, unmerged | not `done`, no coding claim, no other open PR for ticket | `grilled` |
 | scheduled, once a day on weekdays at 06:17 UTC (cron `17 6 * * 1-5`), or run by hand (`workflow_dispatch`) | — | board check, report only |
 
 Card in column outside six states → hooks hands off. Except coding claim held → card taken back (GitHub built-in "Pull request linked to issue" workflow moves it; switch that off).
+
+Dev assigned if none = issue has no assignee → event sender, else PR author; humans with push access only. Claims assign on their own, so this catches PRs opened without a claim and assignments removed by hand.
 
 ## Board check
 
@@ -317,18 +319,20 @@ Runner: self-hosted, label `WA_RUNNER_LABEL` (default `self-hosted`), `python3` 
 | --- | --- | --- |
 | `push` to `wa/**` | task file `{tasks}/<id>-*.md`, `issue: <id>`, non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped, `✅ grilled` comment with spec permalink |
 | `pull_request` (any) | ticket = head branch `wa/<id>-…`, else one card link in body; not sprint PR | PR added as link on card |
-| `pull_request: opened` / `reopened` | ticket found, card not `done` | `review`, claims dropped, `🔀 review` |
-| `pull_request: edited` | link found late, card `todo` / `grilled`, PR open | `review` |
-| `pull_request: synchronize` | coding claim held | `review`, claim dropped, new `## Feedback` round linked on card + PR |
+| `pull_request: opened` / `reopened` | ticket found, card not `done` | `review`, claims dropped, `🔀 review`, dev assigned if none |
+| `pull_request: edited` | link found late, card `todo` / `grilled`, PR open | `review`, dev assigned if none |
+| `pull_request: synchronize` | coding claim held | `review`, claim dropped, dev assigned if none, new `## Feedback` round linked on card + PR |
 | `pull_request: synchronize` | no claim (not GitHub's own merge) | comment on PR, board untouched |
 | `pull_request: ready_for_review` / `converted_to_draft` | — | ready → `✅ ready` comment. Nothing moves |
-| `pull_request: closed`, merged | ticket PR | `done`, claims dropped, run report on card. Sprint without branch, last child → sprint parent `Done` |
+| `pull_request: closed`, merged | ticket PR | `done`, claims dropped, every assignee removed, run report on card. Sprint without branch, last child → sprint parent `Done` |
 | `pull_request: closed`, merged | head = sprint branch | sprint parent `Done` (`🏁 sprint landed`) |
 | `pull_request: closed`, unmerged | not `done` / `grilled`, no coding claim, no other open PR linked | `grilled` |
 | `pull_request`, head branch not a ticket's | body holds several card links | comment on PR, nothing moves |
 | scheduled weekdays 06:17 UTC, or `gh workflow run whackagent-board-plane.yml` | — | board check, report only |
 
 Card in column outside six states + `Canceled` → hooks hands off. Except coding claim held → treated as `coding`.
+
+Dev assigned if none = card has no assignee → Plane user named in claim hook drops (`account:` trailer). No claim → stays unassigned: GitHub login ≠ Plane account.
 
 ### Plane board check
 

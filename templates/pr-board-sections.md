@@ -1,4 +1,4 @@
-<!-- board-contract: 2.4 · sections BOARD.md → Pull requests requires: keep the three headings -->
+<!-- board-contract: 2.5 · sections BOARD.md → Pull requests requires: keep the three headings -->
 ## Ticket
 
 <!-- board-tool: github -->
