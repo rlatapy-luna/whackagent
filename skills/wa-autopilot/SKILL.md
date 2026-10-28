@@ -8,7 +8,7 @@ model: opus
 
 `/wa-code` unattended, over batch. Same PM role, same pipeline, one addition: **independent tasks run parallel, each in own git worktree.** Give batch, walk away, read report.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `worktrees.md` `commits.md` `blockers.md` · arg names sprint or task has `sprint:` → + `sprints.md` · arg names milestone → + `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `worktrees.md` `commits.md` `blockers.md` `findings.md` · arg names sprint or task has `sprint:` → + `sprints.md` · arg names milestone → + `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -111,9 +111,9 @@ Each task get own checkout, so parallel implementers never see each other's edit
    - **One `wa-verifier` per task**, per `/wa-code` step 3 in full. Scope = ticket range (GitHub provider) or `<trunk>..HEAD` of that worktree (`branch.base`, track task: its trunk) — hunks from that worktree only. Diff too big to inline → write it to a patch file in scratchpad, hand the path, tell it to read in ranges.
    - Verifiers are read-only → **parallelize freely** across tasks of the wave, no device queue.
    - `LENSES:` short of four ✓ → send back for missing lens before anything else.
-   - **Autofix** (`review.autofix: true`) → `SendMessage` same task's implementer the findings, re-verify, cap 3 rounds. Autofix touched code → implementer re-drives runtime check (`verify.mode` not `off`), device queue again.
+   - **Autofix** (`review.autofix: true`) → `SendMessage` same task's implementer the findings, re-verify, cap 3 rounds. Implementer checks each before fixing, rejections go back to verifier, disputed ones leave loop (**reference/findings.md**). Autofix touched code → implementer re-drives runtime check (`verify.mode` not `off`), device queue again.
    - Clean → `phase:`/`status: validated`, `## Review` round `validation (autopilot)` with lenses + what autofix changed.
-   - **Findings still open after cap** (or not converging) → not a blocker: deliver at `review`, open findings in `## Review` + report card with recommendation per item. User decides: `/wa-feedback` or `/wa-validate`.
+   - **Findings still open after cap** (or not converging, or disputed) → not a blocker: deliver at `review`, open findings in `## Review` + report card with recommendation per item, both sides for disputed ones. User decides: `/wa-feedback` or `/wa-validate`.
    - `review.when` does not gate this — autopilot always validates.
 4. **Keep every agent alive** — `agentId` per role **per task**. Autopilot is where this pays most: a batch of 5 tasks × 3 rounds is 15 spawns if you forget, 5 if you don't.
 

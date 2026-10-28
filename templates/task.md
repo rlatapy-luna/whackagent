@@ -47,7 +47,7 @@ created:                # YYYY-MM-DD
 
 <!-- Fill by /wa-validate (and /wa-code when review.when: each_round). Findings tagged by
      lens (style / elegance / structure / correctness) + what autofix changed, one block per
-     round. -->
+     round. Findings the fixer rejected: withdrawn or disputed, with evidence. -->
 
 ## Verification
 

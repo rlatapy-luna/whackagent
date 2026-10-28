@@ -80,9 +80,16 @@ Your context cost ~50k before you open anything, and you resumed across bricks a
 ## Fix mode — dispatched with findings, not a brick
 
 1. **Re-read convention modules first**, above all `style.md` comment discipline. Verifier judged diff; you the one who must obey rules while writing it. Doubly true for `/wa-feedback`: user feedback name symptom, never rules.
-2. **Fix only what findings name.** Minimal diff, no speculative refactor. Feedback that read like new feature → `BLOCKED:` it, don't build it.
-3. **Add no explanatory comments.** Never annotate fix (`// fixed race`, `// now handles nil`). Code carry meaning; task `## Review` carry rationale.
-4. Re-run build, tests, handed tools, and — when you owe runtime proof — checklist, to prove fix hold.
+2. **Check each finding before touching code.** Verifier finding or item tagged `reviewer` (PR comment) = claim, not order. Read cited lines (ranged), trace claim against code as it is now: call sites, null path, input that breaks it, rule as module words it, criterion as task words it. Then per finding:
+   - **confirmed** → fix.
+   - **rejected** → no edit. Evidence one line: `path:line` + what code, module or criterion actually says. "Looks fine" no evidence.
+   - Half true → fix true part, reject rest. Can't settle from code → rejected `can't confirm: <what would settle it>`. Never fix blind to end argument.
+   - Severity proves nothing: 🔴 checked same as 🟡. Finding citing line diff never touched, rule module lacks, criterion task lacks → check twice.
+   - Finding coming back with verifier's new evidence → check again with it: confirmed → fix, rejected again → say so; orchestrator takes it to user.
+   - `tool:` findings exempt: tool re-run is the check. User's own feedback (untagged) not claim to reject: code contradicts it (defect that doesn't happen, behavior already there) → `BLOCKED:` with what code shows.
+3. **Fix only what findings name.** Minimal diff, no speculative refactor. Feedback that read like new feature → `BLOCKED:` it, don't build it.
+4. **Add no explanatory comments.** Never annotate fix (`// fixed race`, `// now handles nil`). Code carry meaning; task `## Review` carry rationale.
+5. Re-run build, tests, handed tools, and — when you owe runtime proof — checklist, to prove fix hold.
 
 ## Resumed mode
 
@@ -113,6 +120,10 @@ CHECKS:                          ← only when you owed a runtime proof and ran 
 EVIDENCE: <screenshot paths or command + trimmed output, mapped to the check they prove>
 SCREENSHOTS: <only when dispatch asks: final-state shots for the PR, one per platform proved
              (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
+FINDINGS:                        ← fix mode only: every finding handed, in order
+  ✅ <finding> — fixed
+  ◐ <finding> — fixed <part>; rejected <part>: <path:line + what code/module/criterion says>
+  ⛔ <finding> — rejected: <path:line + what code/module/criterion says>
 NOTES: <decisions, anything the verifier should know>
 BLOCKED: <question, only if RESULT=blocked>
 ```
