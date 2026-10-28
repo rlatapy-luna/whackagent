@@ -55,7 +55,7 @@ Plane calls per verb, measured on the rig with three modules holding cards (GitH
 
 ### Comments
 
-`comment_html` built from the text: paragraphs (line breaks kept), `-` / `*` and `1.` lists, inline bold, code and `[text](https://…)` links. Everything else stays plain text. Stdlib only, enough for the claim trail, release reasons and skill notes.
+`comment_html`, and every `description_html` the script writes, come from the Markdown text through `plane_html`: the HTML Plane's own editor writes. Plane stores that HTML as sent and its editor parses HTML only, so Markdown sent as text shows raw (`##`, `**`, `[ ]`). Covered: paragraphs (line breaks kept), headings, `-` / `*` / `1.` lists (nested), `[ ]` / `[x]` task lists, fenced code (language kept), quotes, rules, GFM tables, bold, italics, strikethrough, inline code, links and bare URLs. Code inside a link shows as plain link text (Plane's inline code mark excludes every other mark), images as links, raw HTML as text; HTML comment lines are dropped, as on GitHub. Stdlib only.
 
 ### Checked live (issue 0009)
 
