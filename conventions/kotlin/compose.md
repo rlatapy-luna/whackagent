@@ -27,7 +27,8 @@ fun ProfileScreen(
 Order: required params, then `modifier: Modifier = Modifier` as **first optional param**, then other optionals, then trailing `content` lambda.
 
 - `modifier` applied to the **root** element only, once. Never pass it to a child as well.
-- Params stable/immutable: `data class` of `val`s, `ImmutableList` or `@Immutable`/`@Stable` when needed. Never pass ViewModel, `MutableState`, or mutable collections down.
+- Params immutable: `data class` of `val`s. Never pass ViewModel, `MutableState`, or mutable collections down.
+- Strong skipping (default since Kotlin 2.0.20) skip unstable param when same instance. Fix for recomposition = keep same instance across emissions, not `ImmutableList` / `@Immutable` / `@Stable`: `equals` on big list run every recomposition, can cost more than recomposing. Annotate only small class with cheap `equals`, when instance can't be kept.
 - Events as lambdas named `onX` (`onSubmit`, `onItemClick`).
 
 ## State hoisting
