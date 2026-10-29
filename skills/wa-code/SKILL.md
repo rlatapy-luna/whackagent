@@ -69,6 +69,8 @@ GAPS: <what you couldn't resolve — the only thing subagents explore themselves
 
 Line counts not decoration: subagents run hard read budget (no whole-file `Read` above ~400 lines), sizes let them respect it without opening file to find size. Over threshold, name ranges that matter — 11k-token read become 500.
 
+**Task skills** — scan session's skill list for workflow skills covering the migration, upgrade or API this task builds on (`edge-to-edge`, `navigation-3`, `agp-9-upgrade`, a payment SDK integration…). Match on what the task does, not on its language: rulebooks (`review.modules`, `review.focus`) and skills that would fit any task never count. Zero is normal, two at most. Echo `skills: android-skills:edge-to-edge (insets migration)`, or nothing when none.
+
 Then **decompose** into bricks, fix **file/folder layout up front** per architecture module (group by feature, proper nesting, never flat), **sketch tests** (units, edge cases — YAGNI, only what task needs).
 
 **Post bricks** — provider `comment` on ticket, after decomposition, before first dispatch (GitHub: multi-line text → `wa-backlog comment <id> --body-file <file>`, `-` = stdin). One line per brick, what it builds + key file:
@@ -86,7 +88,7 @@ Local provider → `comment` is no-op, nothing to do. Later round re-plans brick
 
 **One implementer for whole task**, bricks fed one at a time (sequential — builds collide otherwise).
 
-- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, modules (`review.modules` per **reference/paths.md**), test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**reference/worktrees.md**).
+- **Brick 1** — spawn `wa-implementer`, **note `agentId`**. Pass: task path, BRIEF, brick + target files/folders, task skills (step 1, as `skill:<plugin>:<skill>`, only when any), modules (`review.modules` per **reference/paths.md**), test plan, `build.command` / `build.test_command` when config sets them (it never reads config — hand it commands), `tools` entries whose `when` holds `code` (name, `run`, `fix`), `verify` block **including `mode`** (it never reads config — say plainly whether it owes runtime proof), `autopilot: false`. Worktree mode → plus worktree path and its *work only under* line (**reference/worktrees.md**).
 - **Glossary** — `{wiki}/glossary.md` exists → brick 1 also gets its path (step 3 verifier too). Absent → nothing passed.
 - **Screenshots** — GitHub provider + `pr.screenshots: each_round` (or key missing) → every brick dispatch asks: *diff changes UI → return final-state `SCREENSHOTS:`* (**reference/code-github.md**, *Screenshots*). Last receipt's shots = upload. `validation`, `off` or local provider → never asked.
 - **Bricks 2..n** — `SendMessage` that id next brick **alone**. No modules, no BRIEF, no task path: it holds them. It built brick 1 too, so know what to reuse — DRY stop being rule it must rediscover.

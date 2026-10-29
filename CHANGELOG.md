@@ -6,9 +6,14 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [1.12.0] - 2026-10-29
 
+### Added
+
+- Task skills: `/wa-code` and `/wa-autopilot` look in the session's skill list for a workflow skill that covers the migration or API the task builds on (Google's `edge-to-edge`, `navigation-3`, `agp-9-upgrade`, …) and hand at most two to the implementer. It follows them only as far as the task goes, and your convention modules win on conflict (Koin over the Hilt a Google skill suggests).
+
 ### Changed
 
 - Android runtime check and PR screenshots now drive the app with Google's [`android` CLI](https://developer.android.com/tools/agents/android-cli) instead of mobile-mcp: `android run` installs and launches the built APK, `android layout` reads the UI tree, `android input` taps and types by `id=` / `desc=` / `text=` selector rather than screen coordinates, `android screen capture` shoots. It runs through Bash, so there is no MCP server to install. mobile-mcp stays the fallback when `android` is not on the PATH. `/wa-setup` checks for the CLI when `verify.platform` includes `android`.
+- Android device choice for the runtime check and PR screenshots: a device handed to the agent, else an emulator leased from [berth](https://github.com/LunabeeStudio/berth) when it is on the PATH (released after, never started or stopped by the agent), else the one connected (an emulator unless `verify.target: device`), else an AVD started headless and stopped after. With berth, `/wa-autopilot` drops its device lock for Android: each implementer leases its own emulator, so runtime checks run in parallel.
 - Kotlin Compose convention: an Android app root sets `testTagsAsResourceId = true`, so device tools see test tags. Missing it is a style finding. Existing projects: `/wa-setup` reconfigure shows the module diff and copies it on your yes.
 
 ## [1.11.0] - 2026-10-28
