@@ -45,7 +45,9 @@ Order: required params, then `modifier: Modifier = Modifier` as **first optional
 
 ## Test tags (targetable UI)
 
-Every **interactive** or **asserted** element carries a stable `Modifier.testTag(...)` (plus `testTagsAsResourceId` at root when UI Automator / runtime tooling needs resource IDs). `wa-implementer` drives the built app by the UI tree; without tags it falls back to raw coordinates — brittle, breaks on layout change. Missing tag on an interactive element = style finding.
+Every **interactive** or **asserted** element carries a stable `Modifier.testTag(...)`. `wa-implementer` drives the built app by the UI tree; without tags it falls back to raw coordinates — brittle, breaks on layout change. Missing tag on an interactive element = style finding.
+
+Android app: root composable sets `Modifier.semantics { testTagsAsResourceId = true }` once. Device tools (`android layout` / `android input`, UI Automator) see tags only as resource IDs — without it every tag is invisible to them. Missing on Android app root = style finding.
 
 Rules:
 - Tag **stable and semantic**, not positional: `"login.submitButton"`, not `"button2"`. Namespace by screen/feature.

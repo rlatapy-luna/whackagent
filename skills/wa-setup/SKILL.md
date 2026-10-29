@@ -70,7 +70,7 @@ Keep short — 11 questions at most, plus follow-ups only where they apply (buil
 
 Then set `verify.platform` + `verify.target` from detection (confirm in one line, list when several — KMP app with iOS + Android = `[ios, android]`) and say what driver it needs:
 - `ios` → **XcodeBuildMCP** (same server it builds with, nothing extra); physical device → **mobile-mcp**.
-- `android` → **mobile-mcp** (`mobile-next/mobile-mcp`), emulator or device.
+- `android` → **`android` CLI** (Google's agent CLI, `command -v android`; install: https://developer.android.com/tools/agents/android-cli), emulator or device. Absent and they won't install it → **mobile-mcp** (`mobile-next/mobile-mcp`).
 - `web` → browser automation MCP (Playwright MCP, Claude in Chrome).
 - `desktop` → desktop/computer-use MCP if they have one; else GUI proof unavailable, build + tests only.
 - `server`, `cli` → nothing to install: Bash (`curl`, the binary).

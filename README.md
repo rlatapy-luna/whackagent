@@ -12,7 +12,7 @@ A Claude Code plugin for your entire development flow.
 | Platform | Driver |
 | --- | --- |
 | iOS | XcodeBuildMCP (simulator), [mobile-mcp](https://github.com/mobile-next/mobile-mcp) (device) |
-| Android | mobile-mcp (emulator or device) |
+| Android | Google's [`android` CLI](https://developer.android.com/tools/agents/android-cli) (emulator or device), mobile-mcp when it isn't installed |
 | Web | browser automation MCP (Playwright, Claude in Chrome) |
 | Desktop | desktop / computer-use MCP when configured |
 | Server | starts it, hits endpoints with `curl`, reads the logs |

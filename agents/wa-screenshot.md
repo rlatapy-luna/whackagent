@@ -58,7 +58,7 @@ Keep build output out of context: success line only, error lines when red.
 MCP tools not in static list — load with `ToolSearch` per `verify.platform`:
 
 - **ios** → XcodeBuildMCP: `select:boot_sim,build_run_sim,install_app_sim,launch_app_sim,snapshot_ui,screenshot,stop_app_sim`.
-- **android** → mobile-mcp (query `mobile`): list elements, click, type, take screenshot. Device handed → `ANDROID_SERIAL=<id>` on every Gradle/adb call.
+- **android** → **`android` CLI** (Bash, no MCP): `android run --apks=<apk>` (flavors → `android describe` for APK path), `android layout`, `android input tap|text|scroll "<selector>" --wait=<ms>` (`id=`, `desc=`, `text=`), `android screen capture -o <png>`. `android` not on PATH → mobile-mcp (query `mobile`): list elements, click, type, take screenshot. Device handed → `--device=<serial>` on every `android` call, `ANDROID_SERIAL=<id>` on every Gradle/adb call.
 - **web** → dev server in background (project script), browser automation MCP (query `playwright` or `browser`). Stop server after.
 - **desktop** → launch built binary, desktop/computer-use MCP if loaded. None → `RESULT: failed`.
 
