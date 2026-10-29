@@ -4,6 +4,16 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-29
+
+### Added
+
+- Task skills: `/wa-code` and `/wa-autopilot` look in the session's skill list for a workflow skill that covers the migration or API the task builds on (Google's `edge-to-edge`, `navigation-3`, `agp-9-upgrade`, …) and hand at most two to the implementer. It follows them only as far as the task goes, and your convention modules win on conflict (Koin over the Hilt a Google skill suggests).
+
+### Changed
+
+- Android device choice for the runtime check and PR screenshots: a device handed to the agent, else an emulator leased from [berth](https://github.com/LunabeeStudio/berth) when it is on the PATH (released after, never started or stopped by the agent), else the one connected (an emulator unless `verify.target: device`), else an AVD started headless and stopped after. With berth, `/wa-autopilot` drops its device lock for Android: each implementer leases its own emulator, so runtime checks run in parallel.
+
 ## [1.12.0] - 2026-10-29
 
 ### Changed
