@@ -144,7 +144,7 @@ verify:                        # runtime check — implementer drive app it just
                                # Legacy `enabled: true` / `false` read as `always` / `off`.
   platform: none               # WHAT gets driven, and with which tool (list allowed: [ios, android]):
                                #   ios     — XcodeBuildMCP (simulator), mobile-mcp (device)
-                               #   android — mobile-mcp (emulator or device)
+                               #   android — android CLI (emulator or device), else mobile-mcp
                                #   web     — browser automation MCP (Playwright, Chrome)
                                #   desktop — desktop/computer-use MCP when one configured
                                #   server  — start it, hit endpoints (curl), read responses + logs
