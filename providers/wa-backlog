@@ -40,6 +40,8 @@ base method, which exits 2 with a clear message. A ticket id of the other board'
               close_milestone(title) / set_milestone(number, title)
   Sprints     split(ticket, name)         ticket becomes the root of sprint <name>, off the board
               set_sprint(number, sprint)  sprint membership, "" detaches
+              stray_sprint(number)        open sprint the card shows in without being in it (Plane: its cycle,
+                                          not its parent), else None; the base method says None
   Other       depend(number, blockers)    → (added, already there)
               link_pr(number, pr)         the pull request linked on the ticket (GitHub: closing link, Plane: card link)
               provision(args, repo)       create or adopt the board, write the repo variables → report
@@ -340,6 +342,10 @@ class Board:
 
     def set_sprint(self, number, sprint):
         raise self.unsupported("sprint")
+
+    def stray_sprint(self, number, open_sprints=None):
+        """Open sprint the ticket shows in on the tracker without being in it. None where a sprint shows in one place only."""
+        return None
 
     def depend(self, number, blockers):
         raise self.unsupported("depend")
@@ -1391,6 +1397,7 @@ class PlaneBoard(Board):
         self.members = None
         self.module_rows = None  # modules (milestones) of the project, read once per run
         self.module_items = None  # module id → ids of its work items, read once per run
+        self.cycle_items = None  # cycle id → (sprint name, ids of its work items), read once per run
 
     @classmethod
     def unsupported(cls, operation):
@@ -1839,6 +1846,27 @@ class PlaneBoard(Board):
             return found
         return self.api("POST", f"{self.base()}/cycles/", {"name": name, "project_id": self.config["project_id"]})["id"]
 
+    def cycle_members(self):
+        """{cycle id: (sprint name, work item ids)}, read once per run, as module_members: one call per cycle holding
+        cards, in parallel. No work item field names its cycle."""
+        if self.cycle_items is None:
+            url = self.config["plane_url"]
+            held = [c for c in plane_all(url, f"{self.base()}/cycles/") if c.get("total_issues", 1)]
+            ids = lambda c: {i["id"] for i in plane_all(url, f"{self.base()}/cycles/{c['id']}/cycle-issues/?fields=id")}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                self.cycle_items = {c["id"]: (sprint_name(c["name"]), members) for c, members in zip(held, pool.map(ids, held))}
+        return self.cycle_items
+
+    def stray_sprint(self, number, open_sprints=None):
+        """Open sprint whose cycle holds the card while its parent is not that sprint's root: a human dropped it in the
+        cycle by hand. The parent decides, so the card is not in that sprint. <open_sprints>: {name: root key} of the
+        open sprints when the caller read the board, else looked up here."""
+        item = self.item(number)
+        name = next((n for n, members in self.cycle_members().values() if item["id"] in members), None)
+        if not name or name == self.sprint_of(item):
+            return None
+        return name if (name in open_sprints if open_sprints is not None else self.open_sprint(name)) else None
+
     def sprint_root(self, name):
         """Sprint <name>'s root work item, created on first use (labeled wa-sprint, in todo). A closed one (sprint
         landed before) goes back to todo: same name, same sprint."""
@@ -2219,6 +2247,7 @@ def op_get(args):
     ticket["branch"] = remote_branch(config, args.number)
     ticket["phase"] = task_phase(config, ticket["branch"])
     ticket["blocked_by"] = board.blocked_by(args.number)
+    ticket["stray_sprint"] = board.stray_sprint(args.number)
     emit(ticket)
 
 
@@ -3583,7 +3612,8 @@ def hook_check(board, payload):
     writes a state. Each ticket card in a contract state but done: `grilling` / `coding` with no claim of that phase,
     a claim with nothing new for WA_STALE_AFTER_HOURS, a linked PR merged while none is open and the card is not
     done, `review` with no open PR, an open PR while the card sits in `todo` / `grilled`, `grilled` with no ticket
-    branch, acceptance criteria in the description while in `todo`. One card comment per problem (once: external id,
+    branch, acceptance criteria in the description while in `todo`, in an open sprint's cycle without that sprint's
+    root as parent (dropped there by hand: not in the sprint). One card comment per problem (once: external id,
     Plane refuses a duplicate), flipped to resolved in place once the problem clears (cards that closed in the last
     CHECK_RECENT_DAYS days included). An issue's open/closed vs its column (board.yml closed-locked, closed-not-done,
     done-open) has no Plane twin: the column is the card's status. Sprint roots, wa-ignore cards, Canceled and
@@ -3594,8 +3624,10 @@ def hook_check(board, payload):
     ignore = config["label_ids"].get(IGNORE_LABEL)
     since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=CHECK_RECENT_DAYS)
     changed = lambda item: dt.datetime.fromisoformat(item["updated_at"].replace("Z", "+00:00")) >= since
-    active, recent = [], []
+    active, recent, open_sprints = [], [], {}
     for item in board.board_items():
+        if board.is_root(item) and item["state"] not in closed:
+            open_sprints.setdefault(sprint_name(item["name"]), board.key(item))
         if board.is_root(item) or ignore in (item.get("labels") or []):
             continue
         state = states.get(item["state"])
@@ -3661,6 +3693,10 @@ def hook_check(board, payload):
                 problems["grilled-no-spec"] = f"card in `grilled` but no spec: no ticket branch `{config['branch_prefix']}{key}-…` holding its task file"
             if state == "todo" and description_spec(item.get("description_html")):
                 problems["spec-todo"] = "the card description holds acceptance criteria but the card sits in `todo`: on a Plane board only a task file pushed on the ticket branch moves it to `grilled`"
+            stray = board.stray_sprint(key, open_sprints)
+            if stray:
+                root = open_sprints[stray]
+                problems["cycle-no-parent"] = f"the card sits in cycle `{stray}` but its parent is not {root}, the sprint's root, so it is not in sprint `{stray}`: make it a child of {root} to join (`set-field {key} sprint {stray}`), or take it out of the cycle"
         mine = {}
         for c in comments[key]:
             match = re.fullmatch(rf"board-check:{re.escape(key)}:([a-z-]+)", c.get("external_id") or "")

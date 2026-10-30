@@ -336,7 +336,7 @@ Dev assigned if none = card has no assignee → Plane user named in claim hook d
 
 ### Plane board check
 
-Same as [Board check](#board-check), on card. Kept: no claim in lock column · stale claim · `review` no open PR · open PR, card `todo` / `grilled` · linked PR merged, card not `done` · `grilled` no ticket branch. Issue-body criteria check becomes: criteria in card description, card `todo`. Dropped (no Plane twin): `done` card issue open · closed issue in lock column · closed as completed not `done`.
+Same as [Board check](#board-check), on card. Kept: no claim in lock column · stale claim · `review` no open PR · open PR, card `todo` / `grilled` · linked PR merged, card not `done` · `grilled` no ticket branch. Issue-body criteria check becomes: criteria in card description, card `todo`. Added: card in open sprint's cycle, parent not sprint root (not in sprint). Dropped (no Plane twin): `done` card issue open · closed issue in lock column · closed as completed not `done`.
 
 Card not moved after push → skill re-reads ~3 min, then names run: failed (URL) · queued (runner offline) · in progress · success (summary says why) · not triggered (caller missing on fork point, `branches:` filter, PR conflicting). Never moves card itself.
 

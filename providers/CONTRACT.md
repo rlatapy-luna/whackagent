@@ -46,7 +46,7 @@ All print JSON on stdout, messages on stderr.
 | Verb | Does | Output / exit |
 |---|---|---|
 | `list [--state s,…] [--sprint x] [--milestone m] [--all] [--owners]` | board rows, **priority order**; `done` and closed tickets hidden unless `--all` | `[{number,title,summary,state,column,size,sprint,milestone,closed,not_planned,assignees,reserved,claims,url}]` (`not_planned`: closed as not planned = canceled), `review` rows add `phase` (sub-phase, *Who's on turn*; null unknown); draft rows `{draft:true,title}` only when unfiltered |
-| `get <id>` | one ticket + its branch + its sub-phase + its blockers | object, `branch` null before grilling pushed, `phase` null without task file, `blocked_by: [{number,state}]` |
+| `get <id>` | one ticket + its branch + its sub-phase + its blockers | object, `branch` null before grilling pushed, `phase` null without task file, `blocked_by: [{number,state}]`, `stray_sprint` = open sprint ticket shows in on tracker without being in it (Plane: card in sprint's cycle, parent not its root), else null |
 | `create --title --summary [--size] [--sprint] [--milestone m] [--note]` | new ticket in `todo`, bottom of board; milestone per *Milestones* below | `{number,url,state,milestone}` |
 | `claim <id> grilling\|coding [--agent a] [--blocked-ok]` | **atomic lock**, then state → phase, assign current account (trackers with assignees), trail comment | exit 0 won · **3 taken** (prints owner) · **4 wrong state**, or `coding` from `grilled` with open blocker (*Claim rules*) |
 | `release <id> <phase> [--reset-to s] [--reason r]` | drop lock, undo assignment that claim made, optional state reset, trail comment | object |

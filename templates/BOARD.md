@@ -111,7 +111,7 @@ Create the ticket's branch from the fork point and push it at once: `git switch 
 ### Sprints
 
 - The sprint root is a parent card labeled `wa-sprint`; its tickets are its child cards. A cycle of the same name shows them in Plane's cycle view.
-- The parent decides: a card dragged into a cycle by hand, without the parent, is not in the sprint.
+- The parent decides: a card dragged into a cycle by hand, without the parent, is not in the sprint. `<board-cli> get <id>` names that sprint as `stray_sprint`, and the board check reports the card. Before you pick the fork point, ask whether it joins: `<board-cli> set-field <id> sprint <name>` makes the root its parent and leaves the card in the cycle.
 - The workflow moves the sprint root to `Done` when the sprint lands. A root left open with nothing to land is the one card a human moves by hand: to `Done`, or to `Canceled` when nothing shipped.
 
 ### Milestones and dependencies
@@ -128,7 +128,7 @@ Create the ticket's branch from the fork point and push it at once: `git switch 
 
 The board workflow reports, as a comment on the card or PR:
 
-- on a card, once a day on weekdays: a card in `grilling` or `coding` with no claim held; a claim held with nothing new for <stale-hours> h; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no ticket branch; acceptance criteria in the card description while the card sits in `todo`.
+- on a card, once a day on weekdays: a card in `grilling` or `coding` with no claim held; a claim held with nothing new for <stale-hours> h; a card in `review` with no open PR; a linked PR open while the card sits in `todo` or `grilled`; a linked PR merged while the card is not `done`; a card in `grilled` with no ticket branch; acceptance criteria in the card description while the card sits in `todo`; a card in an open sprint's cycle whose parent is not that sprint's root.
 - on a PR, as it happens: a push while the ticket holds no `coding` claim; a PR linking several cards.
 <!-- /board-tool -->
 

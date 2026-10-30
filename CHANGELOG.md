@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- Experimental Plane board: a card a human drops into a sprint's cycle without making the sprint card its parent no longer goes unnoticed. `wa-backlog get` names that sprint as `stray_sprint`, `/wa-grill` asks whether it joins before it branches the ticket (so it forks from the sprint branch, not the base), `/wa-autopilot` joins it and says so, and the board check reports the card (`cycle-no-parent`). Joining with `set-field <id> sprint <name>` keeps the card in its cycle.
+
 ## [1.13.1] - 2026-10-30
 
 ### Fixed
