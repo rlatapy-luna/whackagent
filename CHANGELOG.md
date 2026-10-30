@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- `/wa-autopilot` claims a `todo` ticket for grilling before it reads anything about it, and grills before it plans the batch. It used to start investigating first, leaving the ticket in `todo` and free for another agent to grill at the same time.
+
 ## [1.13.0] - 2026-10-29
 
 ### Added
