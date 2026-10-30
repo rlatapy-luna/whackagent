@@ -26,7 +26,7 @@ Task **named explicitly** (slug, index, ticket id) joins batch whatever its stat
 
 | State | Autopilot does | Ends |
 |---|---|---|
-| `todo`, `grilled: false` (GitHub `todo`) | grill unattended (**AFK mode**, *Grill `todo` tickets unattended*; local: `/wa-grill` steps, same `(autopilot assumption)` tagging), then code + validate | `validated` / `review` |
+| `todo`, `grilled: false` (GitHub `todo`) | grill unattended (**0. Grill — claim first**), then code + validate | `validated` / `review` |
 | `todo` grilled (GitHub `grilled`) | code + validate — pipeline below | `validated` / `review` |
 | `in-progress` (GitHub `review` + `phase: in-progress`) | resume: worktree on existing task branch, `/wa-code` from first brick not in `## Implementation`, then validate | `validated` / `review` |
 | `review` (GitHub `review` draft, `phase: review`) | validate only — worktree on task branch, step 2.3 (tools, verifier, autofix) | `validated` / `review` |
@@ -35,7 +35,7 @@ Task **named explicitly** (slug, index, ticket id) joins batch whatever its stat
 | GitHub `grilling` / `coding` | claimed: `claim` exit 3 → skip, echo owner | — |
 | `done` / `canceled` | skip, echo | — |
 
-GitHub: claim before touching, as any round — `grilling` from `todo`, `coding` from `grilled` or `review` (**reference/code-github.md**, *Agent round*). Round ends with nothing to push → `release <id> coding --reset-to review` when PR open, else `--reset-to grilled`.
+GitHub: claim before touching, as any round — `grilling` from `todo`, `coding` from `grilled` or `review` (**reference/code-github.md**, *Agent round*). `todo` ticket: `claim grilling` is first act on it — before its issue body, code, wiki or plan (**0. Grill — claim first**). Round ends with nothing to push → `release <id> coding --reset-to review` when PR open, else `--reset-to grilled`.
 
 ## GitHub provider
 
@@ -61,13 +61,24 @@ Arg says so (`afk`, `full afk`, "run the whole backlog"). Same pipeline, three l
 - **Code in parallel, deliver in chain order.** Tickets whose blockers are all in the current chain tip fork off that tip together, as one wave of up to 3. The wave rules still apply: no shared `REUSE`, and separate features or tabs. At delivery each sibling is stacked on the previous one (ticket-range rebase). Mechanical conflicts (nav slot, DI module lines, wiki sections) are resolved by the PM, followed by a rebuild and tests. A ticket that reuses what a sibling creates waits for that sibling instead.
 - **Shared contract.** Two siblings that both need the same small helper (a use case or a repository method) get one contract up front: exact paths, names and signatures in both briefs. The first ticket in chain order owns it, and its version wins at the rebase.
 - **Device lock.** Runtime checks serialize on a lock directory in the scratchpad: `until mkdir <lock>; do sleep 30; done` … `rmdir <lock>`. Every implementer brief names it. Exception, Android with `berth` on PATH (emulator lease daemon): no lock for Android checks, each implementer leases its own emulator and berth queues the rest (*One device, one queue*).
-- **Grill `todo` tickets unattended.** `/wa-grill` GitHub steps 1–4 (claim `grilling`, `gh issue develop`, spec, push), you answering each grill question with your own recommendation — read code + wiki first, YAGNI, most reversible option. Every such answer lands in `## Context / Decisions` tagged `(autopilot assumption)`, listed again in report card **To test** so user confirms or corrects. Grill needs product intent code can't give → don't guess: release `--reset-to todo --reason "BLOCKED: <question>"`, ticket stays out. Dependencies found → `wa-backlog depend`, then ticket enters plan like any `grilled` one.
+- **Grill `todo` tickets unattended** — **0. Grill — claim first**, before any plan.
 
 Plan echo shows chain + leaves: `chain: #23 → #18 → #19 → #22 → #24 …` · `leaf ∥: #25 on #24`.
 
+## 0. Grill — claim first
+
+Batch holds `todo` tickets (named explicitly, or **AFK mode**) → grill them before **1. Plan**: plan needs spec. One ticket at a time, board order:
+
+1. **Claim** — `wa-backlog claim <id> grilling`, **first act on ticket**. Before it, only `wa-backlog get` / `list` (state, blockers, sprint). Never read its issue body, code or wiki, never plan it, never spawn agent on it before claim wins: board shows unclaimed ticket free, so another agent grills it too. Exit 3 → drop from batch, echo `<#id> skipped: grilled by <agent>` (`assigned: true` → `<#id> skipped: assigned to @<login>`). Exit 4 → echo state, drop.
+2. **Grill** — `/wa-grill` GitHub steps 2–4 (ticket branch, spec, push), you answering each grill question with your own recommendation — read code + wiki first, YAGNI, most reversible option. Every such answer lands in `## Context / Decisions` tagged `(autopilot assumption)`, listed again in report card **To test** so user confirms or corrects.
+3. **Product intent code can't give** → don't guess: `wa-backlog release <id> grilling --reset-to todo --reason "BLOCKED: <question>"`, ticket stays out.
+4. **Dependencies found** → `wa-backlog depend`. Hook moves ticket to `grilled` (confirm per `/wa-grill` step 4), then it enters plan like any `grilled` one.
+
+Claim next ticket only once previous one pushed or released: claim = grilled now, never queued. Local provider: no claim (`grilling` lives in session only) — `/wa-grill` steps, same `(autopilot assumption)` tagging.
+
 ## 1. Plan the batch — what can run at once
 
-Do `/wa-code` step 1 (**Plan**) for **every** task in batch, up front, main thread. Now hold one BRIEF per task — that tell you if two tasks share clock.
+Do `/wa-code` step 1 (**Plan**) for **every** task in batch, up front, main thread. `todo` tickets only after **0.** grilled them — never plan unclaimed `todo`. Now hold one BRIEF per task — that tell you if two tasks share clock.
 
 **Local provider:** task with open blocker (`blocked_by:`, **reference/blockers.md**) → out of batch, whatever its entry state, even when blocker in same batch: blocker ends `validated` at best, never `done`, so its code isn't on any fork point. Plan names it: `sync-offline waits login-apple (review)`. Named explicitly, user present → ask (recommended: no — code would fork off base without blocker's code). No local stacking.
 
