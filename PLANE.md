@@ -38,13 +38,13 @@ The machinery:
 
 - **`wa-backlog`**: the same Python script as for a GitHub board (stdlib plus `gh`), with a Plane adapter behind the same verbs. Skills call it for every board read or write; a copy is vendored at `.github/board/wa-backlog` so other agents and the hooks run the same commands.
 - **`whackagent-board-plane.yml`**: the hooks caller in the project's `.github/workflows/`. It runs whackagent's reusable workflow `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2` on your runner, which runs `wa-backlog hook` from the vendored copy on the default branch (never from the pushed branch, so a ticket branch can't change the code holding the API key). A hook fix therefore reaches the project with a refreshed copy of the script: `/wa-setup` offers that PR when the copy falls behind the plugin.
-- **A self-hosted runner** next to the Plane server, which runs those hooks.
+- **A self-hosted runner** next to the Plane server, which runs those hooks. Or, with `backlog.hooks: webhook`, your own webhook receiver runs `wa-backlog hook` instead, and there is no caller, runner or hooks secret (*Your own webhook receiver*, below).
 - **Repository variables** written by setup (`WA_PLANE_URL`, `WA_PLANE_WORKSPACE`, `WA_PLANE_PROJECT_ID`, `WA_PLANE_STATES`, `WA_RUNNER_LABEL`, plus the shared `WA_BRANCH_PREFIX`, `WA_TASKS_PATH` and friends), the **`PLANE_API_KEY`** environment variable on each machine running agents, and the **`WA_PLANE_API_KEY`** Actions secret for the hooks.
 
 ## What you need
 
 - A host with Docker and Docker Compose v2 for Plane CE. Measured idle: 12 containers plus a one-shot migrator, about 4.6 GB of images, about 80 MB of volumes when fresh, under 1 % CPU per container. RAM was about 2.3 GiB on an 18-core machine, more than half of it the Celery worker, which starts one process per CPU; on a 2 to 4 core server expect about 1.2 to 1.5 GiB.
-- A machine for the self-hosted runner that reaches the Plane server and GitHub (the Plane host itself is fine): about 440 MB of disk and 110 MiB of RAM, with `python3` and `gh` installed.
+- A machine for the self-hosted runner that reaches the Plane server and GitHub (the Plane host itself is fine): about 440 MB of disk and 110 MiB of RAM, with `python3` and `gh` installed. Not needed with your own webhook receiver.
 - A GitHub repository with `gh` logged in on each developer machine, as for the GitHub board.
 
 ## 1. Install Plane
@@ -95,14 +95,18 @@ The hooks are a GitHub Actions workflow that must run where Plane is reachable, 
 
 On a **public** repository, GitHub advises against self-hosted runners. The workflow never runs pull requests from forks, but pushes to the repository still run on your machine.
 
+### Your own webhook receiver
+
+If your team already runs a server that GitHub can reach, a GitHub App can send the repository's push and pull request events to a small receiver there, which runs `wa-backlog hook` itself: no runner to keep online, and no Actions minutes. whackagent ships no receiver, but `hook` is a stable interface for one: [providers/plane/README.md → Webhook receiver](providers/plane/README.md#webhook-receiver) lists the events, the checkout, the command, the environment and the result. Answer `webhook` to setup's hooks question (`backlog.hooks: webhook`): it then installs no caller workflow, sets no `WA_RUNNER_LABEL` and no `WA_PLANE_API_KEY` secret, and still vendors the script the receiver runs. Two things the runner gave you for free are then the receiver's job: replaying events it missed while it was down (GitHub does not redeliver on its own), and the weekday board check, which runs only if the receiver schedules it.
+
 ### Other ways to make Plane react to GitHub events
 
-The hooks run as GitHub Actions on a self-hosted runner because this needs nothing inbound: the runner only makes outbound calls to GitHub, Plane stays on a private network, and no Actions minutes are billed. These are the alternatives we considered. None of them is built.
+The hooks run as GitHub Actions on a self-hosted runner by default because this needs nothing inbound: the runner only makes outbound calls to GitHub, Plane stays on a private network, and no Actions minutes are billed. These are the alternatives we considered. Apart from your own receiver (above), none of them is built.
 
 | Option | How it works | Needs | For | Against |
 |---|---|---|---|---|
 | **Actions on a self-hosted runner** (what ships) | The caller workflow calls `board-plane.yml`, which runs `wa-backlog hook` on your runner | A runner that reaches Plane, with `python3` and `gh` | Nothing exposed. A job waits in the queue (up to 24 h) while the runner is offline and runs when it comes back. Free today | One more machine to keep running |
-| **GitHub App + webhook receiver** | A small service on your server receives GitHub webhooks and runs the hook logic. The App is installed on the organization | An inbound HTTPS endpoint GitHub can reach: a public reverse proxy, or a tunnel such as Cloudflare Tunnel or Hookdeck | No runner, near-instant, and one install covers every repository. The App's short-lived token replaces `GITHUB_TOKEN` and personal tokens. | A service to write and run, and an exposed endpoint. GitHub does not redeliver a failed delivery on its own, so a reconcile job is needed |
+| **GitHub App + webhook receiver** (`backlog.hooks: webhook`, receiver not shipped) | A small service on your server receives GitHub webhooks and runs `wa-backlog hook`. The App is installed on the repositories with a board | An inbound HTTPS endpoint GitHub can reach: a public reverse proxy, or a tunnel such as Cloudflare Tunnel or Hookdeck | No runner, near-instant, and one install covers every repository. The App's short-lived token replaces `GITHUB_TOKEN` and personal tokens. | A service to write and run, and an exposed endpoint. GitHub does not redeliver a failed delivery on its own, so a reconcile job is needed |
 | **Plain repository or organization webhook + receiver** | Same as above, with a shared HMAC secret instead of an App | Same as above, plus a personal token to delete claim refs | Simpler than an App | Personal tokens to manage, coarse permissions |
 | **Polling from your server** | A scheduled job asks GitHub what changed (branches, PRs, merges) and reconciles the board, like the board check but allowed to move cards | Outbound HTTPS only | No inbound port, no runner, nothing exposed | Moves lag by the polling interval. It spends GitHub API budget (5,000 requests an hour per token; ETag-cached answers are free). Events must be inferred from a state diff |
 | **GitHub-hosted runners** | The same workflow on `ubuntu-latest`, calling Plane over the internet | Plane reachable from the internet, or through Tailscale or Cloudflare Access inside the job | Nothing to host | Bills Actions minutes on private repositories, and Plane is exposed: the cost this provider exists to avoid |
@@ -241,6 +245,7 @@ Not copied: size (a Plane board has none), assignees (re-assign in Plane; the re
   - **queued**: no runner with the `WA_RUNNER_LABEL` label is online. Start it; the run and the card move then.
   - **in progress**: give it a few seconds.
   - **success**, but nothing moved: the run's summary line says why, for example a card in a column whackagent doesn't own.
+  - **webhook receiver** (`backlog.hooks: webhook`): there is no run to look up. Check the receiver's delivery log for that push or PR event, fix the cause, and run the delivery again.
   - **not triggered**: no run at all. The branch was forked before the caller reached the base (rebase it), the caller's `branches:` filter doesn't match your prefix, or the PR conflicts with its base (GitHub runs no `pull_request` workflow then: rebase).
 
   The agent never moves the card itself to make up for it. Fix the cause, then push again or re-run the hook (`gh run rerun <id>`).
@@ -249,23 +254,6 @@ Not copied: size (a Plane board has none), assignees (re-assign in Plane; the re
 - **A ticket id is refused** (exit 2): use the full key, `WA-42`, not `42` or `#WA-42`.
 - **A card moved with no hook run behind it**: a second writer is moving cards, most likely Plane's own GitHub integration. Re-run `wa-backlog check-integration`.
 - **A card sits in a column outside the seven states** (a team column such as `Blocked`): agents never claim it and the hooks leave it alone, except that a held coding claim makes the next PR hook take it back. While it sits there, it is a human's card.
-
-## To do
-
-### Deploy Plane and the runner on a shared Mac (Colima)
-
-The target is to run Plane CE and the hooks runner on the team's Mac Studio, next to TeamCity. Colima is the container runtime: free and open source, headless, and it runs the plain Docker engine, so Plane's Compose files work unchanged. Docker Desktop needs a logged-in GUI session and is free only below 250 employees and $10 M revenue. OrbStack is paid for commercial use. **None of this has been tested yet**: the maintainer rig runs on Docker Desktop.
-
-- [ ] **Runtime.** `brew install colima docker docker-compose`, then point Docker at the Compose plugin: `"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]` in `~/.docker/config.json`.
-- [ ] **Cap the VM** so TeamCity builds keep their share: `colima start --vm-type vz --cpu 4 --memory 6 --disk 60`. Four CPUs also caps the Celery worker, which starts one process per CPU it sees. Measure idle RAM and compare it with the rig's 2.3 GiB on 18 CPUs.
-- [ ] **Start at boot.** `brew services start colima` installs a LaunchAgent, which only runs once the user is logged in. Either set up auto-login for a dedicated service user, or install a LaunchDaemon. Check which one survives a power cut.
-- [ ] **No sleep:** `sudo pmset -a sleep 0 disksleep 0`, and turn on *Start up automatically after a power failure*.
-- [ ] **Plane.** Use the steps in *1. Install Plane*: pin v1.4.2, replace `minio/minio:latest` with `pgsty/silo`, set `API_KEY_RATE_LIMIT=1000000/second`, and give every service `restart: unless-stopped`. Pick a port that doesn't clash with TeamCity (8111 by default); the rig uses 8390.
-- [ ] **URL.** Publish Plane on a LAN or VPN hostname that both the runner and developers' laptops resolve, and set `WA_PLANE_URL` to it. Never use `localhost`: agents on laptops read the same variable.
-- [ ] **Runner.** Register one runner at the **organization** level with label `whackagent-plane`, in a runner group limited to the Plane repositories. Make sure `python3` and `gh` are on its PATH, and set `WA_RUNNER_LABEL=whackagent-plane` in each project. On macOS, `./svc.sh install` creates a LaunchAgent, so the same login requirement as Colima applies.
-- [ ] **Backups.** Run a nightly `pg_dump` of the `plane-db` volume to storage outside the Mac, and also back up the object-storage volume (uploads).
-- [ ] **Failure drill.** Stop Colima during a push and check two things: the hook run waits in the queue, and the card moves once Colima is back. Then reboot the Mac and check that Plane, the runner and TeamCity all come back on their own.
-- [ ] **Docs.** Once this works, move these steps into *1. Install Plane* and *3. The runner*, and record the measured footprint in `providers/plane/README.md`.
 
 ## Not built yet
 

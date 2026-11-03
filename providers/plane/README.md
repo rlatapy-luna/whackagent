@@ -120,6 +120,21 @@ wa-backlog hook --event schedule --payload scripts/plane-rig/payloads/schedule.j
 
 The recorded payloads under `scripts/plane-rig/payloads/` are real `push` and `pull_request` payloads from the playground, trimmed to the fields a hook reads (`push-*.json`, `pr-*.json`); edit `ref` and `after` (push), or the PR number, branch and body (pull request) to the ticket under test. `schedule.json` needs no edit: the check reads the whole board.
 
+### Webhook receiver
+
+`backlog.hooks: webhook` is for a team that runs its own receiver instead of the Actions caller and runner: typically a GitHub App whose webhook reaches a service on the team's server. whackagent ships no receiver. `/wa-setup` then installs no caller, sets no `WA_RUNNER_LABEL` and no `WA_PLANE_API_KEY` secret, and still vendors `.github/board/wa-backlog` on the default branch, which the receiver runs. The receiver gets the same behavior as the reusable workflow when it does what that workflow does:
+
+- **Events.** `push` on branches under the project's prefix (`wa/` by default), and `pull_request` `opened`, `reopened`, `edited`, `ready_for_review`, `converted_to_draft`, `synchronize`, `closed`. It drops pull requests from forks (`pull_request.head.repo.full_name` differs from `repository.full_name`), as the workflow does. The weekday board check is optional: `hook --event schedule` with any JSON payload (`{}`) on a timer.
+- **Checkout.** The repository's **default branch**, never the pushed ref, sparse on `.github/board` and `.whackagent`, so a ticket branch cannot change the code that gets the keys.
+- **Command.** In that checkout: `python3 .github/board/wa-backlog hook --event <X-GitHub-Event> --payload <file holding the raw request body>`. The payload's `repository.full_name` must be the repository the checkout belongs to.
+- **Environment.** `GITHUB_ACTIONS=true` and `GITHUB_REPOSITORY=<owner>/<name>` (the script reads its repository from them), `GITHUB_EVENT_NAME`, `GITHUB_SERVER_URL=https://github.com`, `WA_VARS` = the repository's Actions variables as one JSON object (what the workflow passes as `toJSON(vars)`; a GitHub App installation token with *Variables: read* can list them), `WA_PLANE_URL`, `GH_TOKEN` = a token limited to that repository with contents, pull requests and issues write (claim refs, PR comments), and `PLANE_API_KEY` of a Plane user who is a member of the project (its comments sign every hook move). `GITHUB_STEP_SUMMARY`, when set to a file path, receives the one-line report the workflow shows as its job summary.
+- **Result.** One JSON object on stdout (`event`, `ticket` when one applies, `action`, `reason`); a non-zero exit means the hook failed, and stderr names the cause.
+- **Order.** One run at a time per repository, in arrival order, as the workflow's concurrency group does.
+- **Isolation.** The script comes from the repository: whoever can merge to its default branch chooses what runs. Run it apart from the receiver's own secrets (another user, no access to the App's private key or the webhook secret), with only that repository's token and the Plane key.
+- **Missed events.** GitHub does not redeliver a failed webhook delivery on its own. Keep the deliveries the receiver got, so a failed one can be run again once the cause is fixed.
+
+This interface (`hook --event --payload`, the environment above, the stdout result) is stable: a change to it is announced as **Breaking:** in the changelog.
+
 ### Board check
 
 The caller's `schedule` (weekdays, 06:17 UTC) and `workflow_dispatch` (`gh workflow run whackagent-board-plane.yml`) run `hook_check`, the rules of `check()` in `board.yml` read against the Plane board. It only reports: no state, claim, assignee or order is ever written.

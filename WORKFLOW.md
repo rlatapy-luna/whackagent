@@ -282,7 +282,7 @@ Same six states, same claims, same rounds, same merge as above. Differences:
 | Size | Project `Size` | none |
 | Sprint | parent issue + sub-issues | parent card `wa-sprint` + children, mirrored by cycle of same name |
 | Milestone | GitHub milestone | Plane module |
-| Hooks | `board.yml`, GitHub-hosted runner, `WA_PROJECT_TOKEN` | `board-plane.yml` → `wa-backlog hook`, **self-hosted runner** labeled `WA_RUNNER_LABEL`, `WA_PLANE_API_KEY` |
+| Hooks | `board.yml`, GitHub-hosted runner, `WA_PROJECT_TOKEN` | `board-plane.yml` → `wa-backlog hook`, **self-hosted runner** labeled `WA_RUNNER_LABEL`, `WA_PLANE_API_KEY`. Or `backlog.hooks: webhook`: team's receiver runs `wa-backlog hook`, no caller |
 | Hooks events | `issues`, `push`, `pull_request`, schedule | `push`, `pull_request`, schedule. Plane edits fire nothing |
 
 ```mermaid
@@ -313,7 +313,7 @@ stateDiagram-v2
 
 ### Plane hook events
 
-Runner: self-hosted, label `WA_RUNNER_LABEL` (default `self-hosted`), `python3` + `gh`, reaches Plane. Offline → runs queue (up to 24 h), cards wait.
+Runner: self-hosted, label `WA_RUNNER_LABEL` (default `self-hosted`), `python3` + `gh`, reaches Plane. Offline → runs queue (up to 24 h), cards wait. `backlog.hooks: webhook` → team's receiver instead: same events and results, down → deliveries lost until redelivered, board check only if scheduled.
 
 | Event | Condition | Result |
 | --- | --- | --- |

@@ -122,7 +122,12 @@ Create the ticket's branch from the fork point and push it at once: `git switch 
 ### Single writer and runner
 
 - Plane's own GitHub integration must stay off. It would move cards from GitHub events too and fight the board workflow. Setup checks it.
+<!-- hooks: actions -->
 - The board workflow runs on a self-hosted GitHub Actions runner next to the Plane server, labeled `<runner-label>`. While the runner is offline, runs wait in the queue and cards do not move.
+<!-- /hooks -->
+<!-- hooks: webhook -->
+- The board workflow runs on a webhook receiver the team operates, not on GitHub Actions: GitHub calls it on every push and pull request, and it runs the board CLI from the default branch. While the receiver is down, cards do not move and the missed events are not replayed on their own: a human redelivers them. The daily checks run only if the receiver schedules them.
+<!-- /hooks -->
 
 ### Checks
 

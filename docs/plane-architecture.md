@@ -2,7 +2,7 @@
 
 This page explains the pieces of the Plane board provider and how events flow between them. It describes how the system is built and why. For the setup steps, read [PLANE.md](../PLANE.md). For the rules every agent follows, read the project's `BOARD.md`.
 
-In one sentence: **Plane holds the board, GitHub holds the code, and two writers move cards: agents through `wa-backlog`, and hooks running on a self-hosted runner.** Humans read the board, write tickets and reorder priorities in Plane. They never drag a card to another column.
+In one sentence: **Plane holds the board, GitHub holds the code, and two writers move cards: agents through `wa-backlog`, and hooks running on a self-hosted runner (or on the team's own webhook receiver).** Humans read the board, write tickets and reorder priorities in Plane. They never drag a card to another column.
 
 ## The pieces
 
@@ -41,9 +41,9 @@ flowchart LR
 | **Plane CE** | The board: one project whose states are the six board states plus Canceled. Card order is priority, a cycle is a sprint, a module is a milestone, a relation is "blocked by", and a link points to the PR. | Your server. Free and open source. The per-key API limit must be lifted (`API_KEY_RATE_LIMIT=1000000/second`). |
 | **`wa-backlog`** | One Python script (stdlib only). Its core handles the CLI, verbs, claims, PRs, merges and hooks. A `Board` interface sits on top, with one adapter per board tool: `GitHubBoard` and `PlaneBoard`. | `providers/wa-backlog` in the plugin. Each project vendors a copy at `.github/board/wa-backlog`. |
 | **GitHub repository** | Code, ticket branches, task files (the spec), pull requests, and **claims** (atomic git refs). Settings live in repository variables. | GitHub, unchanged from the GitHub provider. |
-| **Caller workflow** | A short file in the project that holds the triggers, permissions and concurrency. | `.github/workflows/whackagent-board.yml`, installed by `/wa-setup` from `providers/plane/whackagent-board-plane.yml`. |
+| **Caller workflow** | A short file in the project that holds the triggers, permissions and concurrency. | `.github/workflows/whackagent-board-plane.yml`, installed by `/wa-setup` from `providers/plane/whackagent-board-plane.yml` (`backlog.hooks: actions`, the default). |
 | **Reusable workflow** | Checks out the default branch, then runs `wa-backlog hook` with the Plane key. | `rlatapy-luna/whackagent/.github/workflows/board-plane.yml@hooks-v2`. |
-| **Self-hosted runner** | Runs the hook jobs next to Plane, so Plane stays on a private network and no Actions minutes are billed. | A machine you own that can reach `WA_PLANE_URL`. |
+| **Self-hosted runner** | Runs the hook jobs next to Plane, so Plane stays on a private network and no Actions minutes are billed. | A machine you own that can reach `WA_PLANE_URL`. Not needed with `backlog.hooks: webhook`: the team's own receiver runs `wa-backlog hook` instead, with no caller workflow ([contract](../providers/plane/README.md#webhook-receiver)). |
 | **Backlog pane** | The board drawn beside the chat in Claude Code. | `hooks/` in the plugin. It reads `wa-backlog list`. |
 
 ## Who moves a card
@@ -207,11 +207,11 @@ flowchart LR
 
 ## Limits to know
 
-- **Experimental:** the provider has not run on a real team project yet.
+- **Experimental:** one team runs it on its projects so far, with the hooks on its own webhook receiver.
 - **No size:** Plane CE v1.4.2 can't create estimates through its API.
 - **Relations are add-only:** the API can't remove a "blocked by" relation, so remove it in the Plane UI.
 - **Card-description specs don't count:** a spec written in the card description does not move the card. Use the task file.
-- **One more machine to run:** a self-hosted runner is required infrastructure.
+- **One more machine to run:** a self-hosted runner, or your own webhook receiver, is required infrastructure.
 
 ## Where to read more
 

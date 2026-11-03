@@ -3219,8 +3219,9 @@ def op_merge(args):
 # ---------------------------------------------------------------- hooks (board tools other than GitHub)
 
 # `hook` = the board hooks of a board tool that is not GitHub (Plane): run by the reusable workflow
-# .github/workflows/board-plane.yml on a self-hosted runner, or by hand with --event/--payload to replay a
-# recorded event. Same rules as the JavaScript of board.yml for the GitHub board, which stays as it is. One
+# .github/workflows/board-plane.yml on a self-hosted runner, by a team's webhook receiver with --event/--payload
+# (backlog.hooks: webhook, providers/plane/README.md -> Webhook receiver: a stable interface), or by hand the same
+# way to replay a recorded event. Same rules as the JavaScript of board.yml for the GitHub board, which stays as it is. One
 # handler per event name (push, pull_request); an event without one is a no-op. Each returns {action, reason}
 # and logs one line. A board adapter the hooks drive also provides: linked_tickets(text) (card links in a PR
 # body), link_pr / linked_prs (PR links on the card), open_sprint(name), sprint_parent(number),

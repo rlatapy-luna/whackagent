@@ -38,6 +38,12 @@ backlog:
                                #     not here. Forces branch.per_task: true, branch.base = close.target
                                #     (named branch). Ignores close.strategy for tickets:
                                #     /wa-validate marks PR ready, /wa-close merges it on your yes.
+  hooks: actions               # plane only — WHAT runs board hooks (wa-backlog hook) on GitHub events.
+                               #   actions — caller workflow on self-hosted runner next to Plane (default):
+                               #     /wa-setup installs caller, runner label, secret WA_PLANE_API_KEY.
+                               #   webhook — your own receiver (GitHub App webhook → server) runs
+                               #     `wa-backlog hook --event --payload` itself (providers/plane/README.md,
+                               #     *Webhook receiver*): no caller, no runner, no secret installed.
   milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
                                # only — github read them from repo milestones. New task join LAST
                                # entry, so new work never grow current or past scope. You own list:
