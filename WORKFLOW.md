@@ -2,7 +2,7 @@
 
 Ticket from idea to merged code. Who moves it, what board shows, what you do next.
 
-- **Board state** — six contract states, GitHub Project `Status` column (`backlog.provider: github`) or Plane card column (`plane`, experimental: [Plane board](#plane-board)). Rules: project's `BOARD.md`.
+- **Board state** — six contract states, GitHub Project `Status` column (`backlog.provider: github`) or Plane card column (`plane`, on lb-board: [Plane board](#plane-board)). Rules: project's `BOARD.md`.
 - **Task phase (whackagent only)** — `phase:` field of whackagent's task file `{tasks}/<n>-<slug>.md`, committed on ticket branch: `in-progress` → `review` → `validated`. Says how far whackagent loop got inside one board state (verifier run or not). Board never shows it. Dev without whackagent: no task file, no phase — PR draft / ready tells same story.
 
 Matches board contract 2.5, hooks `hooks-v2`: GitHub caller template version 16, Plane caller template version 1. Sections below describe GitHub board; [Plane board](#plane-board) lists what differs.
@@ -269,7 +269,7 @@ On PR, as it happens: push without coding claim · PR linking several tickets.
 
 ## Plane board
 
-`backlog.provider: plane`, **experimental**. Board = Plane CE project, code + claims + PRs on GitHub. Rules: project's `BOARD.md`, section *This board: Plane*. Walkthrough: [PLANE.md](PLANE.md).
+`backlog.provider: plane` → board runs on **lb-board** (Lunabee's Plane board plugin, internal). Board = Plane project, code + claims + PRs on GitHub. Rules: project's `.github/board/BOARD.md` (lb-board's). `wa-backlog` forwards board verbs to `.github/board/lb-board`. Walkthrough: [PLANE.md](PLANE.md).
 
 Same six states, same claims, same rounds, same merge as above. Differences:
 
@@ -277,68 +277,16 @@ Same six states, same claims, same rounds, same merge as above. Differences:
 | --- | --- | --- |
 | Ticket id | issue `#12` | work item key `WA-42`, written as is: branch `wa/WA-42-<slug>`, task file `WA-42-<slug>.md` |
 | State | Project `Status` | card column, six states + `Canceled` |
-| Spec | task file pushed, or criteria in issue body | task file pushed **only**. Criteria in card description move nothing |
-| PR → ticket | Development link / `Closes #n`, branch fallback | branch `wa/WA-42-…`, else the one card link in PR body. Never `Closes` |
+| Spec | task file pushed, or criteria in issue body | task file pushed (`PLANE_SPECS_PATH` = `{tasks}`) **only**. Criteria in card description move nothing |
+| PR → ticket | Development link / `Closes #n`, branch fallback | key anywhere in head branch, else in PR title, else the one card link in PR body. Never `Closes` |
+| Claims | `refs/wa-claims/<id>/<phase>` | `refs/lb-claims/<id>/<phase>` |
 | Size | Project `Size` | none |
-| Sprint | parent issue + sub-issues | parent card `wa-sprint` + children, mirrored by cycle of same name |
+| Sprint | parent issue + sub-issues | parent card `lb-sprint` + children, mirrored by cycle of same name |
 | Milestone | GitHub milestone | Plane module |
-| Hooks | `board.yml`, GitHub-hosted runner, `WA_PROJECT_TOKEN` | `board-plane.yml` → `wa-backlog hook`, **self-hosted runner** labeled `WA_RUNNER_LABEL`, `WA_PLANE_API_KEY`. Or `backlog.hooks: webhook`: team's receiver runs `wa-backlog hook`, no caller |
-| Hooks events | `issues`, `push`, `pull_request`, schedule | `push`, `pull_request`, schedule. Plane edits fire nothing |
+| Hooks | `board.yml`, GitHub-hosted runner, `WA_PROJECT_TOKEN` | `lb-board hook`, run by Lunabee Plane board GitHub App's receiver. No runner, no caller |
+| Hooks events | `issues`, `push`, `pull_request`, schedule | `push`, `pull_request`. Plane edits fire nothing. Board check = `lb-board check`, by hand |
 
-```mermaid
-stateDiagram-v2
-    direction LR
-
-    [*] --> todo: wa-backlog create<br/>or card added in Plane
-
-    todo --> grilling: claim grilling<br/>/wa-grill
-    grilled --> grilling: claim grilling<br/>(re-grill)
-    grilling --> grilled: task file pushed<br/>on ticket branch (hook)
-    todo --> grilled: task file pushed (hook)
-    grilling --> todo: release (grill abandoned)
-
-    grilled --> coding: claim coding<br/>/wa-code, /wa-autopilot
-    coding --> review: PR opened (hook)<br/>or round pushed to PR (hook)
-    coding --> grilled: release (blocked, no PR)
-    coding --> review: release (round aborted, PR open)
-
-    review --> coding: claim coding<br/>/wa-feedback, /wa-validate, /wa-close
-    review --> done: PR merged (hook)
-    review --> grilled: PR closed unmerged (hook)
-
-    done --> [*]
-```
-
-`cancel <id>` (human's word): any unclaimed card not in `done` → `Canceled`, never claimable, never `done`. Card description edits, drags between columns, cycle changes: no hook sees them.
-
-### Plane hook events
-
-Runner: self-hosted, label `WA_RUNNER_LABEL` (default `self-hosted`), `python3` + `gh`, reaches Plane. Offline → runs queue (up to 24 h), cards wait. `backlog.hooks: webhook` → team's receiver instead: same events and results, down → deliveries lost until redelivered, board check only if scheduled.
-
-| Event | Condition | Result |
-| --- | --- | --- |
-| `push` to `wa/**` | task file `{tasks}/<id>-*.md`, `issue: <id>`, non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped, `✅ grilled` comment with spec permalink |
-| `pull_request` (any) | ticket = head branch `wa/<id>-…`, else one card link in body; not sprint PR | PR added as link on card |
-| `pull_request: opened` / `reopened` | ticket found, card not `done` | `review`, claims dropped, `🔀 review`, dev assigned if none |
-| `pull_request: edited` | link found late, card `todo` / `grilled`, PR open | `review`, dev assigned if none |
-| `pull_request: synchronize` | coding claim held | `review`, claim dropped, dev assigned if none, new `## Feedback` round linked on card + PR |
-| `pull_request: synchronize` | no claim (not GitHub's own merge) | comment on PR, board untouched |
-| `pull_request: ready_for_review` / `converted_to_draft` | — | ready → `✅ ready` comment. Nothing moves |
-| `pull_request: closed`, merged | ticket PR | `done`, claims dropped, every assignee removed, run report on card. Sprint without branch, last child → sprint parent `Done` |
-| `pull_request: closed`, merged | head = sprint branch | sprint parent `Done` (`🏁 sprint landed`) |
-| `pull_request: closed`, unmerged | not `done` / `grilled`, no coding claim, no other open PR linked | `grilled` |
-| `pull_request`, head branch not a ticket's | body holds several card links | comment on PR, nothing moves |
-| scheduled weekdays 06:17 UTC, or `gh workflow run whackagent-board-plane.yml` | — | board check, report only |
-
-Card in column outside six states + `Canceled` → hooks hands off. Except coding claim held → treated as `coding`.
-
-Dev assigned if none = card has no assignee → Plane user named in claim hook drops (`account:` trailer). No claim → stays unassigned: GitHub login ≠ Plane account.
-
-### Plane board check
-
-Same as [Board check](#board-check), on card. Kept: no claim in lock column · stale claim · `review` no open PR · open PR, card `todo` / `grilled` · linked PR merged, card not `done` · `grilled` no ticket branch. Issue-body criteria check becomes: criteria in card description, card `todo`. Added: card in open sprint's cycle, parent not sprint root (not in sprint). Dropped (no Plane twin): `done` card issue open · closed issue in lock column · closed as completed not `done`.
-
-Card not moved after push → skill re-reads ~3 min, then names run: failed (URL) · queued (runner offline) · in progress · success (summary says why) · not triggered (caller missing on fork point, `branches:` filter, PR conflicting). Never moves card itself.
+Hook rules: lb-board's (`.github/board/BOARD.md`) — task file pushed → `grilled`; PR opened / round pushed with coding claim → `review` (+ `## Feedback` rounds linked); merged → `done` (run report on card, assignees removed, sprint landing); closed unmerged → `grilled` (task file on head) else `todo`. Push without claim: nothing (no PR comment). Card not moved → receiver's delivery log (https://hooks.lunabee.ovh/), never move card by hand.
 
 ## Local provider
 

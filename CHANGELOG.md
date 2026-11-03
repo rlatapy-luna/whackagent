@@ -4,6 +4,30 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the Plane board now runs on **lb-board**, Lunabee's internal Plane board plugin (LunabeeStudio/Lunabee-Plane). whackagent keeps its workflow on top and holds no Plane code any more.
+  - `wa-backlog` forwards every board verb (`list`, `get`, `create`, `claim`, `release`, `move`, `cancel`, `set-field`, `milestones`, `close-milestone`, `split`, `comment`, `depend`, `link-pr`, `claims`, `whoami`, `check-integration`) to the repository's `.github/board/lb-board`. It keeps the same output, and adds `phase` and `branch` where skills and the pane read them.
+  - Claims on Plane become `refs/lb-claims/…`, and the labels become `lb-ignore` and `lb-sprint`.
+  - The hooks run on the "Lunabee Plane board" GitHub App. A push without a claim is no longer reported on the PR. A PR closed unmerged goes back to `grilled` only when its branch holds the task file, otherwise to `todo`.
+  - The Plane board is Lunabee-only. The GitHub Projects board and the local board are unchanged.
+- `/wa-setup` sets up a Plane board through `/lb-board-setup`, with `{tasks}` as the spec path, and adds its scaffold to the same PR.
+- A board set up before 2.0.0 moves with the new *Plane board → lb-board* step. It needs no live claim. It adopts the same project and columns by id, renames the labels, and opens one PR that swaps `.github/board/wa-backlog` for lb-board.
+
+### Removed
+
+- **Breaking:** whackagent's own Plane provider is removed:
+  - `PlaneBoard`, its hooks (`wa-backlog hook`), the reusable `board-plane.yml` workflow and its caller, and the `actions` hooks mode with its self-hosted runner;
+  - the config keys `backlog.hooks` and `backlog.hooks_app`;
+  - `wa-backlog migrate`, so a GitHub board can no longer move to Plane;
+  - `providers/plane/` and `docs/plane-architecture.md`.
+
+  The Plane API facts and the local Plane rig moved to Lunabee-Plane. The `hooks-v2` tag keeps the old commit, so projects still on the Actions caller run as before until they move.
+
+### Fixed
+
+- `wa-backlog branch`, `get` and the review phase no longer crash when GitHub answers the branch lookup with an error.
+
 ## [1.15.0] - 2026-11-03
 
 ### Added

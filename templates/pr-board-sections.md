@@ -4,9 +4,6 @@
 <!-- board-tool: github -->
 Closes #
 <!-- /board-tool -->
-<!-- board-tool: plane -->
-<!-- exactly one card link: [<key>-42](<plane-url>/<workspace>/browse/<key>-42/) -->
-<!-- /board-tool -->
 
 ## Acceptance criteria
 

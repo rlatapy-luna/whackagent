@@ -31,23 +31,13 @@ backlog:
   provider: local              # WHERE tickets live — providers/CONTRACT.md.
                                #   local  — {backlog} + task files, one agent (default).
                                #   github — GitHub Project + issues, many agents/worktrees.
-                               #   plane  — self-hosted Plane CE project, code on GitHub
-                               #     (EXPERIMENTAL). Server needs API_KEY_RATE_LIMIT=1000000/second.
-                               #     API key: env PLANE_API_KEY + Actions secret WA_PLANE_API_KEY.
-                               #   github, plane: settings in repo variables (wa-backlog provision),
-                               #     not here. Forces branch.per_task: true, branch.base = close.target
-                               #     (named branch). Ignores close.strategy for tickets:
+                               #   plane  — Lunabee's Plane, run by the lb-board plugin (internal,
+                               #     LunabeeStudio/Lunabee-Plane): .github/board/lb-board holds board,
+                               #     claims and hooks (Lunabee Plane board App). API key: env PLANE_API_KEY.
+                               #   github, plane: settings in repo variables (wa-backlog provision /
+                               #     /lb-board-setup), not here. Forces branch.per_task: true, branch.base =
+                               #     close.target (named branch). Ignores close.strategy for tickets:
                                #     /wa-validate marks PR ready, /wa-close merges it on your yes.
-  hooks: actions               # plane only — WHAT runs board hooks (wa-backlog hook) on GitHub events.
-                               #   actions — caller workflow on self-hosted runner next to Plane (default):
-                               #     /wa-setup installs caller, runner label, secret WA_PLANE_API_KEY.
-                               #   webhook — your own receiver (GitHub App webhook → server) runs
-                               #     `wa-backlog hook --event --payload` itself (providers/plane/README.md,
-                               #     *Webhook receiver*): no caller, no runner, no secret installed.
-                               #     Recommended when your team runs one.
-  hooks_app:                   # webhook only — receiver's GitHub App installation, as link
-                               # (https://github.com/apps/<slug>/installations/<id>). /wa-setup has this
-                               # repo added to it: installing App = switch that turns hooks on.
   milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
                                # only — github read them from repo milestones. New task join LAST
                                # entry, so new work never grow current or past scope. You own list:
