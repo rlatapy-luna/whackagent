@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-03
+
 ### Changed
 
 - **Breaking:** the Plane board now runs on **lb-board**, Lunabee's internal Plane board plugin (LunabeeStudio/Lunabee-Plane). whackagent keeps its workflow on top and holds no Plane code any more.
