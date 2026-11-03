@@ -1,5 +1,7 @@
 # Plane CE board provider, with code on GitHub
 
+> **Superseded in 2.0.0:** the Plane board now runs on lb-board (LunabeeStudio/Lunabee-Plane). whackagent forwards its board verbs there; the provider described below, its hooks, `migrate` and the rig were removed or moved. Kept as history.
+
 Shipped on 2026-10-21 from PRD `prd/0001-plane-board-provider.md`.
 
 ## What it does

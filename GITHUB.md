@@ -6,7 +6,7 @@ With the default `local` provider, the backlog is a Markdown file and one agent 
 
 For the script-level details (every verb, every field mapping, setup internals), see [`providers/github/README.md`](providers/github/README.md).
 
-The board can also live on your own Plane server while code stays on GitHub (experimental): [PLANE.md](PLANE.md) walks through that provider.
+At Lunabee, the board can also live on Plane while code stays on GitHub, through the lb-board plugin: [PLANE.md](PLANE.md).
 
 ## The one rule
 
