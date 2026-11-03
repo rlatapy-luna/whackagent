@@ -192,7 +192,8 @@ pr:
 | `verify.target` | `local` | Where the runtime check runs: `simulator`, `emulator`, `device`, `browser` or `local` |
 | `branch.checkout_next` | `true` | After `/wa-close`, check out the next task's branch (with `branch.per_task` and `commit.auto_commit_after_validation`) |
 | `backlog.provider` | `local` | Where tickets live: `local` (files), `github` (GitHub Project, [below](#shared-backlog-on-github)), or `plane` (self-hosted Plane CE project, code on GitHub, **experimental**, [below](#board-on-plane-experimental) and [PLANE.md](PLANE.md)) |
-| `backlog.hooks` | `actions` | Plane board only: what runs the board hooks. `actions` (a caller workflow on your self-hosted runner) or `webhook` (your own receiver runs `wa-backlog hook`; no caller, runner or secret installed) |
+| `backlog.hooks` | `actions` | Plane board only: what runs the board hooks. `actions` (a caller workflow on your self-hosted runner) or `webhook` (your own receiver runs `wa-backlog hook`; no caller, runner or secret installed). Setup recommends `webhook` when your team runs a receiver |
+| `backlog.hooks_app` | empty | `webhook` only: the receiver's GitHub App installation link (`https://github.com/apps/<slug>/installations/<id>`). Setup has the repository added to it, which turns the hooks on, after removing any Actions caller |
 | `vcs.provider` | `github` | Code host (branches, PRs, claims) under a `github` or `plane` backlog. `github` is the only value; a config without the key behaves the same |
 
 ## Typical flow

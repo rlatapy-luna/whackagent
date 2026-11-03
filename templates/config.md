@@ -44,6 +44,10 @@ backlog:
                                #   webhook — your own receiver (GitHub App webhook → server) runs
                                #     `wa-backlog hook --event --payload` itself (providers/plane/README.md,
                                #     *Webhook receiver*): no caller, no runner, no secret installed.
+                               #     Recommended when your team runs one.
+  hooks_app:                   # webhook only — receiver's GitHub App installation, as link
+                               # (https://github.com/apps/<slug>/installations/<id>). /wa-setup has this
+                               # repo added to it: installing App = switch that turns hooks on.
   milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
                                # only — github read them from repo milestones. New task join LAST
                                # entry, so new work never grow current or past scope. You own list:
