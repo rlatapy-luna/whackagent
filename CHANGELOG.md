@@ -6,6 +6,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Added
 
+- `/wa-setup` reconfigure lists every board leftover in the repository and cleans them on one yes: settings, secrets, caller workflows and runners the current board no longer uses (the GitHub board's after a move to Plane, the Actions hooks' on a `webhook` Plane project, the Plane board's on a GitHub one). It disables a caller first when other hooks are live, removes workflow files through a PR, and never touches the settings both boards share.
 - Experimental Plane board: the board hooks can run on your own webhook receiver instead of GitHub Actions. Answer `webhook` to `/wa-setup`'s new hooks question (`backlog.hooks`, default `actions`): setup then installs no caller workflow, sets no `WA_RUNNER_LABEL` and no `WA_PLANE_API_KEY` secret, and a later refresh doesn't put them back. It still vendors `.github/board/wa-backlog`, which your receiver runs. whackagent ships no receiver: `wa-backlog hook --event --payload` is now a stable interface for one, documented in `providers/plane/README.md` → *Webhook receiver* (events, default-branch checkout, environment, result). `BOARD.md` says where the hooks run, and `/wa-setup` reconfigure flags a caller left on a `webhook` project, since both would move each card twice.
 
 ### Removed
