@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-11-03
+
 ### Added
 
 - Experimental Plane board: `backlog.hooks_app`, the GitHub App installation of your webhook receiver. `/wa-setup` now recommends `webhook` hooks when your team runs a receiver, and turns them on by having the repository added to that App. It disables any Actions caller first, so no event runs twice, then gives the installation link where an organization owner adds the repository (a `gh` login can't change an installation), and offers right away to clean up the runner label, the hooks secret and the runners.
