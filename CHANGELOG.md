@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-11-03
+
 ### Added
 
 - `/wa-setup` reconfigure lists every board leftover in the repository and cleans them on one yes: settings, secrets, caller workflows and runners the current board no longer uses (the GitHub board's after a move to Plane, the Actions hooks' on a `webhook` Plane project, the Plane board's on a GitHub one). It disables a caller first when other hooks are live, removes workflow files through a PR, and never touches the settings both boards share.
