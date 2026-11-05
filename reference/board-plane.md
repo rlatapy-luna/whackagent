@@ -10,9 +10,8 @@
   `.lunabee/board/BOARD.md`. That contract holds the worker rules; the bullets below are whackagent's way of meeting
   them.
 - The code-host side (script, task file, claims, rounds, PRs) is in **reference/code-github.md**.
-- `wa-backlog` forwards every board verb to `.lunabee/board/lb-board` (else `.github/board/lb-board`, boards set up
-  before lb-board 0.3.0), with the same verbs, flags, JSON and exit codes. It adds `phase` and `branch` where
-  whackagent reads them.
+- `wa-backlog` forwards every board verb to `.lunabee/board/lb-board`, with the same verbs, flags, JSON and exit
+  codes. It adds `phase` and `branch` where whackagent reads them.
 - Missing script → exit 2 `no .lunabee/board/lb-board`: tell the user to run `/wa-setup`, and stop.
 
 - **No `{backlog}` file, no local mirror.** The board is the Plane project. Never write order, state or title into a

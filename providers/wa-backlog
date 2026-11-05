@@ -974,10 +974,10 @@ class GitHubBoard(Board):
 # ---------------------------------------------------------------- Plane board (lb-board)
 
 # A Plane board runs on lb-board, Lunabee's Plane board CLI (LunabeeStudio/Lunabee-Plane), vendored in the repo as
-# .lunabee/board/lb-board by /lb-board-setup (.github/board/lb-board before lb-board 0.3.0): it holds every Plane read
-# and write, the claims (refs/lb-claims/…) and the hooks (run by the "Lunabee Plane board" GitHub App). whackagent forwards its board verbs to it and adds only
+# .lunabee/board/lb-board by /lb-board-setup: it holds every Plane read and write, the claims (refs/lb-claims/…) and
+# the hooks (run by the "Lunabee Plane board" GitHub App). whackagent forwards its board verbs to it and adds only
 # what its skills and pane read on top (the task file's phase, the ticket branch under branch.prefix).
-LB_BOARDS = (Path(".lunabee") / "board" / "lb-board", Path(".github") / "board" / "lb-board")  # first found wins
+LB_BOARD = Path(".lunabee") / "board" / "lb-board"
 LB_VERBS = {"list", "get", "create", "claim", "release", "move", "cancel", "set-field", "milestones", "close-milestone",
             "split", "comment", "depend", "link-pr", "claims", "whoami", "check-integration"}
 
@@ -987,9 +987,9 @@ def lb_board_path():
         root = Path(git("rev-parse", "--show-toplevel"))
     except subprocess.CalledProcessError:
         root = Path.cwd()
-    path = next((root / p for p in LB_BOARDS if (root / p).is_file()), None)
-    if not path:
-        raise Failure(f"no {LB_BOARDS[0]} in this repository — a Plane board runs on lb-board (Lunabee): run /wa-setup", EXIT_USAGE)
+    path = root / LB_BOARD
+    if not path.is_file():
+        raise Failure(f"no {LB_BOARD} in this repository — a Plane board runs on lb-board (Lunabee): run /wa-setup", EXIT_USAGE)
     return path
 
 
