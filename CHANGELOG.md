@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Plane board: `wa-backlog` finds lb-board at `.lunabee/board/lb-board`, where lb-board 0.3.0 vendors it, and still at `.github/board/lb-board` for boards set up before. The board contract moves with it to `.lunabee/board/BOARD.md`.
+
 ## [2.0.0] - 2026-11-03
 
 ### Changed

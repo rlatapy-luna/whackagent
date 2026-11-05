@@ -32,7 +32,7 @@ backlog:
                                #   local  — {backlog} + task files, one agent (default).
                                #   github — GitHub Project + issues, many agents/worktrees.
                                #   plane  — Lunabee's Plane, run by the lb-board plugin (internal,
-                               #     LunabeeStudio/Lunabee-Plane): .github/board/lb-board holds board,
+                               #     LunabeeStudio/Lunabee-Plane): .lunabee/board/lb-board holds board,
                                #     claims and hooks (Lunabee Plane board App). API key: env PLANE_API_KEY.
                                #   github, plane: settings in repo variables (wa-backlog provision /
                                #     /lb-board-setup), not here. Forces branch.per_task: true, branch.base =

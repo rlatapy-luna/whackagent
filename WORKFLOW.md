@@ -269,7 +269,7 @@ On PR, as it happens: push without coding claim · PR linking several tickets.
 
 ## Plane board
 
-`backlog.provider: plane` → board runs on **lb-board** (Lunabee's Plane board plugin, internal). Board = Plane project, code + claims + PRs on GitHub. Rules: project's `.github/board/BOARD.md` (lb-board's). `wa-backlog` forwards board verbs to `.github/board/lb-board`. Walkthrough: [PLANE.md](PLANE.md).
+`backlog.provider: plane` → board runs on **lb-board** (Lunabee's Plane board plugin, internal). Board = Plane project, code + claims + PRs on GitHub. Rules: project's `.lunabee/board/BOARD.md` (lb-board's). `wa-backlog` forwards board verbs to `.lunabee/board/lb-board`. Walkthrough: [PLANE.md](PLANE.md).
 
 Same six states, same claims, same rounds, same merge as above. Differences:
 
@@ -286,7 +286,7 @@ Same six states, same claims, same rounds, same merge as above. Differences:
 | Hooks | `board.yml`, GitHub-hosted runner, `WA_PROJECT_TOKEN` | `lb-board hook`, run by Lunabee Plane board GitHub App's receiver. No runner, no caller |
 | Hooks events | `issues`, `push`, `pull_request`, schedule | `push`, `pull_request`. Plane edits fire nothing. Board check = `lb-board check`, by hand |
 
-Hook rules: lb-board's (`.github/board/BOARD.md`) — task file pushed → `grilled`; PR opened / round pushed with coding claim → `review` (+ `## Feedback` rounds linked); merged → `done` (run report on card, assignees removed, sprint landing); closed unmerged → `grilled` (task file on head) else `todo`. Push without claim: nothing (no PR comment). Card not moved → receiver's delivery log (https://hooks.lunabee.ovh/), never move card by hand.
+Hook rules: lb-board's (`.lunabee/board/BOARD.md`) — task file pushed → `grilled`; PR opened / round pushed with coding claim → `review` (+ `## Feedback` rounds linked); merged → `done` (run report on card, assignees removed, sprint landing); closed unmerged → `grilled` (task file on head) else `todo`. Push without claim: nothing (no PR comment). Card not moved → receiver's delivery log (https://hooks.lunabee.ovh/), never move card by hand.
 
 ## Local provider
 

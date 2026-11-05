@@ -6,13 +6,14 @@
 **Where things live**
 - Tickets are work items of the Plane project.
 - Code, branches, PRs and claims stay on GitHub (`vcs.provider: github`).
-- The repository vendors lb-board's CLI as `.github/board/lb-board`, and its board contract as
-  `.github/board/BOARD.md`. That contract holds the worker rules; the bullets below are whackagent's way of meeting
+- The repository vendors lb-board's CLI as `.lunabee/board/lb-board`, and its board contract as
+  `.lunabee/board/BOARD.md`. That contract holds the worker rules; the bullets below are whackagent's way of meeting
   them.
 - The code-host side (script, task file, claims, rounds, PRs) is in **reference/code-github.md**.
-- `wa-backlog` forwards every board verb to `.github/board/lb-board`, with the same verbs, flags, JSON and exit
-  codes. It adds `phase` and `branch` where whackagent reads them.
-- Missing script → exit 2 `no .github/board/lb-board`: tell the user to run `/wa-setup`, and stop.
+- `wa-backlog` forwards every board verb to `.lunabee/board/lb-board` (else `.github/board/lb-board`, boards set up
+  before lb-board 0.3.0), with the same verbs, flags, JSON and exit codes. It adds `phase` and `branch` where
+  whackagent reads them.
+- Missing script → exit 2 `no .lunabee/board/lb-board`: tell the user to run `/wa-setup`, and stop.
 
 - **No `{backlog}` file, no local mirror.** The board is the Plane project. Never write order, state or title into a
   file.
@@ -94,8 +95,8 @@
   - It then links the PR on the card. Never link by hand; `link-pr` is repair only.
   - A PR naming two tickets moves nothing, and the hook reports it on the PR.
 
-- **Hooks.** The "Lunabee Plane board" GitHub App's receiver runs `.github/board/lb-board hook` on every push and
-  PR event. No Actions caller, no runner.
+- **Hooks.** The "Lunabee Plane board" GitHub App's receiver runs its own `lb-board hook` on every push and PR
+  event. No Actions caller, no runner.
   - Task file with acceptance criteria pushed → `grilled` (from `todo` or `grilling`; grilling claim dropped).
   - PR opened → `review`. A round pushed to the PR while a coding claim is held → `review`, claim dropped, new
     `## Feedback` rounds linked.
@@ -107,7 +108,7 @@
   - Sprint landing as above.
   - A push without a claim is not reported.
 
-  **Board check.** `.github/board/lb-board check` reports problems and never moves a card. Fix it yourself (claim,
+  **Board check.** `.lunabee/board/lb-board check` reports problems and never moves a card. Fix it yourself (claim,
   release, open the PR) or tell the user; never by moving a card by hand.
 
   **Confirm the card moved** after every push or PR action the hook acts on:
