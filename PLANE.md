@@ -11,7 +11,7 @@ lb-board owns the board:
   runner.
 
 whackagent adds its workflow on top: grill, code, feedback, validate, close and autopilot, the task files and the
-pane. Its `wa-backlog` forwards every board verb to the repository's `.github/board/lb-board`.
+pane. Its `wa-backlog` forwards every board verb to the repository's `.lunabee/board/lb-board`.
 
 ## Set up
 
@@ -25,7 +25,7 @@ pane. Its `wa-backlog` forwards every board verb to the repository's `.github/bo
 3. Run `/wa-setup` and pick the Plane board. It runs `/lb-board-setup` with `{tasks}` as the spec path, then adds
    whackagent's scaffold to the same setup PR.
 
-The repository's rules are in `.github/board/BOARD.md`, written by lb-board.
+The repository's rules are in `.lunabee/board/BOARD.md`, written by lb-board.
 
 ## A board set up before 2.0.0
 

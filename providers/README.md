@@ -6,7 +6,7 @@ Maintainer guide to this folder. No agent reads it.
 - `local.md`: the default file-based backlog, prompt-implemented.
 - `wa-backlog`: the one backlog script every shared board uses (Python 3 stdlib plus `gh`, one file, vendored by projects as `.github/board/wa-backlog`). A shared core (CLI, verbs, claims as git refs on GitHub, ticket branches and task phases, pull requests, merge, stacks, screenshots, the contract check) plus one `Board` adapter per board tool: `GitHubBoard`, and `LbBoard`, which forwards a Plane board's verbs to lb-board.
 - `github/`: the GitHub Project board. `github/wa-backlog` is a relative link to `../wa-backlog`, kept because skills, the pane and `/wa-setup`'s vendored copy use that path (`cp` follows the link, so projects get a real file). Its hooks are `.github/workflows/board.yml` (JavaScript), called through `github/whackagent-board.yml`.
-- Plane: no folder here. The Plane board is lb-board (LunabeeStudio/Lunabee-Plane, Lunabee internal): its own CLI, vendored as `.github/board/lb-board`, with its hooks on a GitHub App receiver. `wa-backlog` forwards the board verbs to it (`LbBoard`, `forward`).
+- Plane: no folder here. The Plane board is lb-board (LunabeeStudio/Lunabee-Plane, Lunabee internal): its own CLI, vendored as `.lunabee/board/lb-board`, with its hooks on a GitHub App receiver. `wa-backlog` forwards the board verbs to it (`LbBoard`, `forward`).
 
 ## Adding a board tool
 

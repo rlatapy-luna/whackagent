@@ -12,7 +12,7 @@ Shared core (same for every board): CLI, verbs, states, claim-from rules, exit c
 on the GitHub repo), ticket branches and task phases, pull requests, merge, stacks, screenshots and the
 contract check. Everything the board tool owns sits behind `Board`, picked by `backlog.provider` in
 .whackagent/config.md: `github` (a GitHub Project v2) or `plane`; anything else falls back to GitHub.
-A Plane board runs on lb-board (Lunabee's Plane board CLI, vendored as .github/board/lb-board): its board
+A Plane board runs on lb-board (Lunabee's Plane board CLI, vendored as .lunabee/board/lb-board): its board
 verbs are forwarded there (`forward`), claims and hooks included, and this script holds no Plane code.
 
 Board interface: one adapter class per board tool. Tickets are dicts: number (the ticket id: an issue
@@ -974,10 +974,10 @@ class GitHubBoard(Board):
 # ---------------------------------------------------------------- Plane board (lb-board)
 
 # A Plane board runs on lb-board, Lunabee's Plane board CLI (LunabeeStudio/Lunabee-Plane), vendored in the repo as
-# .github/board/lb-board by /lb-board-setup: it holds every Plane read and write, the claims (refs/lb-claims/…) and
+# .lunabee/board/lb-board by /lb-board-setup: it holds every Plane read and write, the claims (refs/lb-claims/…) and
 # the hooks (run by the "Lunabee Plane board" GitHub App). whackagent forwards its board verbs to it and adds only
 # what its skills and pane read on top (the task file's phase, the ticket branch under branch.prefix).
-LB_BOARD = Path(".github") / "board" / "lb-board"
+LB_BOARD = Path(".lunabee") / "board" / "lb-board"
 LB_VERBS = {"list", "get", "create", "claim", "release", "move", "cancel", "set-field", "milestones", "close-milestone",
             "split", "comment", "depend", "link-pr", "claims", "whoami", "check-integration"}
 
@@ -1488,7 +1488,7 @@ def op_provision(args):
 
 
 def op_check_integration(args):
-    raise Failure("check-integration is a Plane board check: lb-board runs it (.github/board/lb-board check-integration)", EXIT_USAGE)
+    raise Failure("check-integration is a Plane board check: lb-board runs it (.lunabee/board/lb-board check-integration)", EXIT_USAGE)
 
 
 def op_templates(args):
