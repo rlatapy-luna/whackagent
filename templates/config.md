@@ -226,6 +226,8 @@ pr:                            # HOW every PR whackagent open look — ticket dr
                                # refresh rewrite only that block, human edits stay.
   title: "{title}"             # placeholders {title} {n} (ticket id, not local) {slug}
                                # e.g. "[#{n}] {title}", "feat: {title}"
+                               # Ticket PR on GitHub/Plane board always starts with ticket id
+                               # (#12, RM-152): prefixed when title doesn't start with {n}.
   labels: []                   # added at creation, e.g. [whackagent]. Label missing in repo → skipped.
                                # On top, every PR gets ≥1 label picked from repo's own labels
                                # (best fit: bug, feature, docs, area…) — never created.
