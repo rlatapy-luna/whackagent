@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-09
+
 ### Changed
 
 - Ticket PRs on a GitHub or Plane board always start their title with the ticket id (`#12`, `RM-152`). A `pr.title` that does not start with `{n}` gets the id prefixed, and a body refresh repairs an open PR whose title lacks it.
