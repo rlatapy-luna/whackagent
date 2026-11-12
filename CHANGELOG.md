@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-12
+
 ### Added
 
 - GitHub or Plane board: once a session claims a ticket for coding, it watches the ticket's PR. A review someone else submits there brings up `/wa-feedback #12` as the prompt's suggestion in that same session, never in another one. Set **Act on PR reviews** (`review_feedback`) in `/config` to `run` to start the feedback round on its own once the session is idle, or `off` to stop watching.
