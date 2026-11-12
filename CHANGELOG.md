@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- PR review watch: your own review on a ticket's PR now brings up (or runs) `/wa-feedback` too, so a solo developer can review their own PR and have it applied. The replies `/wa-feedback` posts in review threads, signed `_— <AI tool> · whackagent_`, never count, so `run` mode doesn't loop on its own answers.
+
 ## [3.3.0] - 2026-11-12
 
 ### Changed

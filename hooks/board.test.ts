@@ -15,6 +15,7 @@ import {
   parseWorktrees,
   bricksComment,
   claimedTicket,
+  bareReviews,
   feedbackReviews,
   githubFocusView,
   githubView,
@@ -791,7 +792,8 @@ test('board key ids (WA-42): session name keeps the key, prefers the board title
   expect(sessionName('shop', [{ id: 'WA-42', title: 'validate' }], boardTitles(board))).toBe('shop · WA-42 Offline sync')
 })
 
-const review = (id: string, login: string, state: string, body = '') => ({ id, author: { login }, state, body })
+const review = (id: string, login: string, state: string, body = '', comments?: string[]) => ({ id, author: { login }, state, body, comments })
+const SIGNED = 'Fixed in abc1234.\n\n_— Claude · whackagent_'
 
 test('a coding claim names its ticket, any other command none', async () => {
   expect(claimedTicket('python3 "$CLAUDE_PLUGIN_ROOT/providers/github/wa-backlog" claim 12 coding --blocked-ok')).toBe('#12')
@@ -802,17 +804,41 @@ test('a coding claim names its ticket, any other command none', async () => {
   expect(claimedTicket('wa-backlog claim wa-42 coding')).toBe('')
 })
 
-test('feedback reviews: someone else, not seen, asking for something', async () => {
+test('feedback reviews: not seen, asking for something, own ones included', async () => {
   const reviews = [
     review('r1', 'ana', 'CHANGES_REQUESTED'),
     review('r2', 'ana', 'COMMENTED'),
-    review('r3', 'me', 'COMMENTED'),
+    review('r3', 'me', 'COMMENTED', '', ['use a use case here']),
     review('r4', 'bob', 'APPROVED'),
     review('r5', 'bob', 'APPROVED', 'nit: rename it'),
     review('r6', 'bob', 'PENDING'),
     review('r7', 'bob', 'DISMISSED'),
   ]
-  expect(feedbackReviews(reviews, ['r2'], 'me').map(one => one.id)).toEqual(['r1', 'r5'])
+  expect(feedbackReviews(reviews, ['r2']).map(one => one.id)).toEqual(['r1', 'r3', 'r5'])
+})
+
+test('feedback reviews: an agent\'s signed replies are not feedback', async () => {
+  const reviews = [
+    review('r1', 'me', 'COMMENTED', '', [SIGNED]),
+    review('r2', 'me', 'COMMENTED', '', [SIGNED, 'and also this']),
+    review('r3', 'me', 'COMMENTED', SIGNED),
+    review('r4', 'me', 'COMMENTED', '', []),
+  ]
+  expect(feedbackReviews(reviews, []).map(one => one.id)).toEqual(['r2', 'r4'])
+})
+
+test('a poll reads the comments of new bare feedback reviews only', async () => {
+  const watches = [{ id: '#12', pr: 34, seen: ['r1'] }]
+  const pulls = [
+    {
+      number: 34,
+      headRefName: 'wa/12-login',
+      url: 'u',
+      reviews: [review('r1', 'me', 'COMMENTED'), review('r2', 'me', 'COMMENTED'), review('r3', 'ana', 'COMMENTED', 'see inline'), review('r4', 'bob', 'APPROVED')],
+    },
+    { number: 35, headRefName: 'wa/13-logout', url: 'u', reviews: [review('r5', 'me', 'COMMENTED')] },
+  ]
+  expect(bareReviews(watches, pulls, 'wa/')).toEqual(['r2'])
 })
 
 test('a watch starts with the reviews already there seen, once per ticket', async () => {
@@ -832,11 +858,11 @@ test('a poll reports new reviews, waits for a PR not opened yet, ends with the P
   const pulls = [
     { number: 34, headRefName: 'wa/12-login', url: 'u', reviews: [review('r1', 'ana', 'COMMENTED'), review('r2', 'ana', 'CHANGES_REQUESTED'), review('r3', 'bob', 'COMMENTED')] },
   ]
-  const polled = watchReviews(watches, pulls, 'wa/', 'me')
+  const polled = watchReviews(watches, pulls, 'wa/')
   expect(polled.news).toEqual([{ id: '#12', pr: 34, reviewers: ['ana', 'bob'] }])
   expect(polled.watches).toEqual([
     { id: '#12', pr: 34, seen: ['r1', 'r2', 'r3'] },
     { id: '#13', pr: 0, seen: [] },
   ])
-  expect(watchReviews(polled.watches, pulls, 'wa/', 'me').news).toEqual([])
+  expect(watchReviews(polled.watches, pulls, 'wa/').news).toEqual([])
 })

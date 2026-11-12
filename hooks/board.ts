@@ -954,11 +954,12 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
 
 // region Review watch
 
-export type PrReview = { id: string; author: { login: string } | null; state: string; body: string }
+export type PrReview = { id: string; author: { login: string } | null; state: string; body: string; comments?: string[] }
 export type ReviewedPull = { number: number; headRefName: string; url: string; reviews: PrReview[] }
 export type ReviewNews = { id: string; pr: number; reviewers: string[] }
 
 const CLAIM_CODING = /wa-backlog["']?\s+claim\s+["']?#?([A-Za-z0-9-]+)["']?\s+coding\b/
+const AGENT_SIGNATURE = /·\s*whackagent_$/
 
 /** Ticket a Bash command claims `coding` on through `wa-backlog`, as the board labels it (#12, WA-42); '' for any other command. */
 export function claimedTicket(command: string): string {
@@ -972,9 +973,29 @@ const pullOf = (pulls: readonly ReviewedPull[], id: string, prefix: string) =>
 const isFeedback = (review: PrReview) =>
   review.state === 'CHANGES_REQUESTED' || review.state === 'COMMENTED' || (review.state === 'APPROVED' && review.body.trim() !== '')
 
-/** Reviews someone else submitted since `seen`: changes requested, comments, an approval that says something. */
-export const feedbackReviews = (reviews: readonly PrReview[], seen: readonly string[], me: string) =>
-  reviews.filter(review => !seen.includes(review.id) && review.author?.login !== me && isFeedback(review))
+const isSigned = (text: string) => AGENT_SIGNATURE.test(text.trim())
+
+const isBare = (review: PrReview) => review.body.trim() === ''
+
+/**
+ * A review only an agent wrote: `/wa-feedback` answers PR comments signed `_— <AI tool> · whackagent_`, and a thread
+ * reply lands as a bare review holding that reply.
+ */
+const isAgentReply = (review: PrReview) =>
+  isSigned(review.body) || (isBare(review) && review.comments !== undefined && review.comments.length > 0 && review.comments.every(isSigned))
+
+/** Reviews submitted since `seen`, the user's own included: changes requested, comments, an approval that says something. */
+export const feedbackReviews = (reviews: readonly PrReview[], seen: readonly string[]) =>
+  reviews.filter(review => !seen.includes(review.id) && isFeedback(review) && !isAgentReply(review))
+
+/** Ids of the bare reviews a poll must read the comments of, to tell a reviewer's inline comments from an agent's replies. */
+export function bareReviews(watches: readonly ReviewWatch[], pulls: readonly ReviewedPull[], prefix: string): string[] {
+  return watches.flatMap(watch =>
+    (pullOf(pulls, watch.id, prefix)?.reviews ?? [])
+      .filter(review => !watch.seen.includes(review.id) && isFeedback(review) && isBare(review))
+      .map(review => review.id),
+  )
+}
 
 /** Adds a watch on ticket `id`, every review its PR already holds seen; a ticket already watched keeps its watch. */
 export function startWatch(watches: readonly ReviewWatch[], id: string, pulls: readonly ReviewedPull[], prefix: string): ReviewWatch[] {
@@ -987,7 +1008,7 @@ export function startWatch(watches: readonly ReviewWatch[], id: string, pulls: r
  * One poll over the open PRs: new feedback reviews per watched ticket. A watch whose PR is no longer open (merged,
  * closed) ends; one whose PR isn't opened yet keeps waiting.
  */
-export function watchReviews(watches: readonly ReviewWatch[], pulls: readonly ReviewedPull[], prefix: string, me: string) {
+export function watchReviews(watches: readonly ReviewWatch[], pulls: readonly ReviewedPull[], prefix: string) {
   const next: ReviewWatch[] = []
   const news: ReviewNews[] = []
   for (const watch of watches) {
@@ -996,7 +1017,7 @@ export function watchReviews(watches: readonly ReviewWatch[], pulls: readonly Re
       if (watch.pr === 0) next.push(watch)
       continue
     }
-    const fresh = feedbackReviews(pull.reviews, watch.seen, me)
+    const fresh = feedbackReviews(pull.reviews, watch.seen)
     next.push({ id: watch.id, pr: pull.number, seen: pull.reviews.map(review => review.id) })
     if (fresh.length > 0) {
       news.push({ id: watch.id, pr: pull.number, reviewers: [...new Set(fresh.map(review => review.author?.login ?? 'ghost'))] })

@@ -23,7 +23,7 @@
     "review_feedback": {
       "type": "string",
       "title": "Act on PR reviews",
-      "description": "GitHub code host: once this session claims a ticket for coding, it watches the ticket's PR. A review someone else submits there (changes requested, comments) → suggest: toast + /wa-feedback suggested in the prompt box · run: /wa-feedback runs in this session once it is idle · off: no watch. Only the session that last claimed the ticket acts; no session open, nothing runs.",
+      "description": "GitHub code host: once this session claims a ticket for coding, it watches the ticket's PR. A review submitted there, your own included (changes requested, comments; an agent's signed replies don't count) → suggest: toast + /wa-feedback suggested in the prompt box · run: /wa-feedback runs in this session once it is idle · off: no watch. Only the session that last claimed the ticket acts; no session open, nothing runs.",
       "options": ["suggest", "run", "off"],
       "default": "suggest"
     }

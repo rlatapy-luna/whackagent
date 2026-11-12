@@ -9,6 +9,7 @@ import {
   STATUS_ORDER,
   activeGithubIds,
   activeLocalIds,
+  bareReviews,
   branchTaskId,
   boardTitles,
   bricksComment,
@@ -67,7 +68,6 @@ let isRefreshing = false
 let suggested = ''
 let sessionTitle = ''
 let isPolling = false
-let login = ''
 let published = ''
 
 type Checkout = { root: string; mainRoot: string; branch: string; worktrees: Worktree[] }
@@ -339,6 +339,22 @@ const openPulls = ($: EngineInterface, root: string) =>
     () => undefined,
   )
 
+const REVIEW_COMMENTS = 'query($ids: [ID!]!) { nodes(ids: $ids) { ... on PullRequestReview { id comments(first: 100) { nodes { body } } } } }'
+
+type ReviewCommentNodes = { data: { nodes: { id: string; comments: { nodes: { body: string }[] } }[] } }
+
+const reviewComments = ($: EngineInterface, root: string, ids: readonly string[]) =>
+  runJson($, ['gh', 'api', 'graphql', '-f', `query=${REVIEW_COMMENTS}`, ...ids.flatMap(id => ['-f', `ids[]=${id}`])], root, 'gh api graphql').then(
+    result => new Map((result as ReviewCommentNodes).data.nodes.map(node => [node.id, node.comments.nodes.map(comment => comment.body)])),
+    () => undefined,
+  )
+
+async function withComments($: EngineInterface, root: string, pulls: ReviewedPull[], ids: readonly string[]) {
+  if (ids.length === 0) return pulls
+  const comments = await reviewComments($, root, ids)
+  return comments && pulls.map(pull => ({ ...pull, reviews: pull.reviews.map(review => ({ ...review, comments: comments.get(review.id) })) }))
+}
+
 const watchOwners = async ($: EngineInterface) => ((await $.store.get(WATCH_OWNERS)) ?? {}) as Record<string, string>
 
 async function publishWatches($: EngineInterface, mode: string) {
@@ -379,17 +395,14 @@ async function pollReviews($: EngineInterface, mode: string) {
   isPolling = true
   try {
     const scope = await watchScope($)
-    const pulls = scope && (await openPulls($, scope.root))
-    if (!scope || !pulls) return
-    login ||= await $.process.run(['gh', 'api', 'user', '--jq', '.login'], { cwd: scope.root }).then(
-      result => (result.exitCode === 0 ? result.stdout.trim() : ''),
-      () => '',
-    )
-    if (!login) return
+    const open = scope && (await openPulls($, scope.root))
+    if (!scope || !open) return
     const session = await $.session.id()
     const owners = await watchOwners($)
     const mine = watched.filter(watch => (owners[`${scope.root} ${watch.id}`] ?? session) === session)
-    const { watches, news } = watchReviews(mine, pulls, scope.prefix, login)
+    const pulls = await withComments($, scope.root, open, bareReviews(mine, open, scope.prefix))
+    if (!pulls) return
+    const { watches, news } = watchReviews(mine, pulls, scope.prefix)
     const polled = new Set(watched.map(watch => watch.id))
     await update($, reviewWatches, current => [
       ...current.filter(watch => !polled.has(watch.id)),

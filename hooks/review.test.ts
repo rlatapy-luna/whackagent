@@ -5,7 +5,13 @@ const CONFIG = '---\nbacklog:\n  provider: github\n---\n'
 const CLAIM = 'python3 "$CLAUDE_PLUGIN_ROOT/providers/github/wa-backlog" claim 12 coding'
 
 function world(on: On, session: string, store: Record<string, unknown> = {}) {
-  const state = { reviews: [] as { id: string; author: { login: string }; state: string; body: string }[], commands: [] as string[], suggested: [] as string[], isMerged: false }
+  const state = {
+    reviews: [] as { id: string; author: { login: string }; state: string; body: string }[],
+    comments: {} as Record<string, string[]>,
+    commands: [] as string[],
+    suggested: [] as string[],
+    isMerged: false,
+  }
   on('session.root', () => ({ value: '/p' }))
   on('session.id', () => ({ value: session }))
   on('session.start', () => ({ cwd: '/p' }))
@@ -14,10 +20,12 @@ function world(on: On, session: string, store: Record<string, unknown> = {}) {
   on('fs.read', ($, e) => (e.path === '/p/.whackagent/config.md' ? { value: CONFIG } : { deny: `ENOENT ${e.path}` }))
   on('process.run', ($, e) => {
     const argv = e.argv.join(' ')
+    const ids = e.argv.filter(arg => arg.startsWith('ids[]=')).map(arg => arg.slice('ids[]='.length))
+    const nodes = ids.map(id => ({ id, comments: { nodes: (state.comments[id] ?? []).map(body => ({ body })) } }))
     const stdout = argv.startsWith('gh pr list')
       ? JSON.stringify(state.isMerged ? [] : [{ number: 34, headRefName: 'wa/12-login', url: 'u', reviews: state.reviews }])
-      : argv.startsWith('gh api user')
-        ? 'me\n'
+      : argv.startsWith('gh api graphql')
+        ? JSON.stringify({ data: { nodes } })
         : ''
     return { value: { exitCode: stdout ? 0 : 1, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
@@ -99,4 +107,22 @@ test('no claim here, or a later claim in another session: nothing runs', { optio
   state.reviews = [...state.reviews, { id: 'r2', author: { login: 'bob' }, state: 'COMMENTED', body: '' }]
   await clock.advance(60_000)
   expect(state.commands).toEqual([])
+})
+
+test('run: the user\'s own review runs /wa-feedback, an agent\'s signed reply does not', { options: { review_feedback: 'run' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const state = world(on, 's1')
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Bash', command: CLAIM })
+  await clock.settle()
+
+  state.reviews = [{ id: 'r1', author: { login: 'me' }, state: 'COMMENTED', body: '' }]
+  state.comments = { r1: ['Fixed in abc1234.\n\n_— Claude · whackagent_'] }
+  await clock.advance(60_000)
+  expect(state.commands).toEqual([])
+
+  state.reviews = [...state.reviews, { id: 'r2', author: { login: 'me' }, state: 'COMMENTED', body: '' }]
+  state.comments = { ...state.comments, r2: ['Make sure `combine` is justified'] }
+  await clock.advance(60_000)
+  expect(state.commands).toEqual(['whackagent:wa-feedback #12'])
 })
