@@ -78,8 +78,18 @@ export type Board =
       here: string
     }
 
+/** A ticket PR this session watches for reviews: from its `coding` claim until the PR is merged or closed. */
+export type ReviewWatch = {
+  /** ticket as the board labels it: #12, WA-42 */
+  id: string
+  /** PR number, 0 until the PR is opened */
+  pr: number
+  /** review ids already handled or there when the watch started */
+  seen: string[]
+}
+
 declare module 'claude-code' {
   interface PluginState {
-    whackagent: { board: Board; filter: string; task: string; isBoardHidden: boolean; expanded: string[]; openSprints: string[] }
+    whackagent: { board: Board; filter: string; task: string; isBoardHidden: boolean; expanded: string[]; openSprints: string[]; reviewWatches: ReviewWatch[] }
   }
 }

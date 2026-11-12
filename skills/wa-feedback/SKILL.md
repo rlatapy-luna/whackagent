@@ -88,6 +88,7 @@ Ticket sits in `review` between rounds (**reference/code-github.md**, *Agent rou
 
 - **Hooks version gate** (**reference/code-github.md**, *Hooks version gate*) before claim.
 - **Claim first** — `wa-backlog claim <id> coding` (exit 3 → someone mid-round, say who, stop). Check out ticket branch, rebase not needed yet.
+- **Started by review watch** — session that claimed ticket watches its PR (pane module, plugin option `review_feedback`); new review by someone else → `/wa-feedback <#id>` suggested, or run (`run`) once session idle. No user notes then: input = PR review threads alone, same round.
 - **Input** = user notes **plus PR review threads** (`gh pr view <pr> --comments`, `gh api repos/{repo}/pulls/<pr>/comments`) — quote reviewer words as feedback items, triage same way. Keep each item's comment id + kind (inline review comment, PR conversation comment, review body) for *Answer PR comments*. Comment already answered by earlier round (your reply after it, no newer reviewer word) → skip.
 - **PR already ready** (not draft) → `gh pr ready --undo` right before first commit, not earlier: code moving after validation, nobody merges it meanwhile. Board stays `review`. Undo ran, round then aborts → `gh pr ready` again.
 - **Round ends without push** — nothing to push (all items new scope), user drops round, `BLOCKED:` left open → `release <id> coding --reset-to review --reason "<why>"`. Claim never left dangling.

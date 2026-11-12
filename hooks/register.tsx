@@ -1,8 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Board, BoardTask, MilestoneCount, SprintParent, TaskFocus, TicketId } from '../types'
-import type { FocusView, NamedTask, PullRequest, View, ViewRow, WaConfig, Worktree } from './board'
+import type { Board, BoardTask, MilestoneCount, ReviewWatch, SprintParent, TaskFocus, TicketId } from '../types'
+import type { FocusView, NamedTask, PullRequest, ReviewNews, ReviewedPull, View, ViewRow, WaConfig, Worktree } from './board'
 import {
   ALL_TAB,
   SIZE_ICON,
@@ -12,6 +12,7 @@ import {
   branchTaskId,
   boardTitles,
   bricksComment,
+  claimedTicket,
   dirname,
   githubFocusView,
   githubView,
@@ -26,8 +27,10 @@ import {
   parseTaskFile,
   parseWorktrees,
   sessionName,
+  startWatch,
   toTask,
   toTickets,
+  watchReviews,
 } from './board'
 
 const PANE = 'wa-board'
@@ -38,6 +41,13 @@ const SUGGEST_DELAY_MS = 300
 const TAB_TITLE_LENGTH = 18
 const NAME_TOOL = 'name_session'
 const NAME_TOOL_CALL = 'mcp__whackagent__name_session'
+const REVIEW_POLL_MS = 60_000
+const FEEDBACK_COMMAND = 'whackagent:wa-feedback'
+// $.store key: `<root> <ticket>` → id of the session that claimed it last, the one that answers its reviews
+const WATCH_OWNERS = 'reviewWatchOwners'
+// $.store key: session id → { mode, prs } it watches, for a status line script to read (store file
+// ~/.claude/plugins/store/whackagent_*.json)
+const WATCHING = 'reviewWatching'
 // backlog.provider values whose tickets come from `wa-backlog list`; any other value reads the local backlog.
 const TICKET_BOARDS = ['github', 'plane']
 const GITHUB_MARK = '<svg fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"/></svg>'
@@ -48,6 +58,7 @@ const selectedTask = atom({ plugin: 'whackagent', key: 'task' } as const, '')
 const boardHidden = atom({ plugin: 'whackagent', key: 'isBoardHidden' } as const, false)
 const expandedStates = atom({ plugin: 'whackagent', key: 'expanded' } as const, [] as string[])
 const openSprints = atom({ plugin: 'whackagent', key: 'openSprints' } as const, [] as string[])
+const reviewWatches = atom({ plugin: 'whackagent', key: 'reviewWatches' } as const, [] as ReviewWatch[])
 
 let lastSignature = ''
 let lastFocusStamp = ''
@@ -55,6 +66,9 @@ let focusFiles = new Map<string, string>()
 let isRefreshing = false
 let suggested = ''
 let sessionTitle = ''
+let isPolling = false
+let login = ''
+let published = ''
 
 type Checkout = { root: string; mainRoot: string; branch: string; worktrees: Worktree[] }
 
@@ -309,6 +323,87 @@ async function refresh($: EngineInterface, isForced = false): Promise<Board> {
   }
 }
 
+// region Review watch: a review on a PR this session claimed → /wa-feedback, here
+
+async function watchScope($: EngineInterface) {
+  const root = await $.session.root()
+  const configText = await $.fs.read(`${root}/${CONFIG}`).catch(() => undefined)
+  if (configText === undefined) return undefined
+  const config = parseConfig(configText)
+  return TICKET_BOARDS.includes(config.provider) ? { root, prefix: config.branchPrefix } : undefined
+}
+
+const openPulls = ($: EngineInterface, root: string) =>
+  runJson($, ['gh', 'pr', 'list', '--json', 'number,headRefName,url,reviews', '--limit', '200'], root, 'gh pr list').then(
+    pulls => pulls as ReviewedPull[],
+    () => undefined,
+  )
+
+const watchOwners = async ($: EngineInterface) => ((await $.store.get(WATCH_OWNERS)) ?? {}) as Record<string, string>
+
+async function publishWatches($: EngineInterface, mode: string) {
+  const prs = (await read($, reviewWatches)).map(watch => ({ id: watch.id, pr: watch.pr }))
+  const signature = JSON.stringify(prs)
+  if (signature === published) return
+  published = signature
+  const session = await $.session.id()
+  const { [session]: _, ...others } = ((await $.store.get(WATCHING)) ?? {}) as Record<string, unknown>
+  await $.store.set(WATCHING, prs.length > 0 ? { ...others, [session]: { mode, prs } } : others)
+}
+
+async function watchTicket($: EngineInterface, id: string, mode: string) {
+  const scope = await watchScope($)
+  if (!scope) return
+  const pulls = (await openPulls($, scope.root)) ?? []
+  await update($, reviewWatches, watches => startWatch(watches, id, pulls, scope.prefix))
+  await $.store.set(WATCH_OWNERS, { ...(await watchOwners($)), [`${scope.root} ${id}`]: await $.session.id() })
+  await publishWatches($, mode)
+}
+
+async function announce($: EngineInterface, news: ReviewNews, mode: string) {
+  const command = `/wa-feedback ${news.id}`
+  const said = `Review on PR #${news.pr} by ${news.reviewers.map(reviewer => `@${reviewer}`).join(', ')}`
+  if (mode === 'run') {
+    $.ui.toast(`${said}: running ${command}`)
+    await $.command.run({ command: FEEDBACK_COMMAND, args: news.id })
+    return
+  }
+  $.ui.toast(`${said}: ${command}`)
+  suggested = command
+  void $.prompt.suggest({ text: command })
+}
+
+async function pollReviews($: EngineInterface, mode: string) {
+  const watched = await read($, reviewWatches)
+  if (watched.length === 0 || isPolling) return
+  isPolling = true
+  try {
+    const scope = await watchScope($)
+    const pulls = scope && (await openPulls($, scope.root))
+    if (!scope || !pulls) return
+    login ||= await $.process.run(['gh', 'api', 'user', '--jq', '.login'], { cwd: scope.root }).then(
+      result => (result.exitCode === 0 ? result.stdout.trim() : ''),
+      () => '',
+    )
+    if (!login) return
+    const session = await $.session.id()
+    const owners = await watchOwners($)
+    const mine = watched.filter(watch => (owners[`${scope.root} ${watch.id}`] ?? session) === session)
+    const { watches, news } = watchReviews(mine, pulls, scope.prefix, login)
+    const polled = new Set(watched.map(watch => watch.id))
+    await update($, reviewWatches, current => [
+      ...current.filter(watch => !polled.has(watch.id)),
+      ...watches.filter(watch => current.some(one => one.id === watch.id)),
+    ])
+    await publishWatches($, mode)
+    for (const one of news) await announce($, one, mode)
+  } finally {
+    isPolling = false
+  }
+}
+
+// endregion
+
 function focusesOf(current: Board): FocusView[] {
   if (current.kind === 'local') return current.active.map(focus => localFocusView(current.tasks, focus, current.here))
   if (current.kind === 'github') return current.active.map(focus => githubFocusView(current.tickets, focus, current.here))
@@ -337,9 +432,12 @@ const tabLabel = (focus: FocusView) => {
 }
 
 export const register: Register = (on, options) => {
+  const feedbackMode = typeof options.review_feedback === 'string' ? options.review_feedback : 'suggest'
+
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'wa-pane', description: 'Show the whackagent backlog in a live pane' })
     $.clock.every(TICK_MS, () => void refresh($))
+    if (feedbackMode !== 'off') $.clock.every(REVIEW_POLL_MS, () => void pollReviews($, feedbackMode).catch(() => undefined))
     if (options.rename_session !== false && (await hasConfig($))) {
       await $.tool.register({
         name: NAME_TOOL,
@@ -395,6 +493,14 @@ export const register: Register = (on, options) => {
 
     return { result: name ? `Session named "${name}".` : 'No task given: session name unchanged.' }
   }).catch(() => ({ result: 'Session name unchanged.' }))
+
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const done = await next(e)
+    const id = feedbackMode === 'off' ? '' : claimedTicket(e.command)
+    if (id && !('deny' in done) && !done.isError) void watchTicket($, id, feedbackMode).catch(() => undefined)
+
+    return done
+  })
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)

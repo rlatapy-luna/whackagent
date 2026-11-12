@@ -19,6 +19,13 @@
       "title": "Name session after its task",
       "description": "When a task command (/wa-grill, /wa-code, /wa-feedback, /wa-validate, /wa-close, /wa-autopilot) starts on a task, rename the session to the project, ticket number and short task title.",
       "default": true
+    },
+    "review_feedback": {
+      "type": "string",
+      "title": "Act on PR reviews",
+      "description": "GitHub code host: once this session claims a ticket for coding, it watches the ticket's PR. A review someone else submits there (changes requested, comments) → suggest: toast + /wa-feedback suggested in the prompt box · run: /wa-feedback runs in this session once it is idle · off: no watch. Only the session that last claimed the ticket acts; no session open, nothing runs.",
+      "options": ["suggest", "run", "off"],
+      "default": "suggest"
     }
   },
   "keywords": ["workflow", "backlog", "wiki", "orchestrator", "swift", "kotlin", "android", "ios", "typescript", "autopilot", "code-review", "yagni"],

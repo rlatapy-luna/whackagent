@@ -63,6 +63,8 @@ When a command ends on its `→ next:` line, the command it recommends (`/wa-val
 
 Task commands (`/wa-grill`, `/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-close`, `/wa-autopilot`) rename the session after the task they work on, once they have resolved it: the project, the ticket number under the GitHub provider, and the task's short title, such as `shop · #12 Login Apple` (local: `shop · Login Apple`). Two tasks keep both titles; three or more (an autopilot batch) keep only the numbers. The rename goes through the same function hooks, so it works whether the pane is open or not. Turn it off with **Name session after its task** (`rename_session`) in the plugin's settings in `/config`.
 
+Under a GitHub or Plane board, a session that claims a ticket for coding (`/wa-code`, `/wa-feedback`, `/wa-validate`, `/wa-autopilot`) then watches that ticket's PR with `gh`, once a minute, until the PR is merged or closed. When someone else submits a review there (changes requested, a comment, an approval with a message), the session offers `/wa-feedback #12` as the prompt's suggestion, with a toast naming the reviewer. Set **Act on PR reviews** (`review_feedback`) in the plugin's settings in `/config` to `run` to have `/wa-feedback` start on its own in that same session, once it is idle, or to `off` to stop watching. Only the session that claimed the ticket last acts on its reviews: no session open on it, nothing runs, and no other session picks it up. Reviews already on the PR when the watch starts are left to the round that claimed it.
+
 ### Referring to tasks
 
 `/wa-board` numbers every row (`#` column), continuously across sections. Anywhere a task is expected you can pass that number instead of the slug — single, list, or range:

@@ -14,6 +14,8 @@ import {
   branchTaskId,
   parseWorktrees,
   bricksComment,
+  claimedTicket,
+  feedbackReviews,
   githubFocusView,
   githubView,
   localFocusView,
@@ -28,6 +30,8 @@ import {
   parseBacklog,
   parseConfig,
   parseFields,
+  startWatch,
+  watchReviews,
   sessionName,
   toTask,
 } from './board'
@@ -785,4 +789,54 @@ test('board key ids (WA-42): session name keeps the key, prefers the board title
   expect(sessionName('shop', [{ id: 'fix-12', title: 'Fix crash' }])).toBe('shop · Fix crash')
   const board = { kind: 'github', tickets: [{ number: 'WA-42', title: 'Offline sync' }] } as unknown as Board
   expect(sessionName('shop', [{ id: 'WA-42', title: 'validate' }], boardTitles(board))).toBe('shop · WA-42 Offline sync')
+})
+
+const review = (id: string, login: string, state: string, body = '') => ({ id, author: { login }, state, body })
+
+test('a coding claim names its ticket, any other command none', async () => {
+  expect(claimedTicket('python3 "$CLAUDE_PLUGIN_ROOT/providers/github/wa-backlog" claim 12 coding --blocked-ok')).toBe('#12')
+  expect(claimedTicket("providers/github/wa-backlog claim '#12' coding")).toBe('#12')
+  expect(claimedTicket('wa-backlog claim WA-42 coding')).toBe('WA-42')
+  expect(claimedTicket('wa-backlog claim 12 grilling')).toBe('')
+  expect(claimedTicket('wa-backlog release 12 coding --reset-to review')).toBe('')
+  expect(claimedTicket('wa-backlog claim wa-42 coding')).toBe('')
+})
+
+test('feedback reviews: someone else, not seen, asking for something', async () => {
+  const reviews = [
+    review('r1', 'ana', 'CHANGES_REQUESTED'),
+    review('r2', 'ana', 'COMMENTED'),
+    review('r3', 'me', 'COMMENTED'),
+    review('r4', 'bob', 'APPROVED'),
+    review('r5', 'bob', 'APPROVED', 'nit: rename it'),
+    review('r6', 'bob', 'PENDING'),
+    review('r7', 'bob', 'DISMISSED'),
+  ]
+  expect(feedbackReviews(reviews, ['r2'], 'me').map(one => one.id)).toEqual(['r1', 'r5'])
+})
+
+test('a watch starts with the reviews already there seen, once per ticket', async () => {
+  const pulls = [{ number: 34, headRefName: 'wa/12-login', url: 'u', reviews: [review('r1', 'ana', 'COMMENTED')] }]
+  const watches = startWatch([], '#12', pulls, 'wa/')
+  expect(watches).toEqual([{ id: '#12', pr: 34, seen: ['r1'] }])
+  expect(startWatch(watches, '#12', [], 'wa/')).toEqual(watches)
+  expect(startWatch([], 'WA-42', pulls, 'wa/')).toEqual([{ id: 'WA-42', pr: 0, seen: [] }])
+})
+
+test('a poll reports new reviews, waits for a PR not opened yet, ends with the PR', async () => {
+  const watches = [
+    { id: '#12', pr: 34, seen: ['r1'] },
+    { id: '#13', pr: 0, seen: [] },
+    { id: '#14', pr: 40, seen: [] },
+  ]
+  const pulls = [
+    { number: 34, headRefName: 'wa/12-login', url: 'u', reviews: [review('r1', 'ana', 'COMMENTED'), review('r2', 'ana', 'CHANGES_REQUESTED'), review('r3', 'bob', 'COMMENTED')] },
+  ]
+  const polled = watchReviews(watches, pulls, 'wa/', 'me')
+  expect(polled.news).toEqual([{ id: '#12', pr: 34, reviewers: ['ana', 'bob'] }])
+  expect(polled.watches).toEqual([
+    { id: '#12', pr: 34, seen: ['r1', 'r2', 'r3'] },
+    { id: '#13', pr: 0, seen: [] },
+  ])
+  expect(watchReviews(polled.watches, pulls, 'wa/', 'me').news).toEqual([])
 })

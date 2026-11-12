@@ -1,4 +1,4 @@
-import type { Board, BoardTask, GithubState, GithubTicket, MilestoneCount, SprintParent, TaskFile, TaskFocus, TaskStatus, TicketId } from '../types'
+import type { Board, BoardTask, GithubState, GithubTicket, MilestoneCount, ReviewWatch, SprintParent, TaskFile, TaskFocus, TaskStatus, TicketId } from '../types'
 
 export type WaConfig = {
   backlog: string
@@ -948,6 +948,61 @@ export function githubFocusView(tickets: readonly GithubTicket[], focus: TaskFoc
       ...fileBlocks(focus.file),
     ],
   }
+}
+
+// endregion
+
+// region Review watch
+
+export type PrReview = { id: string; author: { login: string } | null; state: string; body: string }
+export type ReviewedPull = { number: number; headRefName: string; url: string; reviews: PrReview[] }
+export type ReviewNews = { id: string; pr: number; reviewers: string[] }
+
+const CLAIM_CODING = /wa-backlog["']?\s+claim\s+["']?#?([A-Za-z0-9-]+)["']?\s+coding\b/
+
+/** Ticket a Bash command claims `coding` on through `wa-backlog`, as the board labels it (#12, WA-42); '' for any other command. */
+export function claimedTicket(command: string): string {
+  const raw = command.match(CLAIM_CODING)?.[1] ?? ''
+  return /^\d+$/.test(raw) || BOARD_KEY.test(raw) ? ticketLabel(toTicketId(raw)) : ''
+}
+
+const pullOf = (pulls: readonly ReviewedPull[], id: string, prefix: string) =>
+  pulls.find(pull => branchTaskId(pull.headRefName, prefix, 'github') === id)
+
+const isFeedback = (review: PrReview) =>
+  review.state === 'CHANGES_REQUESTED' || review.state === 'COMMENTED' || (review.state === 'APPROVED' && review.body.trim() !== '')
+
+/** Reviews someone else submitted since `seen`: changes requested, comments, an approval that says something. */
+export const feedbackReviews = (reviews: readonly PrReview[], seen: readonly string[], me: string) =>
+  reviews.filter(review => !seen.includes(review.id) && review.author?.login !== me && isFeedback(review))
+
+/** Adds a watch on ticket `id`, every review its PR already holds seen; a ticket already watched keeps its watch. */
+export function startWatch(watches: readonly ReviewWatch[], id: string, pulls: readonly ReviewedPull[], prefix: string): ReviewWatch[] {
+  if (watches.some(watch => watch.id === id)) return [...watches]
+  const pull = pullOf(pulls, id, prefix)
+  return [...watches, { id, pr: pull?.number ?? 0, seen: pull?.reviews.map(review => review.id) ?? [] }]
+}
+
+/**
+ * One poll over the open PRs: new feedback reviews per watched ticket. A watch whose PR is no longer open (merged,
+ * closed) ends; one whose PR isn't opened yet keeps waiting.
+ */
+export function watchReviews(watches: readonly ReviewWatch[], pulls: readonly ReviewedPull[], prefix: string, me: string) {
+  const next: ReviewWatch[] = []
+  const news: ReviewNews[] = []
+  for (const watch of watches) {
+    const pull = pullOf(pulls, watch.id, prefix)
+    if (!pull) {
+      if (watch.pr === 0) next.push(watch)
+      continue
+    }
+    const fresh = feedbackReviews(pull.reviews, watch.seen, me)
+    next.push({ id: watch.id, pr: pull.number, seen: pull.reviews.map(review => review.id) })
+    if (fresh.length > 0) {
+      news.push({ id: watch.id, pr: pull.number, reviewers: [...new Set(fresh.map(review => review.author?.login ?? 'ghost'))] })
+    }
+  }
+  return { watches: next, news }
 }
 
 // endregion
