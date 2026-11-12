@@ -6,7 +6,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Changed
 
-- Kotlin conventions: the Compose module now flags any `@Composable` in a presenter, reducer or UiState. The ViewModel layer produces plain state, and the Screen calls the composables, SDK ones such as a paywall placement included.
+- Kotlin conventions: the Compose module now flags any `@Composable` in a presenter, reducer or UiState. The ViewModel layer produces plain state, and the Screen calls the composables, SDK ones such as a paywall placement included. The presenter's mandatory `content`, which only calls the Screen with the state, stays allowed.
 
 ## [3.2.0] - 2026-11-12
 

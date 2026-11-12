@@ -36,7 +36,7 @@ Order: required params, then `modifier: Modifier = Modifier` as **first optional
 - State lives at lowest common owner that needs it. UI element state (`scroll`, `expanded`) in `remember`; survive config change / process death → `rememberSaveable`.
 - Screen state from ViewModel. Composable never mutates ViewModel state directly — it calls an event lambda.
 - No business logic, no I/O, no repository access in composables.
-- No `@Composable` in presenter, reducer or UiState (ViewModel layer). They produce plain state; Screen reads it and calls the composables, port / SDK composables included (paywall placement, ad, map). `@Composable () -> Unit` field in UiState = style finding.
+- No `@Composable` in presenter, reducer or UiState (ViewModel layer). They produce plain state; Screen reads it and calls the composables, port / SDK composables included (paywall placement, ad, map). Only exception: presenter's mandatory `content` (`override val content: @Composable (UiState) -> Unit = { XScreen(it) }`), bridge that only calls the Screen with the state. `@Composable () -> Unit` field in UiState, or `content` doing more than call the Screen = style finding.
 
 ## Side effects
 
