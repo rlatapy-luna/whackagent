@@ -117,7 +117,7 @@ test('run: the user\'s own review runs /wa-feedback, an agent\'s signed reply do
   await clock.settle()
 
   state.reviews = [{ id: 'r1', author: { login: 'me' }, state: 'COMMENTED', body: '' }]
-  state.comments = { r1: ['Fixed in abc1234.\n\n_— Claude · whackagent_'] }
+  state.comments = { r1: ['Fixed in abc1234.\n\n_— Claude · lb-agents_'] }
   await clock.advance(60_000)
   expect(state.commands).toEqual([])
 

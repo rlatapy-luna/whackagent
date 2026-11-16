@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""whackagent backlog provider: code on GitHub, tickets on a board.
+"""Backlog provider: code on GitHub, tickets on a board.
 
 Implements the operations in providers/CONTRACT.md on top of `gh`. Stdlib only, one file: projects
-vendor it as is (`.github/board/wa-backlog`). `providers/github/wa-backlog` links here.
+vendor it as is (`.lunabee/board/lb-backlog`).
 Settings come from repository variables (shared with the board workflow), IDs are
-cached per clone in <git-common-dir>/whackagent/github-cache.json.
+cached per clone in <git-common-dir>/lb-backlog/github-cache.json.
 
 Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the operation.
 
@@ -74,12 +74,12 @@ SIZES = ["quickwin", "medium", "large"]
 # Phase claimed → states the ticket may be in when the claim is taken. `grilled` → `grilling` = re-grill:
 # the spec is rewritten on the same branch, and the push hook moves it back to `grilled`.
 CLAIM_FROM = {"grilling": {"todo", "grilled"}, "coding": {"grilled", "review"}}
-CLAIM_NAMESPACE = "wa-claims"
+CLAIM_NAMESPACE = "lb-claims"
 
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
 # Board contract this script implements: the project's BOARD.md, its PR template sections and its workflow
 # caller carry the same stamp. Installed and updated together by the setup PR.
-CONTRACT_VERSION = "2.5"
+CONTRACT_VERSION = "3.0"
 
 
 class Failure(Exception):
@@ -146,7 +146,7 @@ def git(*args):
 
 
 def cache_path():
-    return Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "whackagent" / "github-cache.json"
+    return Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "lb-backlog" / "github-cache.json"
 
 
 def current_repo():
@@ -156,9 +156,9 @@ def current_repo():
 
 
 def repo_variables(repo):
-    # Hooks run: the workflow hands the variables over (WA_VARS = toJSON(vars)); GITHUB_TOKEN cannot list them.
-    if os.environ.get("WA_VARS"):
-        return {k: v for k, v in json.loads(os.environ["WA_VARS"]).items() if isinstance(v, str)}
+    # Hooks run: the workflow hands the variables over (LB_VARS = toJSON(vars)); GITHUB_TOKEN cannot list them.
+    if os.environ.get("LB_VARS"):
+        return {k: v for k, v in json.loads(os.environ["LB_VARS"]).items() if isinstance(v, str)}
     data = rest("GET", f"repos/{repo}/actions/variables?per_page=100")
     return {v["name"]: v["value"] for v in data.get("variables", [])}
 
@@ -169,12 +169,12 @@ def set_variables(repo, variables):
 
 
 def fingerprint(variables):
-    settings = {k: v for k, v in sorted(variables.items()) if k.startswith("WA_")}
+    settings = {k: v for k, v in sorted(variables.items()) if k.startswith("LB_")}
     return hashlib.sha256(json.dumps(settings).encode()).hexdigest()
 
 
 def board_name():
-    """`backlog.provider` of the project config; None without one (a vendored copy in a repo without whackagent)."""
+    """`backlog.provider` of the project config; None without one (a vendored copy in a repo without that config)."""
     try:
         root = Path(git("rev-parse", "--show-toplevel"))
     except subprocess.CalledProcessError:
@@ -199,26 +199,34 @@ def board_class():
     return BOARDS.get(board_name(), GitHubBoard)
 
 
+def check_renamed(repo, variables, names):
+    """Settings were named WA_* before the LB_ prefix: one still there without its LB_ twin stops every verb,
+    never read in its place (setup renames them)."""
+    old = [f"WA_{n}" for n in names if f"WA_{n}" in variables and f"LB_{n}" not in variables]
+    if old:
+        raise Failure(f"{repo} still has {' '.join(old)} — rename them LB_* (setup)")
+
+
 def code_settings(variables):
     """Code-host settings every board shares: where task files and ticket branches live."""
     return {
-        "tasks_path": variables.get("WA_TASKS_PATH", ".lunabee/agents/tasks"),
-        "branch_prefix": variables.get("WA_BRANCH_PREFIX", "feature/"),
-        # "none" = sprints have no branch (an empty variable reads as unset), as WA_SPRINT_PREFIX in board.yml
-        "sprint_prefix": "" if variables.get("WA_SPRINT_PREFIX") == "none" else variables.get("WA_SPRINT_PREFIX", "sprint/"),
-        "stale_after_hours": int(variables.get("WA_STALE_AFTER_HOURS", "24")),
-        "tracks": json.loads(variables.get("WA_TRACKS", "[]")),
+        "tasks_path": variables.get("LB_TASKS_PATH", ".lunabee/agents/tasks"),
+        "branch_prefix": variables.get("LB_BRANCH_PREFIX", "feature/"),
+        # "none" = sprints have no branch (an empty variable reads as unset), as LB_SPRINT_PREFIX in board.yml
+        "sprint_prefix": "" if variables.get("LB_SPRINT_PREFIX") == "none" else variables.get("LB_SPRINT_PREFIX", "sprint/"),
+        "stale_after_hours": int(variables.get("LB_STALE_AFTER_HOURS", "24")),
+        "tracks": json.loads(variables.get("LB_TRACKS", "[]")),
     }
 
 
 def code_variables(args):
     """Repo variables `provision` writes for the code host, after the board's own."""
     return {
-        "WA_TASKS_PATH": args.tasks_path,
-        "WA_BRANCH_PREFIX": args.branch_prefix,
-        "WA_SPRINT_PREFIX": args.sprint_prefix or "none",  # "none": an empty variable reads as unset
-        "WA_STALE_AFTER_HOURS": str(args.stale_after_hours),
-        "WA_TRACKS": json.dumps(args.track or []),
+        "LB_TASKS_PATH": args.tasks_path,
+        "LB_BRANCH_PREFIX": args.branch_prefix,
+        "LB_SPRINT_PREFIX": args.sprint_prefix or "none",  # "none": an empty variable reads as unset
+        "LB_STALE_AFTER_HOURS": str(args.stale_after_hours),
+        "LB_TRACKS": json.dumps(args.track or []),
     }
 
 
@@ -229,6 +237,7 @@ def load(refresh=False):
     cached = json.loads(path.read_text()) if path.exists() else None
     repo = cached["repo"] if cached else current_repo()
     variables = repo_variables(repo)
+    check_renamed(repo, variables, ("TASKS_PATH", "BRANCH_PREFIX", "SPRINT_PREFIX", "STALE_AFTER_HOURS", "TRACKS"))
     # a cache written before a code setting existed is rebuilt, never read with the setting missing; so is one of
     # another board (backlog.provider switched, e.g. by migrate), the board's own ids differing
     board = board_class()
@@ -397,10 +406,10 @@ STATE_DESCRIPTIONS = {
     "done": "PR merged",
 }
 SIZE_COLORS = {"quickwin": "GREEN", "medium": "YELLOW", "large": "RED"}
-IGNORE_LABEL = "wa-ignore"
-# Sprint = parent issue labeled wa-sprint, sprint name = its title in kebab-case; its tickets are its
+IGNORE_LABEL = "lb-ignore"
+# Sprint = parent issue labeled lb-sprint, sprint name = its title in kebab-case; its tickets are its
 # sub-issues. Not a ticket itself: kept off the board, never claimed. The milestone is the release scope.
-SPRINT_LABEL = "wa-sprint"
+SPRINT_LABEL = "lb-sprint"
 # Built-in Project workflows that set Status on their own, against the board contract.
 CONFLICTING_WORKFLOWS = {"Pull request linked to issue"}
 
@@ -529,7 +538,7 @@ def ensure_status_options(field, state_names, project_id, prune):
 
 class GitHubBoard(Board):
     """GitHub Projects v2: ticket = issue on the Project, state = Status option, priority = item order,
-    size = Size option, sprint = wa-sprint parent issue, milestone = repo milestone."""
+    size = Size option, sprint = lb-sprint parent issue, milestone = repo milestone."""
 
     name = "a GitHub"
 
@@ -540,16 +549,17 @@ class GitHubBoard(Board):
 
     @classmethod
     def settings(cls, repo, variables):
-        if "WA_PROJECT_NUMBER" not in variables:
-            raise Failure(f"{repo} has no WA_PROJECT_NUMBER variable — run /wa-setup backlog (provision)")
-        owner = variables.get("WA_PROJECT_OWNER", repo.split("/")[0])
-        number = int(variables["WA_PROJECT_NUMBER"])
+        check_renamed(repo, variables, ("PROJECT_OWNER", "PROJECT_NUMBER", "STATUS_FIELD", "SIZE_FIELD", "STATES"))
+        if "LB_PROJECT_NUMBER" not in variables:
+            raise Failure(f"{repo} has no LB_PROJECT_NUMBER variable — run setup (provision)")
+        owner = variables.get("LB_PROJECT_OWNER", repo.split("/")[0])
+        number = int(variables["LB_PROJECT_NUMBER"])
         owner_kind, _ = owner_node(owner)
         project_id, url, fields = project_fields(owner_kind, owner, number)
-        status_name = variables.get("WA_STATUS_FIELD", "Status")
-        size_name = variables.get("WA_SIZE_FIELD", "Size")
-        custom = json.loads(variables.get("WA_STATES", "{}"))
-        # Unknown keys ignored: a transitional WA_STATES may still carry an old state id for older hooks.
+        status_name = variables.get("LB_STATUS_FIELD", "Status")
+        size_name = variables.get("LB_SIZE_FIELD", "Size")
+        custom = json.loads(variables.get("LB_STATES", "{}"))
+        # Unknown keys ignored: a transitional LB_STATES may still carry an old state id for older hooks.
         state_names = {s: custom.get(s, DEFAULT_STATE_NAMES[s]) for s in STATES}
         status = fields.get(status_name)
         if not status:
@@ -793,7 +803,7 @@ class GitHubBoard(Board):
             if found[0]["state"] == "closed":
                 rest("PATCH", f"repos/{repo}/issues/{found[0]['number']}", {"state": "open"})
             return found[0]["number"]
-        body = "Sprint: whackagent groups its tickets here as sub-issues. Closed when the sprint lands."
+        body = "Sprint: its tickets are grouped here as sub-issues. Closed when the sprint lands."
         return rest("POST", f"repos/{repo}/issues", {"title": name, "body": body, "labels": [SPRINT_LABEL]})["number"]
 
     def set_sprint(self, number, sprint):
@@ -817,7 +827,7 @@ class GitHubBoard(Board):
         rest("POST", f"repos/{repo}/issues/{target}/sub_issues", {"sub_issue_id": issue_id, "replace_parent": True})
 
     def split(self, ticket, name):
-        """The issue becomes the sprint's parent: labeled wa-sprint, taken off the board."""
+        """The issue becomes the sprint's parent: labeled lb-sprint, taken off the board."""
         number = ticket["number"]
         clash = self.sprint_issues(name)
         if clash:
@@ -929,11 +939,11 @@ class GitHubBoard(Board):
             )
             size_created = True
         variables = {
-            "WA_PROJECT_OWNER": owner,
-            "WA_PROJECT_NUMBER": str(number),
-            "WA_STATUS_FIELD": args.status_field,
-            "WA_SIZE_FIELD": args.size_field,
-            "WA_STATES": json.dumps(state_names),
+            "LB_PROJECT_OWNER": owner,
+            "LB_PROJECT_NUMBER": str(number),
+            "LB_STATUS_FIELD": args.status_field,
+            "LB_SIZE_FIELD": args.size_field,
+            "LB_STATES": json.dumps(state_names),
             **code_variables(args),
         }
         set_variables(repo, variables)
@@ -958,7 +968,7 @@ class GitHubBoard(Board):
             "status_options_held": held,
             "size_field_created": size_created,
             "variables": variables,
-            "secret_WA_PROJECT_TOKEN": "WA_PROJECT_TOKEN" in secret,
+            "secret_LB_PROJECT_TOKEN": "LB_PROJECT_TOKEN" in secret,
             "state_options": config["state_options"],
             "conflicting_workflows": conflicting,
         }
@@ -979,8 +989,8 @@ class GitHubBoard(Board):
 
 # A Plane board runs on lb-board, Lunabee's Plane board CLI (LunabeeStudio/Lunabee-Plane), vendored in the repo as
 # .lunabee/board/lb-board by /lb-board-setup: it holds every Plane read and write, the claims (refs/lb-claims/…) and
-# the hooks (run by the "Lunabee Plane board" GitHub App). whackagent forwards its board verbs to it and adds only
-# what its skills and pane read on top (the task file's phase, the ticket branch under branch.prefix).
+# the hooks (run by the "Lunabee Plane board" GitHub App). This script forwards its board verbs to it and adds only
+# what the agents and the pane read on top (the task file's phase, the ticket branch under branch.prefix).
 LB_BOARD = Path(".lunabee") / "board" / "lb-board"
 LB_VERBS = {"list", "get", "create", "claim", "release", "move", "cancel", "set-field", "milestones", "close-milestone",
             "split", "comment", "depend", "link-pr", "claims", "whoami", "check-integration"}
@@ -993,15 +1003,15 @@ def lb_board_path():
         root = Path.cwd()
     path = root / LB_BOARD
     if not path.is_file():
-        raise Failure(f"no {LB_BOARD} in this repository — a Plane board runs on lb-board (Lunabee): run /wa-setup", EXIT_USAGE)
+        raise Failure(f"no {LB_BOARD} in this repository — a Plane board runs on lb-board (Lunabee): run /lb-board-setup", EXIT_USAGE)
     return path
 
 
 def lb_board(argv, capture=False):
-    """Run lb-board with <argv>. The agent id carries over: WA_AGENT is lb-board's LB_BOARD_AGENT."""
+    """Run lb-board with <argv>. The agent id carries over: LB_AGENT is lb-board's LB_BOARD_AGENT."""
     env = dict(os.environ)
-    if env.get("WA_AGENT") and not env.get("LB_BOARD_AGENT"):
-        env["LB_BOARD_AGENT"] = env["WA_AGENT"]
+    if env.get("LB_AGENT") and not env.get("LB_BOARD_AGENT"):
+        env["LB_BOARD_AGENT"] = env["LB_AGENT"]
     return subprocess.run([sys.executable, str(lb_board_path()), *argv], env=env, capture_output=capture, text=True)
 
 
@@ -1023,7 +1033,7 @@ class LbBoard(Board):
 
     @classmethod
     def provision(cls, args, repo):
-        raise Failure("a Plane board is set up by lb-board: run /wa-setup (it runs /lb-board-setup)", EXIT_USAGE)
+        raise Failure("a Plane board is set up by lb-board: run /lb-board-setup", EXIT_USAGE)
 
     def get(self, number):
         proc = lb_board(["get", number], capture=True)
@@ -1033,7 +1043,7 @@ class LbBoard(Board):
 
 
 def forward(argv, args):
-    """A board verb on a Plane board: lb-board runs it, exit code as is. Where whackagent's skills and pane read more
+    """A board verb on a Plane board: lb-board runs it, exit code as is. Where the agents and the pane read more
     than lb-board prints, the output gets it: `phase` (task file on the ticket branch) on review rows and `get`,
     `branch` (the ticket branch under branch.prefix) on `get` and `claims`."""
     if args.op == "set-field" and args.field == "size":
@@ -1077,7 +1087,7 @@ def prepare_repo(repo):
 
 
 # Ticket id: a GitHub issue number (int, shown #12) or a board key <PROJECT>-<n> (str, shown as is).
-# Branch <prefix><id>-<slug>, task file <id>-<slug>.md, claim ref refs/wa-claims/<id>/<phase>.
+# Branch <prefix><id>-<slug>, task file <id>-<slug>.md, claim ref refs/lb-claims/<id>/<phase>.
 TICKET_ID = re.compile(r"\d+|[A-Z][A-Z0-9]{0,11}-\d+")
 
 
@@ -1134,8 +1144,8 @@ def find(board, number, with_owners=True):
 def agent_id(explicit=None):
     if explicit:
         return explicit
-    if os.environ.get("WA_AGENT"):
-        return os.environ["WA_AGENT"]
+    if os.environ.get("LB_AGENT"):
+        return os.environ["LB_AGENT"]
     try:
         where = git("rev-parse", "--show-toplevel")
     except subprocess.CalledProcessError:
@@ -1151,7 +1161,7 @@ def claim_tree(config):
     """
     if not config.get("claim_blob_tree"):
         tree = rest("POST", f"repos/{config['repo']}/git/trees", {
-            "tree": [{"path": "CLAIM", "mode": "100644", "type": "blob", "content": "whackagent claim\n"}],
+            "tree": [{"path": "CLAIM", "mode": "100644", "type": "blob", "content": "claim\n"}],
         })
         config["claim_blob_tree"] = tree["sha"]
         cache_path().write_text(json.dumps(config, indent=2))
@@ -1292,7 +1302,7 @@ def op_claim(args):
         "POST",
         f"repos/{config['repo']}/git/commits",
         {
-            "message": f"wa-claim {phase} {shown(args.number)}\n\nagent: {agent}\nclaimed: {now}\naccount: {board.account()}\n{trailer}",
+            "message": f"lb-claim {phase} {shown(args.number)}\n\nagent: {agent}\nclaimed: {now}\naccount: {board.account()}\n{trailer}",
             "tree": claim_tree(config),
             "parents": [],
         },
@@ -1382,7 +1392,7 @@ def op_milestones(args):
 
 
 def op_close_milestone(args):
-    """Close a shipped milestone. Only /wa-release calls it, on the user's yes."""
+    """Close a shipped milestone. Only the release step calls it, on the user's yes."""
     open_board().close_milestone(args.title)
     emit({"title": args.title, "open": False})
 
@@ -1502,8 +1512,8 @@ def op_templates(args):
 # ---------------------------------------------------------------- pull requests
 
 
-SHOTS_START, SHOTS_END = "<!-- wa-screenshots -->", "<!-- /wa-screenshots -->"
-SHOTS_SECTION = re.compile(r"<!-- wa-screenshots(?: sha=(\w+))? -->.*?" + re.escape(SHOTS_END), re.S)
+SHOTS_START, SHOTS_END = "<!-- lb-screenshots -->", "<!-- /lb-screenshots -->"
+SHOTS_SECTION = re.compile(r"<!-- lb-screenshots(?: sha=(\w+))? -->.*?" + re.escape(SHOTS_END), re.S)
 SHOT_IMG = re.compile(r'<img src="(https://[^"]+)"[^>]*? alt="([^"]+)"')
 OLD_SHOT_IMG = re.compile(r'<img src="(https://[^"]+)"[^>]*><br><sub>([^<]+)</sub>')  # before alt captions
 MD_IMG = re.compile(r"!\[[^\]]*\]\((https://[^)]+)\)")
@@ -1533,7 +1543,7 @@ def upload_attach(repo, pr, body, files):
     with tempfile.TemporaryDirectory() as tmp:
         names = []
         for index, path in enumerate(files):
-            names.append(f"wa-shot-{index}{Path(path).suffix.lower()}")
+            names.append(f"lb-shot-{index}{Path(path).suffix.lower()}")
             shutil.copyfile(path, Path(tmp, names[-1]))
         refs = "\n".join(f"![{Path(path).stem}](./{name})" for path, name in zip(files, names))
         Path(tmp, "body.md").write_text(with_section(body, f"{SHOTS_START}\n{refs}\n{SHOTS_END}"))
@@ -1571,7 +1581,7 @@ def shots_section(shots, sha, width):
             for key in pairs
         )
         parts.append(f"<table><tr><th></th><th>Before</th><th>After</th></tr>{rows}</table>")
-    start = f"<!-- wa-screenshots sha={sha} -->" if sha else SHOTS_START
+    start = f"<!-- lb-screenshots sha={sha} -->" if sha else SHOTS_START
     return f"{start}\n## Screenshots\n\n" + "\n\n".join(parts) + f"\n{SHOTS_END}"
 
 
@@ -1728,7 +1738,7 @@ def op_merge(args):
 
 
 def parser():
-    p = argparse.ArgumentParser(prog="wa-backlog", description="whackagent backlog provider (GitHub code host, board per backlog.provider: github, plane)")
+    p = argparse.ArgumentParser(description="Backlog provider (GitHub code host, board per backlog.provider: github, plane)")
     sub = p.add_subparsers(dest="op", required=True)
 
     s = sub.add_parser("config", help="print resolved settings")
@@ -1798,7 +1808,7 @@ def parser():
     s = sub.add_parser("milestones", help="release scopes, highest first")
     s.set_defaults(func=op_milestones)
 
-    s = sub.add_parser("close-milestone", help="close a shipped milestone (/wa-release only)")
+    s = sub.add_parser("close-milestone", help="close a shipped milestone (release step only)")
     s.add_argument("title")
     s.set_defaults(func=op_close_milestone)
 
@@ -1934,10 +1944,10 @@ def main():
             load(refresh=True)  # board changed under the cache: rebuild once, rerun
             args.func(args)
     except Failure as failure:
-        note(f"wa-backlog: {failure}")
+        note(f"{Path(sys.argv[0]).name}: {failure}")
         sys.exit(failure.code)
     except subprocess.CalledProcessError as error:
-        note(f"wa-backlog: {error.cmd[0]} failed: {error.stderr}")
+        note(f"{Path(sys.argv[0]).name}: {error.cmd[0]} failed: {error.stderr}")
         sys.exit(EXIT_ERROR)
 
 

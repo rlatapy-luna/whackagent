@@ -1,6 +1,6 @@
 # Swift — Coding style
 
-> whackagent convention module · lens: **style**. `wa-implementer` obeys it too.
+> Convention module · lens: **style**. The implementer obeys it too.
 
 ## One type per file
 

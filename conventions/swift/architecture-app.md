@@ -1,6 +1,6 @@
 # Swift — Architecture (iOS app)
 
-> whackagent convention module · lens: **structure**. iOS app: layers + file tree. Pairs with `architecture-global.md` (platform-agnostic principles).
+> Convention module · lens: **structure**. iOS app: layers + file tree. Pairs with `architecture-global.md` (platform-agnostic principles).
 
 ## Layers
 

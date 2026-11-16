@@ -1,4 +1,4 @@
-<!-- board-contract: 2.5 -->
+<!-- board-contract: 3.0 -->
 <!-- Installed by setup, its angle-bracket placeholders filled for this repository and only its board tool's section kept. Update through the setup PR, never by hand: the hooks,
      the board CLI and the PR template carry the same contract version. -->
 
@@ -23,14 +23,14 @@ The board is a GitHub Project: <project-url>. Its tickets are this repository's 
 
 | Thing | Where |
 |---|---|
-| Ticket | a repository issue; its number is the ticket id `<id>` (`12`, written `#12`). Every issue is a ticket, unless labeled `wa-ignore` |
+| Ticket | a repository issue; its number is the ticket id `<id>` (`12`, written `#12`). Every issue is a ticket, unless labeled `lb-ignore` |
 | State | the Project `Status` field (the columns) |
 | Priority | card order on the Project, top = next |
 | Size | the Project `Size` field: `quickwin`, `medium`, `large` |
 | Spec | the issue body (`## Acceptance criteria`), or a task file `<tasks-path>/<id>-<slug>.md` on the ticket's branch |
-| Lock | a claim, git ref `refs/wa-claims/<id>/<phase>`, created by the board CLI |
+| Lock | a claim, git ref `refs/lb-claims/<id>/<phase>`, created by the board CLI |
 | Reservation | issue assignees: a ticket assigned to another account is not yours to take. A ticket moving to `review` unassigned goes to the account that opened the PR or pushed the round, else to the PR's author, if that account can push |
-| Sprint | a parent issue labeled `wa-sprint`; its tickets are its sub-issues |
+| Sprint | a parent issue labeled `lb-sprint`; its tickets are its sub-issues |
 | Milestone | the repository's GitHub milestones (release scope) |
 | Dependency | issue relationships ("blocked by") |
 | Change | one PR per ticket, linked to the ticket |
@@ -53,7 +53,7 @@ Create the ticket's branch linked to the issue: `gh issue develop <id> --name <b
 
 ### Sprints
 
-The sprint root is a parent issue labeled `wa-sprint`; its tickets are its sub-issues.
+The sprint root is a parent issue labeled `lb-sprint`; its tickets are its sub-issues.
 
 ### Checks
 
@@ -217,4 +217,4 @@ Read those comments when you take a ticket, and fix what they name.
 
 ## Version
 
-This file carries `board-contract: 2.5` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when this file's version differs from its own: update them together with the setup PR, never one file by hand.
+This file carries `board-contract: 3.0` in its first line. The board CLI, the board workflow and the PR template sections carry the same version. The CLI warns when this file's version differs from its own: update them together with the setup PR, never one file by hand.

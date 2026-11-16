@@ -798,7 +798,8 @@ test('board key ids (WA-42): session name keeps the key, prefers the board title
 })
 
 const review = (id: string, login: string, state: string, body = '', comments?: string[]) => ({ id, author: { login }, state, body, comments })
-const SIGNED = 'Fixed in abc1234.\n\n_— Claude · whackagent_'
+const SIGNED = 'Fixed in abc1234.\n\n_— Claude · lb-agents_'
+const SIGNED_BEFORE = 'Fixed in abc1234.\n\n_— Claude · whackagent_'
 
 test('a coding claim names its ticket, any other command none', async () => {
   expect(claimedTicket('python3 "$CLAUDE_PLUGIN_ROOT/providers/github/wa-backlog" claim 12 coding --blocked-ok')).toBe('#12')
@@ -828,6 +829,7 @@ test('feedback reviews: an agent\'s signed replies are not feedback', async () =
     review('r2', 'me', 'COMMENTED', '', [SIGNED, 'and also this']),
     review('r3', 'me', 'COMMENTED', SIGNED),
     review('r4', 'me', 'COMMENTED', '', []),
+    review('r5', 'me', 'COMMENTED', '', [SIGNED_BEFORE]),
   ]
   expect(feedbackReviews(reviews, []).map(one => one.id)).toEqual(['r2', 'r4'])
 })

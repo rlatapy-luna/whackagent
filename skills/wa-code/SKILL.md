@@ -28,7 +28,7 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 
 1. Name = `<branch.prefix><slug>` (default `feature/<slug>`).
 2. **Fork point** = `branch.base` — track task: its trunk (**reference/tracks.md**), same everywhere below — **unless task carry `sprint:`** and `branch.sprint_prefix` non-empty. Then base = sprint branch `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`): create from `branch.base` if absent, check up to date otherwise. Why it exist — task 3 of sprint fork off task 1 merged work, not rediscover it as conflict. `/wa-close` merges back into it.
-3. Already on it → nothing. Exists but not checked out → check out, don't recreate. Absent → create from fork point above (`current` = where you are — on a `wa-test/` branch: its base, never fork from it, **reference/test-branch.md**; else named branch, fetched first if tracks remote).
+3. Already on it → nothing. Exists but not checked out → check out, don't recreate. Absent → create from fork point above (`current` = where you are — on a `lb-test/` branch: its base, never fork from it, **reference/test-branch.md**; else named branch, fetched first if tracks remote).
 4. **Dirty tree → stop and ask** before any checkout: carry over, stash, or stay? Never move uncommitted work silently.
 5. Echo: `branch: feature/<slug> (base: sprint/login-refacto)` — name sprint branch when it one, say when you just created it.
 6. **Track task only** (**reference/tracks.md**): trunk lags `branch.base` → offer sync before forking, recommended yes when fork is fresh. Task carry `lands: <track>` → *Landing* rule there: final sync, then merge track branch into this branch before plan. Neither → skip.
@@ -177,7 +177,7 @@ build ✅ · tests ✅ · run ✅ · review → /wa-validate
 
 ## 5. Closing — not yours
 
-Commit, branch landing and `status: done` belong to **`/wa-close`**. Nothing in this file commits or moves branch after step 0 — **except GitHub provider** step 0b.7: delivery commit + push + draft PR, so ticket leaves `coding`; and test branch rebuild + checkout (step 4): merges on local throwaway `wa-test/` branch only, never task, sprint or base branch. Ready PR = `/wa-validate`; merge = human, or `/wa-close` on their yes.
+Commit, branch landing and `status: done` belong to **`/wa-close`**. Nothing in this file commits or moves branch after step 0 — **except GitHub provider** step 0b.7: delivery commit + push + draft PR, so ticket leaves `coding`; and test branch rebuild + checkout (step 4): merges on local throwaway `lb-test/` branch only, never task, sprint or base branch. Ready PR = `/wa-validate`; merge = human, or `/wa-close` on their yes.
 
 ## Asking
 

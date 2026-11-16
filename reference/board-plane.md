@@ -70,7 +70,7 @@
   - Add-only: a dependency added by mistake is removed by the user in Plane.
 
 - **Settings** are lb-board's repo variables `PLANE_*`, written by `/lb-board-setup`.
-  - whackagent's own `WA_TASKS_PATH`, `WA_BRANCH_PREFIX`, `WA_SPRINT_PREFIX`, `WA_STALE_AFTER_HOURS` and `WA_TRACKS`
+  - whackagent's own `LB_TASKS_PATH`, `LB_BRANCH_PREFIX`, `LB_SPRINT_PREFIX`, `LB_STALE_AFTER_HOURS` and `LB_TRACKS`
     stay as its workflow settings.
   - The API key is the env var `PLANE_API_KEY`, never in the repo, config or chat.
   - Script says `PLANE_API_KEY not set` → ask the user to export it, stop.

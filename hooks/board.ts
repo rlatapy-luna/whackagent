@@ -964,7 +964,8 @@ export type ReviewedPull = { number: number; headRefName: string; url: string; r
 export type ReviewNews = { id: string; pr: number; reviewers: string[] }
 
 const CLAIM_CODING = /wa-backlog["']?\s+claim\s+["']?#?([A-Za-z0-9-]+)["']?\s+coding\b/
-const AGENT_SIGNATURE = /·\s*whackagent_$/
+// lb-agents since the Lunabee names; whackagent on replies posted before
+const AGENT_SIGNATURE = /·\s*(?:lb-agents|whackagent)_$/
 
 /** Ticket a Bash command claims `coding` on through `wa-backlog`, as the board labels it (#12, WA-42); '' for any other command. */
 export function claimedTicket(command: string): string {
@@ -983,7 +984,7 @@ const isSigned = (text: string) => AGENT_SIGNATURE.test(text.trim())
 const isBare = (review: PrReview) => review.body.trim() === ''
 
 /**
- * A review only an agent wrote: `/wa-feedback` answers PR comments signed `_— <AI tool> · whackagent_`, and a thread
+ * A review only an agent wrote: `/wa-feedback` answers PR comments signed `_— <AI tool> · lb-agents_`, and a thread
  * reply lands as a bare review holding that reply.
  */
 const isAgentReply = (review: PrReview) =>

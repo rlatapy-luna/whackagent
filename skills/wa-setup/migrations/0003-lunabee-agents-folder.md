@@ -17,8 +17,8 @@ Default home moved `.whackagent/` → `.lunabee/agents/` (config, backlog, tasks
 
 ## Apply
 
-1. Move each listed item to same relative spot under `.lunabee/agents/`: `git mv` when tracked, plain move otherwise, parent folders first. Non-local board → `{tasks}` stays: task files live on ticket branches, `WA_TASKS_PATH` and `BOARD.md` name it.
-2. Config, now `.lunabee/agents/config.md`, edited in place: each `paths.*` value starting `.whackagent/` → `.lunabee/agents/`, except pinned tasks. Non-local board, `paths.tasks` missing → write `tasks: .whackagent/tasks`. `branch.prefix` missing → write `prefix: "wa/"`: open branches, caller `branches:` filter, `WA_BRANCH_PREFIX` keep matching. Every other key byte-for-byte.
+1. Move each listed item to same relative spot under `.lunabee/agents/`: `git mv` when tracked, plain move otherwise, parent folders first. Non-local board → `{tasks}` stays: task files live on ticket branches, `LB_TASKS_PATH` and `BOARD.md` name it.
+2. Config, now `.lunabee/agents/config.md`, edited in place: each `paths.*` value starting `.whackagent/` → `.lunabee/agents/`, except pinned tasks. Non-local board, `paths.tasks` missing → write `tasks: .whackagent/tasks`. `branch.prefix` missing → write `prefix: "wa/"`: open branches, caller `branches:` filter, `LB_BRANCH_PREFIX` keep matching. Every other key byte-for-byte.
 3. `.gitignore` lines naming moved paths (reports) → rewritten to `.lunabee/agents/…`.
 4. Other repo files naming `.whackagent/` (`CLAUDE.md`, `AGENTS.md`, README) → list `file:line`, rewrite on yes.
 5. Leftovers in `.whackagent/` not listed → name them, ask. Folder empty → remove it.

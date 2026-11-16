@@ -1,9 +1,9 @@
-# whackagent board hooks — reusable logic, board contract 2.5 (templates/BOARD.md, installed in each project as
-# BOARD.md). Projects never copy this file: their caller (providers/github/whackagent-board.yml, installed by
+# Lunabee board hooks — reusable logic, board contract 3.0 (templates/BOARD.md, installed in each project as
+# BOARD.md). Projects never copy this file: their caller (providers/github/lunabee-board.yml, installed by
 # /wa-setup) holds the triggers, permissions and concurrency, and runs this through
-# `uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v2`. Each release moves `hooks-v2`, so every
-# project runs the new logic on its next event; `hooks-v1` stays frozen for callers not yet upgraded. A change
-# callers must follow (new trigger, permission, secret) needs a new tag `hooks-v3` and a new caller template version.
+# `uses: rlatapy-luna/whackagent/.github/workflows/board.yml@hooks-v3`. Each release moves `hooks-v3`, so every
+# project runs the new logic on its next event; `hooks-v1` and `hooks-v2` stay frozen for callers not yet upgraded. A
+# change callers must follow (new trigger, permission, secret) needs a new tag `hooks-v4` and a new caller template version.
 # Moves tickets on the GitHub Project from repository events, so the board follows the code:
 #   issue opened / body edited             → todo; grilled when the body holds a non-empty `## Acceptance criteria`,
 #                                            the ticket is todo/grilling and the editor can push (releases the
@@ -22,65 +22,65 @@
 #   → review, issue unassigned              → assigned to the event's sender, else the PR author (a human who can
 #                                            push); claims assign on their own
 #   PR merged (any base)                   → done, issue closed, every assignee removed, run report of the PR body
-#                                            (between <!-- wa-report --> markers) posted on it; sprint parent closed when the
+#                                            (between <!-- lb-report --> markers) posted on it; sprint parent closed when the
 #                                            sprint has no branch and its last sub-issue is done. Stacked PR: landed
 #                                            on its GitHub stack's base, not on the parent branch it targeted
 #   sprint branch PR merged                → sprint parent issue closed (sprint landed)
 #   PR closed unmerged                     → grilled, unless a coding claim or another open PR keeps the ticket going
 #   schedule / manual run                  → report-only check: board vs repository, one comment per problem on the
 #                                            ticket (resolved in place once fixed) + job summary; never moves cards.
-#                                            Includes claims held with no push for WA_STALE_AFTER_HOURS (default 24)
+#                                            Includes claims held with no push for LB_STALE_AFTER_HOURS (default 24)
 # `coding` = an agent holds the ticket and works on it. Every round ends with a push or a release,
 # so the ticket waits for humans (test, feedback, merge) in `review`, never in `coding`.
 # Settings are the caller repository's variables (`vars`), written by `wa-backlog provision`. Projects v2
-# reads and writes need the WA_PROJECT_TOKEN secret (classic PAT, scopes: project, repo), passed by the caller:
+# reads and writes need the LB_PROJECT_TOKEN secret (classic PAT, scopes: project, repo), passed by the caller:
 # `secrets: inherit` only works inside one owner, so the caller names it. Everything else uses the
 # caller's GITHUB_TOKEN.
 
-name: whackagent board
+name: Lunabee board
 
 on:
   workflow_call:
     secrets:
-      WA_PROJECT_TOKEN:
+      LB_PROJECT_TOKEN:
         required: false
 
 jobs:
   board:
-    if: vars.WA_PROJECT_NUMBER != ''
+    if: vars.LB_PROJECT_NUMBER != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v9
         env:
-          WA_PROJECT_TOKEN: ${{ secrets.WA_PROJECT_TOKEN }}
-          WA_PROJECT_OWNER: ${{ vars.WA_PROJECT_OWNER }}
-          WA_PROJECT_NUMBER: ${{ vars.WA_PROJECT_NUMBER }}
-          WA_STATUS_FIELD: ${{ vars.WA_STATUS_FIELD }}
-          WA_STATES: ${{ vars.WA_STATES }}
-          WA_TASKS_PATH: ${{ vars.WA_TASKS_PATH }}
-          WA_BRANCH_PREFIX: ${{ vars.WA_BRANCH_PREFIX }}
-          WA_SPRINT_PREFIX: ${{ vars.WA_SPRINT_PREFIX }}
-          WA_STALE_AFTER_HOURS: ${{ vars.WA_STALE_AFTER_HOURS }}
+          LB_PROJECT_TOKEN: ${{ secrets.LB_PROJECT_TOKEN }}
+          LB_PROJECT_OWNER: ${{ vars.LB_PROJECT_OWNER }}
+          LB_PROJECT_NUMBER: ${{ vars.LB_PROJECT_NUMBER }}
+          LB_STATUS_FIELD: ${{ vars.LB_STATUS_FIELD }}
+          LB_STATES: ${{ vars.LB_STATES }}
+          LB_TASKS_PATH: ${{ vars.LB_TASKS_PATH }}
+          LB_BRANCH_PREFIX: ${{ vars.LB_BRANCH_PREFIX }}
+          LB_SPRINT_PREFIX: ${{ vars.LB_SPRINT_PREFIX }}
+          LB_STALE_AFTER_HOURS: ${{ vars.LB_STALE_AFTER_HOURS }}
         with:
           script: |
             const env = process.env;
-            if (!env.WA_PROJECT_TOKEN) {
-              core.setFailed("WA_PROJECT_TOKEN secret missing: classic PAT with scopes project + repo");
+            if (!env.LB_PROJECT_TOKEN) {
+              core.setFailed("LB_PROJECT_TOKEN secret missing: classic PAT with scopes project + repo");
               return;
             }
             // Second client on the PAT: GITHUB_TOKEN can't reach Projects v2. Same class as `github`.
-            const projects = new github.constructor({ auth: env.WA_PROJECT_TOKEN });
+            const projects = new github.constructor({ auth: env.LB_PROJECT_TOKEN });
             const { owner, repo } = context.repo;
-            const prefix = env.WA_BRANCH_PREFIX || "feature/";
+            const prefix = env.LB_BRANCH_PREFIX || "feature/";
             // "none" = sprints have no branch (branch.sprint_prefix: ""): an empty variable reads as unset
-            const sprintPrefix = env.WA_SPRINT_PREFIX === "none" ? "" : (env.WA_SPRINT_PREFIX || "sprint/");
-            const SPRINT_LABEL = "wa-sprint";
-            const tasksPath = (env.WA_TASKS_PATH || ".lunabee/agents/tasks").replace(/\/$/, "");
-            const statusField = env.WA_STATUS_FIELD || "Status";
+            const sprintPrefix = env.LB_SPRINT_PREFIX === "none" ? "" : (env.LB_SPRINT_PREFIX || "sprint/");
+            const SPRINT_LABEL = "lb-sprint";
+            const tasksPath = (env.LB_TASKS_PATH || ".lunabee/agents/tasks").replace(/\/$/, "");
+            const statusField = env.LB_STATUS_FIELD || "Status";
             const states = {
               todo: "Todo", grilling: "Grilling", grilled: "Grilled", coding: "Coding",
               "review": "Review", done: "Done",
-              ...JSON.parse(env.WA_STATES || "{}"),
+              ...JSON.parse(env.LB_STATES || "{}"),
             };
 
             const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -95,7 +95,7 @@ jobs:
               const data = await projects.graphql(
                 `query($l:String!,$n:Int!,$f:String!){repositoryOwner(login:$l){... on ProjectV2Owner{
                   projectV2(number:$n){id field(name:$f){... on ProjectV2SingleSelectField{id options{id name}}}}}}}`,
-                { l: env.WA_PROJECT_OWNER || owner, n: Number(env.WA_PROJECT_NUMBER), f: statusField });
+                { l: env.LB_PROJECT_OWNER || owner, n: Number(env.LB_PROJECT_NUMBER), f: statusField });
               const p = data.repositoryOwner.projectV2;
               if (!p || !p.field) throw new Error(`project or field ${statusField} not found`);
               const byName = Object.fromEntries(p.field.options.map((o) => [o.name, o.id]));
@@ -113,7 +113,7 @@ jobs:
               const node = added.addProjectV2ItemById.item;
               const current = node.fieldValueByName?.name;
               const state = Object.keys(states).find((s) => states[s] === current) || null;
-              // column set but state null = a column whackagent doesn't own (Blocked, …): hands off
+              // column set but state null = a column the board states don't cover (Blocked, …): hands off
               return { id: node.id, state, column: current || null, issue };
             }
 
@@ -128,14 +128,14 @@ jobs:
 
             async function claimExists(number, phase) {
               try {
-                await github.rest.git.getRef({ owner, repo, ref: `wa-claims/${number}/${phase}` });
+                await github.rest.git.getRef({ owner, repo, ref: `lb-claims/${number}/${phase}` });
                 return true;
               } catch (e) { if (e.status === 404) return false; throw e; }
             }
 
             async function release(number, phase) {
               try {
-                await github.rest.git.deleteRef({ owner, repo, ref: `wa-claims/${number}/${phase}` });
+                await github.rest.git.deleteRef({ owner, repo, ref: `lb-claims/${number}/${phase}` });
               } catch (e) { if (![404, 422].includes(e.status)) throw e; }
             }
 
@@ -199,7 +199,7 @@ jobs:
               }
             }
 
-            // Sprint = parent issue labeled wa-sprint; sprint name = its title in kebab-case; tickets are its sub-issues.
+            // Sprint = parent issue labeled lb-sprint; sprint name = its title in kebab-case; tickets are its sub-issues.
             const sprintName = (title) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
             async function closeSprint(number, why) {
               await closeIssue(number);
@@ -283,7 +283,7 @@ jobs:
             // <prefix><n>-… branch. Sprint parents and ignored issues are not tickets. GitHub turns `Closes #n` into a link
             // only on PRs onto the default branch: an open PR whose ticket came from its body or branch gets the
             // Development link here, so no worker links by hand.
-            const NOT_TICKET = ["wa-ignore", SPRINT_LABEL];
+            const NOT_TICKET = ["lb-ignore", SPRINT_LABEL];
             async function ticketOf(pr) {
               if (sprintPrefix && pr.head.ref.startsWith(sprintPrefix)) return null; // sprint PR: lands a sprint, not a ticket
               const data = await github.graphql(
@@ -305,7 +305,7 @@ jobs:
               if (linked.length === 1) return linked[0];
               if (linked.length > 1) return named && linked.includes(named) ? named : several(linked);
               // keywords a reader sees: not in the run report, HTML comments or code
-              const text = (pr.body ?? "").replace(/<!-- wa-report -->[\s\S]*?<!-- \/wa-report -->/g, "")
+              const text = (pr.body ?? "").replace(/<!-- lb-report -->[\s\S]*?<!-- \/lb-report -->/g, "")
                 .replace(/<!--[\s\S]*?-->/g, "").replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
               const written = [...new Set([...text.matchAll(/(?<![\w/])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)\b/gi)]
                 .map((m) => Number(m[1])))];
@@ -359,16 +359,16 @@ jobs:
               }
               const held = {};
               const claimRefs = {};
-              for (const ref of await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: "wa-claims/" })) {
+              for (const ref of await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: "lb-claims/" })) {
                 const [, , n, phase] = ref.ref.split("/");
                 (held[n] ??= []).push(phase);
                 claimRefs[`${n}/${phase}`] = ref.object.sha;
               }
               const branches = new Map((await github.paginate(github.rest.git.listMatchingRefs, { owner, repo, ref: `heads/${prefix}` }))
                 .map((ref) => [issueFromBranch(ref.ref.replace("refs/heads/", "")), ref.object.sha]));
-              // A claim held with no push for WA_STALE_AFTER_HOURS: a round left open (local commits only, a branch
+              // A claim held with no push for LB_STALE_AFTER_HOURS: a round left open (local commits only, a branch
               // pushed with no PR, a worker gone). Same rule as `wa-backlog claims`: last activity = claim or branch head.
-              const staleHours = Number(env.WA_STALE_AFTER_HOURS || 24);
+              const staleHours = Number(env.LB_STALE_AFTER_HOURS || 24);
               async function stale(n, phase) {
                 const { data: claim } = await github.rest.git.getCommit({ owner, repo, commit_sha: claimRefs[`${n}/${phase}`] });
                 let latest = Date.parse(claim.committer.date);
@@ -388,9 +388,9 @@ jobs:
               for (const node of nodes) {
                 const issue = node.content;
                 if (!issue?.number || issue.repository.nameWithOwner !== `${owner}/${repo}`) continue;
-                if (issue.labels.nodes.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name))) continue;
+                if (issue.labels.nodes.some((l) => ["lb-ignore", SPRINT_LABEL].includes(l.name))) continue;
                 const state = Object.keys(states).find((s) => states[s] === node.fieldValueByName?.name);
-                if (!state) continue; // no card status, or a column whackagent doesn't own
+                if (!state) continue; // no card status, or a column the board states don't cover
                 const n = issue.number;
                 const problems = {};
                 if (issue.state === "CLOSED") {
@@ -443,7 +443,7 @@ jobs:
             if (event === "issues") {
               const issue = payload.issue;
               if (issue.pull_request) return;
-              if (issue.labels.some((l) => ["wa-ignore", SPRINT_LABEL].includes(l.name))) return;
+              if (issue.labels.some((l) => ["lb-ignore", SPRINT_LABEL].includes(l.name))) return;
               if (payload.action === "edited" && !payload.changes?.body) return; // title-only edit
               const ticket = await item(issue.number);
               if (!ticket.column) {
@@ -504,7 +504,7 @@ jobs:
               if (ticket.column && !ticket.state) {
                 reclaimed = ["opened", "reopened", "edited", "synchronize"].includes(action) && await claimExists(number, "coding");
                 if (!reclaimed) {
-                  core.info(`#${number} sits in column ${ticket.column}, not a whackagent state: untouched`);
+                  core.info(`#${number} sits in column ${ticket.column}, not a board state: untouched`);
                   return;
                 }
                 core.info(`#${number} sits in column ${ticket.column} while a coding claim is held: taken back`);
@@ -580,7 +580,7 @@ jobs:
                 await unassignAll(ticket);
                 if (ticket.issue.state === "open") await closeIssue(number);
                 // run report: local file the skills copy into the PR body, posted only when there
-                const report = /<!-- wa-report -->([\s\S]*?)<!-- \/wa-report -->/.exec(pr.body ?? "")?.[1].trim();
+                const report = /<!-- lb-report -->([\s\S]*?)<!-- \/lb-report -->/.exec(pr.body ?? "")?.[1].trim();
                 await comment(number, `🎉 **done** — #${pr.number} merged into \`${landed}\`${report ? `\n\n${report}` : ""}`);
                 // Sprint without branch: tickets land straight on the target, so the last one lands the sprint.
                 // With a branch, they land in it and the sprint lands with the sprint branch PR (above).
