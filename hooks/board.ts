@@ -143,14 +143,19 @@ function frontmatter(text: string): string[] {
   return lines.slice(1, end < 0 ? lines.length : end)
 }
 
-export function parseConfig(text: string): WaConfig {
+// reference/paths.md → Config file: `.lunabee/agents/config.md`, else the legacy `.whackagent/config.md`, read with its old defaults.
+export const CONFIG_FILE = '.lunabee/agents/config.md'
+export const LEGACY_CONFIG_FILE = '.whackagent/config.md'
+
+export function parseConfig(text: string, isLegacy = false): WaConfig {
+  const home = isLegacy ? '.whackagent' : '.lunabee/agents'
   const config: WaConfig = {
-    backlog: '.whackagent/BACKLOG.md',
-    tasks: '.whackagent/tasks',
+    backlog: `${home}/BACKLOG.md`,
+    tasks: `${home}/tasks`,
     provider: 'local',
     milestones: [],
     tracks: [],
-    branchPrefix: 'wa/',
+    branchPrefix: isLegacy ? 'wa/' : 'feature/',
   }
   let block = ''
   let blockList: 'milestones' | 'tracks' | '' = ''

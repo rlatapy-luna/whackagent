@@ -57,4 +57,4 @@ Multi-module project → one Gradle module per feature (`:feature:<name>`) and p
 - **Module direction**: feature → core, never feature → feature; `commonMain` never depends on platform code.
 - **Naming**: `FooScreen`, `FooViewModel`, `FooUiState`, `FooRepository` (+ `FooRepositoryImpl` or `DefaultFooRepository`, whichever project uses), `FooDataSource`, `DoThingUseCase`.
 
-> **Project override.** This default for Android/KMP apps. If repo has own structural rules, edit this file in project's conventions dir (`paths.conventions`, default `.whackagent/conventions/`) to match — reviewer read project copy.
+> **Project override.** This default for Android/KMP apps. If repo has own structural rules, edit this file in project's conventions dir (`paths.conventions`, default `.lunabee/agents/conventions/`) to match — reviewer read project copy.

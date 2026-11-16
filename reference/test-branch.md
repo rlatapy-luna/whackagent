@@ -29,6 +29,6 @@ Throwaway **local** branch = base + every delivered, not-landed task of that bas
 - **Never** pushed, PR'd, landed, forked from, reviewed (verifier judges task diffs only), shot for PR screenshots. Task branch stays the unit.
 - **Where line** (**wa-code → Report card**), test branch built:
   - worktree: `📍 test in ../<repo>-worktrees/wa-test-sprint-login-refacto — wa-test/sprint-login-refacto = sprint + login-apple · login-layout`
-  - checked out (attended run): `📍 you're on wa-test/develop = develop + login-apple · export-csv · coded branch is wa/export-csv`
+  - checked out (attended run): `📍 you're on wa-test/develop = develop + login-apple · export-csv · coded branch is feature/export-csv`
   - ref only: `📍 test: git checkout wa-test/develop = develop + login-apple · export-csv`
   - then each `⚠️` line above (skipped, not in, not checked out).

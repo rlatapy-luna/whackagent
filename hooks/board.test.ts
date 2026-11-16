@@ -42,7 +42,7 @@ discussion_language: en
 paths:                         # comment
   backlog: docs/BACKLOG.md     # where
   tasks: docs/tasks
-  wiki: .whackagent/wiki
+  wiki: .lunabee/agents/wiki
 
 backlog:
   provider: local              # local | github
@@ -85,7 +85,7 @@ test('config reads paths, provider, milestones and tracks', async () => {
     provider: 'local',
     milestones: ['0.2.0', '0.10.0'],
     tracks: ['server'],
-    branchPrefix: 'wa/',
+    branchPrefix: 'feature/',
   })
 })
 
@@ -96,7 +96,12 @@ test('plane provider read from backlog, vcs.provider never mistaken for it', asy
 })
 
 test('missing config keys fall back to defaults', async () => {
-  expect(parseConfig('---\nyagni: strict\n---\n').backlog).toBe('.whackagent/BACKLOG.md')
+  expect(parseConfig('---\nyagni: strict\n---\n').backlog).toBe('.lunabee/agents/BACKLOG.md')
+})
+
+test('legacy .whackagent config keeps its old defaults', async () => {
+  const legacy = parseConfig('---\nyagni: strict\n---\n', true)
+  expect([legacy.backlog, legacy.tasks, legacy.branchPrefix]).toEqual(['.whackagent/BACKLOG.md', '.whackagent/tasks', 'wa/'])
 })
 
 test('backlog skips commented lines and keeps section status', async () => {

@@ -2,7 +2,7 @@
 
 Where tickets live and how their state moves. **Implementer view**, for whoever builds a provider. Worker-facing rules of a shared board (GitHub, Plane) — what any agent or tool must do, whatever its loop — live in `templates/BOARD.md`, installed in each project as `BOARD.md`: shared rules, identical for every tool, plus one `This board: <tool>` section kept by setup (`<!-- board-tool: <tool> -->` blocks). They win on conflict. Contract version: `board-contract: 2.5`, stamped in every board file (BOARD.md, pointer block, PR template sections, hooks callers) and = script `CONTRACT_VERSION`; script warns when project's BOARD.md differs. Skills speak **only** verbs below — never tracker terms (issue, card, column, GraphQL). New tracker (Jira, Linear, Trello, Notion) = new folder under `providers/` implementing same verbs, same states, same exit codes.
 
-Config picks provider: `backlog.provider: local | github | plane` in `.whackagent/config.md`. Missing → `local`. Code host of non-local board: `vcs.provider` (only `github`, missing → `github`).
+Config picks provider: `backlog.provider: local | github | plane` in `.lunabee/agents/config.md`. Missing → `local`. Code host of non-local board: `vcs.provider` (only `github`, missing → `github`).
 
 | Provider | Implementation | Multi-agent |
 |---|---|---|
@@ -90,6 +90,6 @@ Release scope (iteration, version) — **not** a sprint. Sprint = feature groupi
 ## Ticket ↔ repo contract
 
 - Ticket id `<id>` (`number` in every output) = opaque: GitHub issue number (`12`, shown `#12`), or board key `<PROJECT>-<n>` (string `"WA-42"`, shown as is). Same id in verb args, branch, task file, claim ref `refs/wa-claims/<id>/<phase>`.
-- Branch `<branch.prefix><id>-<slug>` (`wa/12-login-apple`). Grilling creates it (spec in issue body: first coding round does), coding continues on it, PR opens from it.
+- Branch `<branch.prefix><id>-<slug>` (`feature/12-login-apple`). Grilling creates it (spec in issue body: first coding round does), coding continues on it, PR opens from it.
 - Spec = `## Acceptance criteria` in issue body, or file `{tasks}/<id>-<slug>.md` on that branch (frontmatter `issue: <id>`, non-empty `## Acceptance criteria`). First coding round on body spec builds that file from issue body. File = everything needed to start coding.
 - Ticket title/summary/state/size/sprint/milestone live in tracker only — never duplicated in task file. Optional `ported-from:` / `lands:` (tracks) are task-file facts, not tracker fields.

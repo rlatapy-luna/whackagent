@@ -21,7 +21,7 @@ Review every round burn one verifier per note, review code about to change anywa
 
 ## Do
 
-1. **Resolve task.** Slug or display index, per **reference/display.md → Task indexes**; echo what you resolved. No arg → most recent `review`. Name session per **reference/session-name.md**. Read `.whackagent/config.md` + task file at `{tasks}/<slug>.md` — `{…}` paths from config's `paths:` block, see **reference/paths.md**.
+1. **Resolve task.** Slug or display index, per **reference/display.md → Task indexes**; echo what you resolved. No arg → most recent `review`. Name session per **reference/session-name.md**. Read `.lunabee/agents/config.md` + task file at `{tasks}/<slug>.md` — `{…}` paths from config's `paths:` block, see **reference/paths.md**.
    - `status: in-progress` → code not finished. Say so, don't review half-task.
    - `status: validated` → already reviewed. Code moved since → re-review delta; untouched → nothing to do, closing is **`/wa-close <slug>`**.
    - `status: done` / `canceled` → nothing to do.

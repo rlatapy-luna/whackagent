@@ -17,7 +17,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 
 ## Do
 
-1. **Resolve task.** Slug or display index, per **reference/display.md → Task indexes**; echo what resolved. No arg → most recent `validated`. Name session per **reference/session-name.md**. Arg names sprint, no task (**reference/sprints.md**, *Resolving a name*; GitHub: open `wa-sprint` parent, kebab title) → *Sprint arg* below instead. Read `.whackagent/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **reference/paths.md**.
+1. **Resolve task.** Slug or display index, per **reference/display.md → Task indexes**; echo what resolved. No arg → most recent `validated`. Name session per **reference/session-name.md**. Arg names sprint, no task (**reference/sprints.md**, *Resolving a name*; GitHub: open `wa-sprint` parent, kebab title) → *Sprint arg* below instead. Read `.lunabee/agents/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **reference/paths.md**.
    - `status: validated` → normal path, continue.
    - `status: review` → **never reviewed.** Say so, send to `/wa-validate <slug>`, stop. Closing here close unreviewed code.
    - `status: in-progress` → not coded. Stop.
@@ -34,7 +34,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
    - **Test branch** (`branch.test_branch: true`) of task's base → rebuilt without it, ref (or its worktree) only, never checked out; < 2 tasks left → deleted (**reference/test-branch.md**). Plan block names which.
 7. **`status: done`**, reflect in `{backlog}` (move line under **Done**, keep `· <sprint>` suffix).
 8. **Sprint complete?** Last task of sprint just closed → *Sprint landing*.
-9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch wa/<next-slug> ready`, next line `/wa-code <next-slug>` (**reference/voice.md → Next line**). Worktree mode → its worktree created instead, echo `→ worktree ../<repo>-worktrees/<next-slug> ready`.
+9. **Next branch** — when `branch.per_task` **and** `commit.auto_commit_after_validation` **and** `branch.checkout_next`: next task = top `todo` in `{backlog}` order, branch created/checked out per `/wa-code` step 0 (its sprint decide base — dirty tree → ask). Echo `✅ <slug> closed → branch feature/<next-slug> ready`, next line `/wa-code <next-slug>` (**reference/voice.md → Next line**). Worktree mode → its worktree created instead, echo `→ worktree ../<repo>-worktrees/<next-slug> ready`.
 10. **Report** — after-state, four lines max: what landed where, what deleted, sprint progress, next command.
 
 ## GitHub provider
@@ -76,8 +76,8 @@ Closing login-apple
 
 wiki      : [[auth]] updated, [[login-apple]] created (/wa-wiki)
 commit    : 2 uncommitted files + 2 wiki pages → commit (Jane Doe)
-sprint    : merge wa/login-apple → sprint/login-refacto
-branch    : wa/login-apple deleted (merged)
+sprint    : merge feature/login-apple → sprint/login-refacto
+branch    : feature/login-apple deleted (merged)
 worktree  : ../<repo>-worktrees/login-apple removed
 test      : wa-test/sprint-login-refacto rebuilt — login-layout · login-errors
 after     : 🏁 login-refacto — 3/5
@@ -93,7 +93,7 @@ Closing #12 login-apple
 pr        : #42 ready · checks ✅ · approved · base sprint/login-refacto
 merge     : squash #42 → sprint/login-refacto (hook sets done, closes #12)
 unproven  : "works offline" left - [ ] in PR body
-branch    : wa/12-login-apple — remote deleted on merge, local deleted
+branch    : feature/12-login-apple — remote deleted on merge, local deleted
 worktree  : ../<repo>-worktrees/12-login-apple removed
 after     : 🏁 login-refacto — 4/5
 
@@ -103,10 +103,10 @@ ok? [y/n]
 `close.strategy: pr` (local provider), same task:
 
 ```
-push      : wa/login-apple → origin
+push      : feature/login-apple → origin
 pr        : draft #42 → ready for review, body refreshed, reviewers @team · base sprint/login-refacto
 merge     : none — PR merged on GitHub by a human
-branch    : wa/login-apple kept (PR open)
+branch    : feature/login-apple kept (PR open)
 ```
 
 Rules:
@@ -128,7 +128,7 @@ Rules:
 
 **Standalone task** (no sprint, or `sprint_prefix` empty) → `close.strategy`. Track task (**reference/tracks.md**): `close.target` below reads its trunk.
 
-- **`nothing`** (default) — stop after commit. Branch stay exactly where it is. Say plainly (`branch wa/login-apple kept — PR is yours`) so nobody wait on PR that not coming.
+- **`nothing`** (default) — stop after commit. Branch stay exactly where it is. Say plainly (`branch feature/login-apple kept — PR is yours`) so nobody wait on PR that not coming.
 - **`pr`** — *PR landing* below, base = `close.target`.
 - **`merge`** — merge into `close.target` locally, **no push**. Target checked out elsewhere or dirty → say so, stop. Conflict → same rule as sprint merge: leave it, name files.
 
@@ -203,7 +203,7 @@ A sprint is never `done` as a thing — there's no sprint status to set. It's co
 - Never plain force-push, never rewrite a shared branch, never touch a branch that isn't this task's, its sprint's or their `wa-test/` one. Only exception: `--force-with-lease` on this ticket's own branch after ticket-range rebase (*GitHub provider* step 4).
 - Never delete a branch whose work isn't somewhere else.
 - Never commit as Claude.
-- Never write to a literal `.whackagent/` path when the config's `paths:` points elsewhere.
+- Never write to a literal `.lunabee/agents/` path when the config's `paths:` points elsewhere.
 
 ## Asking
 

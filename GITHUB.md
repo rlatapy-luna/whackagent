@@ -40,7 +40,7 @@ The board is constrained; the way each developer works behind it is not. One dev
 | Milestone | the repo's GitHub milestones |
 | Dependencies | issue **Relationships** ("blocked by") |
 | Spec | the task file `{tasks}/<n>-<slug>.md`, **on the ticket branch**, merged with the code |
-| Ticket branch | `wa/<n>-<slug>`, created with `gh issue develop` so it shows under the issue's **Development** panel |
+| Ticket branch | `feature/<n>-<slug>`, created with `gh issue develop` so it shows under the issue's **Development** panel |
 | Change | one PR per ticket, from the ticket branch |
 | Lock | a git ref `refs/wa-claims/<n>/<phase>` |
 | Reservation | issue **assignees**: assigned to another account = no agent of yours may claim it |
@@ -129,7 +129,7 @@ Rules that come with it:
 ### The PR
 
 - **Opened as a draft**, base = the branch the ticket forked from (sprint branch, else `close.target`). Title, labels, assignees and the PR template come from the `pr:` config block (see the README's *Pull requests*). On top of `pr.labels`, the PR always gets at least one of the repo's own labels that fits the change (bug, feature, docs, area); labels are never created. whackagent's part of the body (summary, `Closes #<n>`, the acceptance criteria as a checklist and a status line such as `Draft — verifier not run yet. Test, then /wa-feedback · /wa-validate.`) sits in a marked block after the filled template.
-- **Linked by the hook**: the body says `Closes #<n>`, and the hook adds the Development link from it (or from the `wa/<n>-…` branch name), whatever the base. GitHub alone links only PRs onto the default branch, so sprint and stacked PRs would stay unlinked. PRs carry no milestone: the linked ticket has it. `wa-backlog link-pr` remains as a repair command.
+- **Linked by the hook**: the body says `Closes #<n>`, and the hook adds the Development link from it (or from the `feature/<n>-…` branch name), whatever the base. GitHub alone links only PRs onto the default branch, so sprint and stacked PRs would stay unlinked. PRs carry no milestone: the linked ticket has it. `wa-backlog link-pr` remains as a repair command.
 - **Body refreshed every round** from the task file: the marked block is rewritten (current summary, a `Changes` list with one user-visible change per line, current criteria, `- [x]` only for criteria a round actually proved, numbered manual test steps from launch to the feature with each expected result, a status line saying what's still owed), and template sections are touched only where the round changed what they say. Text a human added stays. A PR body describing superseded behavior is a lying PR.
 - **Assignees**: the PR is always assigned to you (`@me`), plus anyone in `pr.assignees`.
 - **Reviewers** (`pr.reviewers`) are requested when the PR goes ready, at `/wa-validate` or on an autopilot ready PR, never on a draft.
@@ -156,7 +156,7 @@ Prioritization is **never automatic** under GitHub, because the board order is s
 ### `/wa-grill #12`
 
 1. `claim 12 grilling`.
-2. Creates the ticket branch **linked to the issue** right away: `gh issue develop 12 --name wa/12-<slug> --base <fork point>`. Only branches GitHub creates can be linked; a plain `git checkout -b` plus push can never be linked afterwards.
+2. Creates the ticket branch **linked to the issue** right away: `gh issue develop 12 --name feature/12-<slug> --base <fork point>`. Only branches GitHub creates can be linked; a plain `git checkout -b` plus push can never be linked afterwards.
 3. Grills you, writes `{tasks}/12-<slug>.md` with non-empty acceptance criteria. Dependencies found while grilling become issue relationships.
 4. Commits the task file (`task: grill #12 <slug>`) and pushes, once, at the end.
 5. The hook sees the spec on the branch and moves the ticket to `grilled`, dropping the grilling lock.
@@ -238,8 +238,8 @@ PRs are assumed to land squashed. After a parent or stacked ticket is squash-mer
 So the agents never diff or rebase from `<base>..HEAD`. They use the **ticket range**: the ticket's own commits, starting at its first task commit: the grill commit (`task: grill #<n> …`), or, when the spec was written in the issue body, the commit that copied it into a task file (`task: spec #<n> …`).
 
 ```
-start=$(git log --format=%H -E --grep="^task: (grill|spec) #12 " wa/12-login-apple | tail -1)
-git diff $start^ wa/12-login-apple           # what the ticket changed
+start=$(git log --format=%H -E --grep="^task: (grill|spec) #12 " feature/12-login-apple | tail -1)
+git diff $start^ feature/12-login-apple           # what the ticket changed
 git rebase --onto origin/<base> $start^      # move it onto a new base
 ```
 

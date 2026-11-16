@@ -14,7 +14,7 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 
 Two subagents: one `wa-implementer`, one `wa-verifier` (plus one focused `wa-verifier` per matching `review.focus` entry, step 3). **Spawn each once, keep alive** — later rounds = `SendMessage` to `agentId`, never fresh spawn. Isolated agent costs ~50k tokens context before reading line; resuming costs delta.
 
-Read `.whackagent/config.md` and `{tasks}/<slug>.md` first. `{…}` paths from config `paths:` block — see **reference/paths.md**.
+Read `.lunabee/agents/config.md` and `{tasks}/<slug>.md` first. `{…}` paths from config `paths:` block — see **reference/paths.md**.
 
 Arg = slug **or** wa-board display index (`/wa-code 3`) — resolve per **reference/display.md → Task indexes**, echo `3 → sync-offline`. Name session per **reference/session-name.md** (GitHub: once claimed, **0b**).
 
@@ -26,14 +26,14 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 
 ## 0. Branch — only if `branch.per_task: true`
 
-1. Name = `<branch.prefix><slug>` (default `wa/<slug>`).
+1. Name = `<branch.prefix><slug>` (default `feature/<slug>`).
 2. **Fork point** = `branch.base` — track task: its trunk (**reference/tracks.md**), same everywhere below — **unless task carry `sprint:`** and `branch.sprint_prefix` non-empty. Then base = sprint branch `<branch.sprint_prefix><sprint>` (default `sprint/login-refacto`): create from `branch.base` if absent, check up to date otherwise. Why it exist — task 3 of sprint fork off task 1 merged work, not rediscover it as conflict. `/wa-close` merges back into it.
 3. Already on it → nothing. Exists but not checked out → check out, don't recreate. Absent → create from fork point above (`current` = where you are — on a `wa-test/` branch: its base, never fork from it, **reference/test-branch.md**; else named branch, fetched first if tracks remote).
 4. **Dirty tree → stop and ask** before any checkout: carry over, stash, or stay? Never move uncommitted work silently.
-5. Echo: `branch: wa/<slug> (base: sprint/login-refacto)` — name sprint branch when it one, say when you just created it.
+5. Echo: `branch: feature/<slug> (base: sprint/login-refacto)` — name sprint branch when it one, say when you just created it.
 6. **Track task only** (**reference/tracks.md**): trunk lags `branch.base` → offer sync before forking, recommended yes when fork is fresh. Task carry `lands: <track>` → *Landing* rule there: final sync, then merge track branch into this branch before plan. Neither → skip.
 
-**`branch.worktree: true`** → no checkout here: steps 3–4 become worktree create/reuse per **reference/worktrees.md** (same name, same fork point; `current` = main checkout's branch). Echo `worktree: ../<repo>-worktrees/<slug> (wa/<slug>, base: …)`. Rest of pipeline runs in that worktree.
+**`branch.worktree: true`** → no checkout here: steps 3–4 become worktree create/reuse per **reference/worktrees.md** (same name, same fork point; `current` = main checkout's branch). Echo `worktree: ../<repo>-worktrees/<slug> (feature/<slug>, base: …)`. Rest of pipeline runs in that worktree.
 
 ## 0b. GitHub provider — claim before code
 
@@ -48,7 +48,7 @@ Set task `status: in-progress` (reflect in `{backlog}`). GitHub provider → ste
 4. **Spec** = `{tasks}/<id>-<slug>.md` on that branch (just built from issue body when step 3 created it). Set `phase: in-progress` there (local writes `status:`). **No push mid-round** — any push to branch with open PR fires `synchronize`: hook ends round and drops your claim while you still code.
 5. **Track check** — only when `branch.tracks` non-empty: ticket milestone vs PR base / fork commit disagree on trunk → say so, offer move (**reference/tracks.md**), never code on wrong trunk. Then step 0.6 (sync offer, landing merge).
 6. Rest of pipeline unchanged. Step 4 `status: review` → `phase: review`. Report card header shows `<#id>` + PR URL.
-7. **Deliver = end of round** (**reference/code-github.md**, *Agent round*, *Screenshots* — `each_round` only): commit code + task file (per **reference/commits.md**), push, open **draft PR** (or push to existing one + refresh its body, **reference/code-github.md**, *PR body refresh*). Board moves to `review` by itself: ticket never waits for your test in `coding`. First push of ticket = outward-facing → one-line plan (`push wa/12-… + draft PR → sprint/x`) + yes, first time only; later rounds push without asking.
+7. **Deliver = end of round** (**reference/code-github.md**, *Agent round*, *Screenshots* — `each_round` only): commit code + task file (per **reference/commits.md**), push, open **draft PR** (or push to existing one + refresh its body, **reference/code-github.md**, *PR body refresh*). Board moves to `review` by itself: ticket never waits for your test in `coding`. First push of ticket = outward-facing → one-line plan (`push feature/12-… + draft PR → sprint/x`) + yes, first time only; later rounds push without asking.
 8. **Blocked / user drops it** → `wa-backlog release <id> coding --reset-to grilled --reason "<why>"` (`--reset-to review` when PR already open). Round created branch, never pushed commit → delete it, local + remote (`git push origin --delete <branch>`: holds only fork point), as `/wa-grill` abort. Coding lock never left dangling on abandon.
 
 ## 1. Plan
@@ -162,7 +162,7 @@ Canonical end-of-task report — here, each delivered task of `/wa-autopilot`, e
 ✅ verified by agent: tap Apple → sheet, login OK → Home
 
 build ✅ · tests ✅ · run ✅ · review → /wa-validate
-📍 you're on wa/login-apple
+📍 you're on feature/login-apple
 → next: test it, then `/wa-validate login-apple` (or `/wa-feedback login-apple <notes>`)
 ```
 
@@ -185,7 +185,7 @@ Every question you put to user — `BLOCKED:`, architecture fork, failed check �
 
 ## Never
 
-Never write code yourself. Never commit — closing is `/wa-close` job (GitHub provider exception: round-end commit + push, 0b.7; test branch merges aside, step 4). Never mark task `done`. Never switch branches with dirty tree. Never let subagents touch backlog/wiki/reports — you own those. Never write to literal `.whackagent/` path when config `paths:` points elsewhere.
+Never write code yourself. Never commit — closing is `/wa-close` job (GitHub provider exception: round-end commit + push, 0b.7; test branch merges aside, step 4). Never mark task `done`. Never switch branches with dirty tree. Never let subagents touch backlog/wiki/reports — you own those. Never write to literal `.lunabee/agents/` path when config `paths:` points elsewhere.
 
 ## Next step
 

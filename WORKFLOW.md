@@ -54,7 +54,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `todo` | ticket exists, no spec | human: `/wa-grill` | hook: issue opened · `wa-backlog create` |
 | `grilling` | **locked** — one agent writes spec with you | agent + you | `claim <n> grilling` |
-| `grilled` | spec written, ready to code | anyone | hook: `## Acceptance criteria` in issue body, or task file pushed on `wa/<n>-<slug>` |
+| `grilled` | spec written, ready to code | anyone | hook: `## Acceptance criteria` in issue body, or task file pushed on `feature/<n>-<slug>` |
 | `coding` | **locked** — one agent holds ticket, works on it | agent | `claim <n> coding` |
 | `review` | PR open. Draft = you test. Ready = you merge | human | hook: PR opened, or claimed round pushed to it |
 | `done` | change landed, issue closed | nobody | hook: PR merged |
@@ -104,7 +104,7 @@ flowchart LR
 | ready PR | `review` | you merge |
 
 - Claim held, no push for `WA_STALE_AFTER_HOURS` (default 24) → board check comments on ticket. Only human clears stale lock.
-- PR → ticket = the one issue it links (Development link or `Closes #n`), branch name `wa/<n>-…` as fallback. Any branch name works.
+- PR → ticket = the one issue it links (Development link or `Closes #n`), branch name `feature/<n>-…` as fallback. Any branch name works.
 - **Human decides every merge.** GitHub button, or agent asked to merge that PR: ready, checks green, reviews in, squash, never `--admin`.
 
 ## whackagent loop
@@ -216,9 +216,9 @@ stateDiagram-v2
 ```mermaid
 flowchart LR
     base["base<br/>sprint/login-refacto"] --> test["wa-test/sprint-login-refacto<br/>local, throwaway"]
-    a["wa/login-apple<br/>review"] -->|merge --no-ff| test
-    b["wa/login-layout<br/>validated"] -->|merge --no-ff| test
-    c["wa/login-errors<br/>conflicts"] -.->|skipped, logged| test
+    a["feature/login-apple<br/>review"] -->|merge --no-ff| test
+    b["feature/login-layout<br/>validated"] -->|merge --no-ff| test
+    c["feature/login-errors<br/>conflicts"] -.->|skipped, logged| test
 ```
 
 - Takes tasks in `review` / `validated` with commits on their branch. ≥ 2 → built; fewer → test the task branch.
@@ -233,7 +233,7 @@ flowchart LR
 | --- | --- | --- |
 | `issues: opened` | no `wa-ignore` / `wa-sprint` label | card added, `todo` |
 | `issues: edited` | body holds non-empty `## Acceptance criteria`, card `todo` / `grilling`, editor can push | `grilled`, grilling claim dropped. Editor can't push → reported, card stays |
-| `push` to `wa/**` | task file `issue: <n>` with non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped |
+| `push` to `feature/**` | task file `issue: <n>` with non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped |
 | `pull_request: opened` / `reopened` | links one ticket of this repo, not a sprint PR, not `done` | `review`, claims dropped, Development link added if missing, dev assigned if none; card watched ~30 s against built-in workflow |
 | `pull_request: edited` | link found late, card `todo` / `grilled` | `review`, dev assigned if none |
 | `pull_request: synchronize` | coding claim held | `review`, claim dropped, dev assigned if none, new `## Feedback` round linked |
@@ -275,7 +275,7 @@ Same six states, same claims, same rounds, same merge as above. Differences:
 
 | | GitHub board | Plane board |
 | --- | --- | --- |
-| Ticket id | issue `#12` | work item key `WA-42`, written as is: branch `wa/WA-42-<slug>`, task file `WA-42-<slug>.md` |
+| Ticket id | issue `#12` | work item key `WA-42`, written as is: branch `feature/WA-42-<slug>`, task file `WA-42-<slug>.md` |
 | State | Project `Status` | card column, six states + `Canceled` |
 | Spec | task file pushed, or criteria in issue body | task file pushed (`PLANE_SPECS_PATH` = `{tasks}`) **only**. Criteria in card description move nothing |
 | PR → ticket | Development link / `Closes #n`, branch fallback | key anywhere in head branch, else in PR title, else the one card link in PR body. Never `Closes` |

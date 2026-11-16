@@ -165,10 +165,10 @@ Print and save `{reports}/autopilot-<date>.md`:
 5 · 🟢 **Forgot password** — ⛔ blocked
 
 ---
-## 🟢 Login Apple · branch wa/login-apple
+## 🟢 Login Apple · branch feature/login-apple
 <report card>
 
-## 🟡 Login layout · branch wa/login-layout
+## 🟡 Login layout · branch feature/login-layout
 <report card>
 
 ---

@@ -31,7 +31,7 @@ Add the marketplace, then install the plugin:
 
 | Command | Description |
 | --- | --- |
-| `/wa-setup` | Config + scaffolding (`.whackagent/`). On a project already set up: reconfigure, plus migrations of older task files (`/wa-setup migrate` for those alone) |
+| `/wa-setup` | Config + scaffolding (`.lunabee/agents/`). On a project already set up: reconfigure, plus migrations of older task files (`/wa-setup migrate` for those alone) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action (runs on Haiku) |
 | `/wa-board <sprint\|milestone>` | Same, filtered to one sprint or milestone, with its progress |
 | `/wa-pane` | Opens the live backlog pane (see below) |
@@ -53,7 +53,7 @@ Each step suggests the next one. You never have to figure out what to run.
 
 ### Backlog pane
 
-In a project with `.whackagent/config.md`, a live pane beside the conversation shows the backlog in the `/wa-board` format: one section per state, sprint and milestone progress, and one tab per milestone to filter the board, lowest version first, then **All**. The board opens on the lowest milestone. Each task carries buttons for the moves its state allows (`grill`, `code`, `feedback`, `validate`, `close`, and `merge` on a ready ticket PR under the GitHub provider), plus `autopilot` on every task not done; pressing one types the command into the prompt, it never runs it. The pane refreshes as task files change (local provider). Under the GitHub provider it calls GitHub only when it opens and on `↻ refresh`, to spare the API rate limit; task files of tasks in flight still reload as they change.
+In a project with `.lunabee/agents/config.md`, a live pane beside the conversation shows the backlog in the `/wa-board` format: one section per state, sprint and milestone progress, and one tab per milestone to filter the board, lowest version first, then **All**. The board opens on the lowest milestone. Each task carries buttons for the moves its state allows (`grill`, `code`, `feedback`, `validate`, `close`, and `merge` on a ready ticket PR under the GitHub provider), plus `autopilot` on every task not done; pressing one types the command into the prompt, it never runs it. The pane refreshes as task files change (local provider). Under the GitHub provider it calls GitHub only when it opens and on `↻ refresh`, to spare the API rate limit; task files of tasks in flight still reload as they change.
 
 🎉 Done and 🚫 Canceled show their three most recent tasks; `+N more` lists them all and `show less` folds them back. **🏁 Sprints**, at the top of the board, lists each sprint (GitHub: every open `wa-sprint` parent, with its `#n` and milestone) with its progress; `▸ N tickets` unfolds its tickets under it, and once all of them are closed it shows `· complete` with a `close` button that fills `/wa-close <sprint>`. On a milestone tab it keeps the sprints of that milestone. A milestone still open whose tasks are all landed (at least one done, none left) shows `🎯 0.4.0 — 5/5 · ready to ship` with a `release` button that fills `/wa-release 0.4.0`; tracks never get one. Under the GitHub provider, an issue closed as not planned shows under 🚫 Canceled, never under 🎉 Done. The pane lists canceled tasks only on a milestone tab, not on **All**. Each state has its emoji on the board's sections, the task tabs and the task details: 📥 todo · 🔥 grilling · 📐 grilled · 🔨 in progress / coding · 👀 review · 👍 validated · 🎉 done · 🚫 canceled.
 
@@ -143,7 +143,7 @@ branch:
 
 ### Project tools
 
-Lint, static analysis and format checks are your project's, not the plugin's. Declare them in the `tools:` block of `.whackagent/config.md`, and `/wa-setup` proposes entries when it finds a tool config (`detekt.yml`, `.swiftlint.yml`, eslint, ruff, golangci-lint, clippy…):
+Lint, static analysis and format checks are your project's, not the plugin's. Declare them in the `tools:` block of `.lunabee/agents/config.md`, and `/wa-setup` proposes entries when it finds a tool config (`detekt.yml`, `.swiftlint.yml`, eslint, ruff, golangci-lint, clippy…):
 
 ```yaml
 tools:
@@ -160,7 +160,7 @@ Each `run` covers the whole project. A failure in a file the task never touched 
 
 ### Pull requests
 
-Every PR whackagent opens (the ticket's draft, the `/wa-close` PR, a sprint PR) follows your repo's conventions, set in the `pr:` block of `.whackagent/config.md`. `/wa-setup` proposes it from what it finds: your PR template, CODEOWNERS, a PR section in `CONTRIBUTING.md`, the title style of recent merged PRs, your labels.
+Every PR whackagent opens (the ticket's draft, the `/wa-close` PR, a sprint PR) follows your repo's conventions, set in the `pr:` block of `.lunabee/agents/config.md`. `/wa-setup` proposes it from what it finds: your PR template, CODEOWNERS, a PR section in `CONTRIBUTING.md`, the title style of recent merged PRs, your labels.
 
 ```yaml
 pr:
@@ -182,7 +182,7 @@ pr:
 
 ### Other settings
 
-`/wa-setup` writes `.whackagent/config.md` from [`templates/config.md`](templates/config.md), where every key carries a comment. The ones not covered above:
+`/wa-setup` writes `.lunabee/agents/config.md` from [`templates/config.md`](templates/config.md), where every key carries a comment. The ones not covered above:
 
 | Key | Default | What it does |
 | --- | --- | --- |
@@ -206,7 +206,7 @@ Bootstrap once, then loop: describe → grill → code → you test → you vali
 /wa-setup
 ```
 
-Detects language + project kind, scaffolds `.whackagent/`.
+Detects language + project kind, scaffolds `.lunabee/agents/`.
 
 **1. Describe a task — `/wa-task`, then `/wa-grill`**
 
@@ -214,7 +214,7 @@ Detects language + project kind, scaffolds `.whackagent/`.
 /wa-task Sign in with Apple on the login screen
 ```
 
-Creates `.whackagent/tasks/login-apple.md` and stops there, suggesting `/wa-grill <#>`. You run `/wa-grill`: it grills the idea (grill-me) until it's clear, plans the architecture, and writes the spec + a size (🟢 quickwin / 🟡 medium / 🔴 large). Hand `/wa-task` a spec document instead and it first cuts it into a few feature-sized tasks, each carrying its excerpt of the spec — one proposal, created on your yes — then you grill them one at a time with `/wa-grill <#>`.
+Creates `.lunabee/agents/tasks/login-apple.md` and stops there, suggesting `/wa-grill <#>`. You run `/wa-grill`: it grills the idea (grill-me) until it's clear, plans the architecture, and writes the spec + a size (🟢 quickwin / 🟡 medium / 🔴 large). Hand `/wa-task` a spec document instead and it first cuts it into a few feature-sized tasks, each carrying its excerpt of the spec — one proposal, created on your yes — then you grill them one at a time with `/wa-grill <#>`.
 
 Before stopping, `/wa-task` prioritizes on its own — there's no separate command for it: a product-owner pass slots the new task where it belongs, applies YAGNI, and flags anything too big to split (asking first). You end up looking at a fresh, ordered board — top of the list is what to code next:
 
@@ -243,7 +243,7 @@ A single command runs the whole coding cycle, orchestrating isolated subagents:
 2. **Code**: one `wa-implementer` (runs on Sonnet) for the whole task, fed brick by brick (sequential) — it writes the feature *and* the tests and proves the build. It reads the build log even when the build is green: a new warning on a line the task wrote counts as a red build and gets fixed, never silenced (no suppression annotation, no lowered warning level) unless your conventions allow it. Warnings already in the code are counted, not fixed. One it can't fix within the task stays open, shows as `build ⚠️` on the report and comes back as a finding at `/wa-validate`, where you decide. Keeping the same agent across bricks means the conventions and the BRIEF are read once, and brick 2 already knows what brick 1 built.
 
    **Who tests it is a setting** (`verify.mode`). Default `autopilot`: unattended runs get driven by the agent — taps and screenshots, a browser, `curl` against the service, or a CLI run, acceptance criteria checked against what it sees, because nobody else is there — while an attended `/wa-code` stops at build + tests and **you** validate by using it. `always` drives it every time; `off` never. Whatever the mode, the implementer may still launch the app when it can't write the feature without seeing it run (reproduce a bug, judge a layout) — that's implementation, and it says so rather than passing it off as proof.
-3. **Report**: same card every time — **Problem**, **Goal**, **Done**, **To test** (checklist of what the agent didn't prove + regression zones), then a build · tests · tools · run · review status line (`tools` only when you declared some). Saved in `.whackagent/reports/login-apple.md`, task moved to `review` — meaning *waiting for you to test it*. `/wa-autopilot` and `/wa-feedback` use the same card.
+3. **Report**: same card every time — **Problem**, **Goal**, **Done**, **To test** (checklist of what the agent didn't prove + regression zones), then a build · tests · tools · run · review status line (`tools` only when you declared some). Saved in `.lunabee/agents/reports/login-apple.md`, task moved to `review` — meaning *waiting for you to test it*. `/wa-autopilot` and `/wa-feedback` use the same card.
 
 **3. Test it, iterate — `/wa-feedback`**, then **4. give the green light — `/wa-validate`**
 
@@ -308,8 +308,8 @@ So it always shows the plan first and waits for a yes:
 Closing login-apple
 
 commit    : 2 uncommitted files → commit (Jane Doe)
-sprint    : merge wa/login-apple → sprint/login-refacto
-branch    : wa/login-apple deleted (merged)
+sprint    : merge feature/login-apple → sprint/login-refacto
+branch    : feature/login-apple deleted (merged)
 worktree  : ../<repo>-worktrees/login-apple removed
 after     : 🏁 login-refacto — 3/5
 
@@ -350,7 +350,7 @@ Updates the wiki. `/wa-close` runs it on every close (under the GitHub provider,
 
 > Prefer autonomy? `/wa-autopilot` runs the `/wa-code` cycle across the top backlog tasks on its own, one branch per task — and tasks whose files don't overlap run **at the same time**, each implementer in its own git worktree. It delivers **reviewed code**: built, run, then `/wa-validate` run by autopilot itself — its runtime check stands in for your green light — committed on its branch, task left at `validated`. You test it, then `/wa-close` (GitHub provider: the PR is already ready; merge it on GitHub or with `/wa-close`). Findings the autofix couldn't clear stay open: task left at `review`, listed in the report.
 
-> **Branch per task.** Set `branch.per_task: true` (asked at `/wa-setup`) and `/wa-code` codes on `wa/<slug>` instead of your current branch. Combine it with `commit.auto_commit_after_validation` and `/wa-close` commits the task, then checks out the next task's branch for you — chain tasks without touching git.
+> **Branch per task.** Set `branch.per_task: true` (asked at `/wa-setup`) and `/wa-code` codes on `feature/<slug>` instead of your current branch. Combine it with `commit.auto_commit_after_validation` and `/wa-close` commits the task, then checks out the next task's branch for you — chain tasks without touching git.
 >
 > **Worktree per task.** Add `branch.worktree: true` (the third answer to the branch question at `/wa-setup`) and each task branch gets its own git worktree at `../<repo>-worktrees/<slug>` instead of being checked out in your repo. Your main checkout never switches branch, so several tasks can stay open side by side, and a dirty tree never blocks the next task. The folder is `paths.worktrees` and must sit outside the repo, so the nested checkout never gets indexed, searched or picked up by a build. The backlog and reports stay in the main checkout. The cost: each worktree builds from cold once, and you test from it (open your IDE, simulator or dev server there). `/wa-autopilot` uses the same folder.
 >
@@ -370,7 +370,7 @@ Every ticket goes through six states. Agents only ever *take* a ticket; the rest
 | --- | --- |
 | `todo` | an issue is opened (by `/wa-task`, or by hand on GitHub) |
 | `grilling` | an agent claims it with `/wa-grill #12`, a lock, so no other agent grills it |
-| `grilled` | the hooks workflow, when branch `wa/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
+| `grilled` | the hooks workflow, when branch `feature/12-<slug>` is pushed with its spec and non-empty acceptance criteria |
 | `coding` | an agent claims it for one round (`/wa-code 12`, `/wa-autopilot`, `/wa-feedback`, `/wa-validate`, `/wa-close`), a lock held only while the agent works |
 | `review` | the hooks workflow, when a round's push opens the draft PR or updates it. Draft = your turn to test; a clean `/wa-validate` marks it ready = your turn to merge (on GitHub, or `/wa-close`) |
 | `done` | the hooks workflow, when the PR is merged. The issue is closed. |
@@ -402,7 +402,7 @@ Not available: moving a local file backlog or a GitHub board to Plane (`wa-backl
 ## File tree created in your project
 
 ```
-.whackagent/
+.lunabee/agents/
   config.md            # language, coding language, project_kind, review timing + modules, paths, commit + branch + close policy
   conventions/         # copied convention modules (only the useful ones) + project rules on top of a company skill
   BACKLOG.md           # task index (order = priority)
@@ -420,12 +420,12 @@ paths:
   backlog: docs/BACKLOG.md
   tasks: docs/tasks
   wiki: docs/wiki          # committed and browsable on GitHub, for teammates who don't run whackagent
-  reports: .whackagent/reports
-  conventions: .whackagent/conventions
+  reports: .lunabee/agents/reports
+  conventions: .lunabee/agents/conventions
   worktrees: ../<repo>-worktrees   # task worktrees, must be outside the repo
 ```
 
-Relative resolves from the repo root (`{worktrees}` from the main checkout root, even inside a worktree); a sibling repo is a relative path too (`../team-wiki/docs`). The config is versioned and shared, so never put a user-specific absolute path (`/Users/<name>/…`, `~/…`) or your personal commit identity in it: leave `commit.author_*` empty and each committer's own `git config` identity is used. Only `.whackagent/config.md` is fixed — it's the file that carries the paths. Omit a key and it takes the default above, so a config written before `paths:` existed keeps working. Moving a path after setup means moving the files yourself; nothing back-fills. Reports aren't versioned: everything in them already lives in the task file and the wiki, so `/wa-setup` adds them to `.gitignore` (and offers to untrack ones already committed). A shared wiki is also a good reason to set `compress_wiki: false` — caveman compression saves the agents tokens and costs your teammates readability.
+Relative resolves from the repo root (`{worktrees}` from the main checkout root, even inside a worktree); a sibling repo is a relative path too (`../team-wiki/docs`). The config is versioned and shared, so never put a user-specific absolute path (`/Users/<name>/…`, `~/…`) or your personal commit identity in it: leave `commit.author_*` empty and each committer's own `git config` identity is used. Only `.lunabee/agents/config.md` is fixed — it's the file that carries the paths. Omit a key and it takes the default above, so a config written before `paths:` existed keeps working. A project set up before `.lunabee/agents/` keeps its `.whackagent/config.md` and works as before (missing keys keep the old `.whackagent/…` paths and the `wa/` branch prefix) until you run `/wa-setup`, which offers to move everything into `.lunabee/agents/`. Moving a path after setup means moving the files yourself; nothing back-fills. Reports aren't versioned: everything in them already lives in the task file and the wiki, so `/wa-setup` adds them to `.gitignore` (and offers to untrack ones already committed). A shared wiki is also a good reason to set `compress_wiki: false` — caveman compression saves the agents tokens and costs your teammates readability.
 
 ## Task
 
@@ -478,7 +478,7 @@ conventions/swift/                    conventions/kotlin/
 
 Single-file packs: `typescript.md` (front end and back end) and `generic.md` — the fallback for every other language (Rust, Go, Python, C#, Java, Dart, …). Generic is a starting point to grow with your team's rules, not a lesser mode: the pipeline, the runtime check and the review work the same whatever pack is loaded.
 
-`/wa-setup` detects the language, the **kind** (`app` · `web` · `server` · `cli` · `package`) and the UI toolkit, then copies **only the useful modules** into `.whackagent/conventions/` (no `swiftui.md` in a package without SwiftUI, no `compose.md` in a Ktor server). You edit these copies to adapt per project (e.g. drop public doc). A polyglot repo (KMP shared code + iOS app) can load two packs.
+`/wa-setup` detects the language, the **kind** (`app` · `web` · `server` · `cli` · `package`) and the UI toolkit, then copies **only the useful modules** into `.lunabee/agents/conventions/` (no `swiftui.md` in a package without SwiftUI, no `compose.md` in a Ktor server). You edit these copies to adapt per project (e.g. drop public doc). A polyglot repo (KMP shared code + iOS app) can load two packs.
 
 ### Your company's rulebook
 

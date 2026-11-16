@@ -22,7 +22,7 @@ Owns three things: **creating** task, **cutting** spec too large for one task (*
    - Bare arg matches **live sprint**, no task slug → ambiguous, ask which (recommend: new task inside that sprint, since `/wa-task` creates): `login-refacto is a sprint. New task inside it (recommended), or do you want the view? → /wa-board login-refacto`.
    - `release <id>` → stale-claim cleanup (*GitHub provider*).
    - **No arg → prioritization only.** Skip to step 5, whole backlog in scope, full pass (see *Explicit run* there).
-1. **Context.** Read `.whackagent/config.md`, `{wiki}/index.md`, backlog (`{backlog}`, or `wa-backlog list` under GitHub or Plane — **reference/board-github.md**, **reference/board-plane.md**). `{…}` paths per **reference/paths.md**. Idea or spec block already covered by task → say so, reuse, never duplicate. Note live sprints.
+1. **Context.** Read `.lunabee/agents/config.md`, `{wiki}/index.md`, backlog (`{backlog}`, or `wa-backlog list` under GitHub or Plane — **reference/board-github.md**, **reference/board-plane.md**). `{…}` paths per **reference/paths.md**. Idea or spec block already covered by task → say so, reuse, never duplicate. Note live sprints.
 2. **Title first.** Distill request into SHORT explicit title — feature clear one glance ("Login Apple", not "improve auth"). Rules: **reference/voice.md → Titles and summaries** — label ≤ 5 words, never a narrative sentence, never a metaphor, tech terms untranslated. Slug = kebab-case title (`login-apple`).
    - **Glossary** — `{wiki}/glossary.md` exists → title, summary, context use its terms, never a `Never` word. User names thing it lacks → propose row *"add `+ Term — means` to glossary? (recommended: yes — grill, code and PR then use same word)"*, on yes add `Glossary: + <row>` line to `## Context / Decisions` (`/wa-wiki` writes it). Absent → skip.
 3. **Write task file** at `{tasks}/<slug>.md` from `${CLAUDE_PLUGIN_ROOT}/templates/task.md`:
@@ -168,7 +168,7 @@ Every question — cut proposal, sprint name, slot — carries recommended answe
 - Never write acceptance criteria, never code, never create branches.
 - Never create from spec before yes on proposal.
 - Never invent requirement idea or spec doesn't state.
-- Never write to literal `.whackagent/` path when config `paths:` points elsewhere.
+- Never write to literal `.lunabee/agents/` path when config `paths:` points elsewhere.
 
 ## Next step
 

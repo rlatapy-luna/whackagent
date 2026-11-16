@@ -8,9 +8,9 @@
 #   issue opened / body edited             → todo; grilled when the body holds a non-empty `## Acceptance criteria`,
 #                                            the ticket is todo/grilling and the editor can push (releases the
 #                                            grilling claim); an outsider's criteria are reported, never taken
-#   push to wa/<n>-<slug> holding its spec → grilled (releases the grilling claim)
+#   push to <prefix><n>-<slug> holding spec → grilled (releases the grilling claim)
 #   PR → ticket                            = the one issue of this repository the PR links, else the one
-#                                            `Closes #n` in its body, else branch wa/<n>-…; an open PR found the
+#                                            `Closes #n` in its body, else branch <prefix><n>-…; an open PR found the
 #                                            second or third way gets the Development link (any base branch)
 #   PR opened / reopened, draft or not      → review (releases the claims); card watched ~30 s against GitHub's
 #                                            built-in "Pull request linked to issue" workflow
@@ -71,11 +71,11 @@ jobs:
             // Second client on the PAT: GITHUB_TOKEN can't reach Projects v2. Same class as `github`.
             const projects = new github.constructor({ auth: env.WA_PROJECT_TOKEN });
             const { owner, repo } = context.repo;
-            const prefix = env.WA_BRANCH_PREFIX || "wa/";
+            const prefix = env.WA_BRANCH_PREFIX || "feature/";
             // "none" = sprints have no branch (branch.sprint_prefix: ""): an empty variable reads as unset
             const sprintPrefix = env.WA_SPRINT_PREFIX === "none" ? "" : (env.WA_SPRINT_PREFIX || "sprint/");
             const SPRINT_LABEL = "wa-sprint";
-            const tasksPath = (env.WA_TASKS_PATH || ".whackagent/tasks").replace(/\/$/, "");
+            const tasksPath = (env.WA_TASKS_PATH || ".lunabee/agents/tasks").replace(/\/$/, "");
             const statusField = env.WA_STATUS_FIELD || "Status";
             const states = {
               todo: "Todo", grilling: "Grilling", grilled: "Grilled", coding: "Coding",
@@ -280,7 +280,7 @@ jobs:
             const payload = context.payload;
 
             // PR → ticket: the one issue it links (Development link), else the one `Closes #n` its body names, else its
-            // wa/<n>-… branch. Sprint parents and ignored issues are not tickets. GitHub turns `Closes #n` into a link
+            // <prefix><n>-… branch. Sprint parents and ignored issues are not tickets. GitHub turns `Closes #n` into a link
             // only on PRs onto the default branch: an open PR whose ticket came from its body or branch gets the
             // Development link here, so no worker links by hand.
             const NOT_TICKET = ["wa-ignore", SPRINT_LABEL];

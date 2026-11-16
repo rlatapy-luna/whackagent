@@ -186,15 +186,16 @@ def check_task_headings():
             err("README.md", 1, f"task example lacks ## {name}")
 
 
-# ---------------------------------------------------------------- 4. hardcoded .whackagent/ paths
+# ---------------------------------------------------------------- 4. hardcoded .lunabee/agents/ paths
 
 # A literal path right after "default `" or "recommended: `" documents the key's default: allowed.
-HARDCODED = re.compile(r"(?<!default `)(?<!recommended: `)\.whackagent/(BACKLOG\.md|tasks|wiki|reports|conventions)\b")
+HARDCODED = re.compile(r"(?<!default `)(?<!recommended: `)\.(?:lunabee/agents|whackagent)/(BACKLOG\.md|tasks|wiki|reports|conventions)\b")
 # (file, substring on the line) where the literal default is the point.
 PATH_ALLOW = [
     ("reference/paths.md", "Key missing → the default"),  # canonical list of defaults
     ("templates/config.md", ""),                          # the defaults themselves
     ("skills/wa-setup/SKILL.md", "| paths.wiki"),         # sample reconfigure table row
+    ("skills/wa-setup/migrations/0003-lunabee-agents-folder.md", ""),  # moves the legacy folders
 ]
 
 
@@ -203,7 +204,7 @@ def check_paths():
         rel = str(path.relative_to(ROOT))
         for n, line in enumerate(path.read_text().splitlines(), 1):
             if HARDCODED.search(line) and not any(rel.startswith(f) and s in line for f, s in PATH_ALLOW):
-                err(path, n, "hardcoded .whackagent/ path: use {backlog} {tasks} {wiki} {reports} {conventions}")
+                err(path, n, "hardcoded .lunabee/agents/ path: use {backlog} {tasks} {wiki} {reports} {conventions}")
 
 
 # ---------------------------------------------------------------- 5. manifest
