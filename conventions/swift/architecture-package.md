@@ -44,4 +44,4 @@ Tests/<Target>Tests/              # mirrors Sources/<Target>/
 - `public` intentional and minimal; internals `internal`.
 - Tests mirror source structure.
 
-> **Project override.** This default for non-app Swift. If repo has own structural rules, edit this file in project's conventions dir (`paths.conventions`, default `.whackagent/conventions/`) to match — reviewer read project copy.
+> **Project override.** This default for non-app Swift. If repo has own structural rules, edit this file in project's conventions dir (`paths.conventions`, default `.lunabee/agents/conventions/`) to match — reviewer read project copy.

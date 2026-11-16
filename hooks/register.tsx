@@ -23,6 +23,8 @@ import {
   localView,
   nextCommand,
   parseBacklog,
+  CONFIG_FILE,
+  LEGACY_CONFIG_FILE,
   parseConfig,
   parseFields,
   parseTaskFile,
@@ -36,7 +38,6 @@ import {
 
 const PANE = 'wa-board'
 const TITLE = 'Backlog'
-const CONFIG = '.whackagent/config.md'
 const TICK_MS = 2000
 const SUGGEST_DELAY_MS = 300
 const TAB_TITLE_LENGTH = 18
@@ -285,21 +286,25 @@ async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, is
 
 // endregion
 
+async function readConfig($: EngineInterface, root: string): Promise<{ text: string; config: WaConfig } | undefined> {
+  for (const file of [CONFIG_FILE, LEGACY_CONFIG_FILE]) {
+    const text = await $.fs.read(`${root}/${file}`).catch(() => undefined)
+    if (text !== undefined) return { text, config: parseConfig(text, file === LEGACY_CONFIG_FILE) }
+  }
+  return undefined
+}
+
 async function hasConfig($: EngineInterface) {
-  const root = await $.session.root()
-  return $.fs.read(`${root}/${CONFIG}`).then(
-    () => true,
-    () => false,
-  )
+  return (await readConfig($, await $.session.root())) !== undefined
 }
 
 async function load($: EngineInterface, isForced: boolean): Promise<{ next: Board; signature: string } | undefined> {
   const root = await $.session.root()
-  const configText = await $.fs.read(`${root}/${CONFIG}`).catch(() => undefined)
-  if (configText === undefined) {
+  const found = await readConfig($, root)
+  if (!found) {
     return lastSignature === 'no-config' ? undefined : { next: { kind: 'no-config' }, signature: 'no-config' }
   }
-  const config = parseConfig(configText)
+  const { text: configText, config } = found
   const at = await checkout($, root)
   return TICKET_BOARDS.includes(config.provider) ? loadGithub($, at, config, isForced) : loadLocal($, at, configText, config)
 }
@@ -327,9 +332,8 @@ async function refresh($: EngineInterface, isForced = false): Promise<Board> {
 
 async function watchScope($: EngineInterface) {
   const root = await $.session.root()
-  const configText = await $.fs.read(`${root}/${CONFIG}`).catch(() => undefined)
-  if (configText === undefined) return undefined
-  const config = parseConfig(configText)
+  const config = (await readConfig($, root))?.config
+  if (!config) return undefined
   return TICKET_BOARDS.includes(config.provider) ? { root, prefix: config.branchPrefix } : undefined
 }
 
@@ -428,7 +432,7 @@ function viewOf(current: Board, milestone: string, expanded: readonly string[]):
     case 'loading':
       return 'Reading backlog…'
     case 'no-config':
-      return 'No .whackagent/config.md here — run /wa-setup.'
+      return `No ${CONFIG_FILE} here — run /wa-setup.`
     case 'error':
       return `Backlog unreadable: ${current.message}`
     case 'local':

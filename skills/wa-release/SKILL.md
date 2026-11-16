@@ -15,7 +15,7 @@ Where sit: tasks → `/wa-close` each → *milestone complete* → **`/wa-releas
 
 ## Do
 
-1. **Resolve milestone.** Read `.whackagent/config.md` (`{…}` paths per **reference/paths.md**). Provider `milestones` verb (**reference/provider.md**).
+1. **Resolve milestone.** Read `.lunabee/agents/config.md` (`{…}` paths per **reference/paths.md**). Provider `milestones` verb (**reference/provider.md**).
    - Arg → match title (exact, then unique case-insensitive). Unknown → list milestones, stop. Track milestone (key of `branch.tracks`) → refuse: track ships through its landing task inside a release milestone (**reference/tracks.md**), stop. Closed → say `already closed — released?`; resume only if `{reports}/release-<milestone>.md` has unfinished steps (step 5), else stop.
    - No arg → list open milestones except tracks, highest last, with progress (`🎯 0.2.0 — 5/5 done`), recommend **lowest open** — highest is where new work lands, lowest is what ships next. Fully done one beats it only when user says so.
    - No milestone at all → say release needs one (**reference/milestones.md**: local `backlog.milestones`, GitHub repo milestones, Plane modules), stop.

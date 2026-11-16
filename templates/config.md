@@ -12,18 +12,18 @@ paths:                         # WHERE whackagent keep each kind of file. Skills
                                # Config versioned, shared → NEVER user-specific absolute path
                                # (/Users/<name>, /home/<name>, ~): breaks every other machine.
                                # Point at committed, human-browsable folder when team share them —
-                               # `docs/wiki` read on GitHub, `.whackagent/wiki` no.
+                               # `docs/wiki` obvious to teammates, hidden `.lunabee/agents/wiki` easy to miss.
                                # Missing key → default below, so old config still work.
-  backlog: .whackagent/BACKLOG.md
-  tasks: .whackagent/tasks
-  wiki: .whackagent/wiki
-  reports: .whackagent/reports          # run reports — local, gitignored by /wa-setup
-  conventions: .whackagent/conventions  # convention modules copied here by /wa-setup
+  backlog: .lunabee/agents/BACKLOG.md
+  tasks: .lunabee/agents/tasks
+  wiki: .lunabee/agents/wiki
+  reports: .lunabee/agents/reports          # run reports — local, gitignored by /wa-setup
+  conventions: .lunabee/agents/conventions  # convention modules copied here by /wa-setup
   worktrees: ../<repo>-worktrees  # task worktrees (branch.worktree, /wa-autopilot). <repo> = repo
                                # folder name. Resolve from MAIN checkout root, even when setup run
                                # from a worktree — keep relative. MUST sit OUTSIDE repo: nested
                                # checkout get indexed, grepped, globbed by builds.
-                               # `.whackagent/config.md` itself NOT configurable: it carry these
+                               # `.lunabee/agents/config.md` itself NOT configurable: it carry these
                                # paths, so must sit at known spot.
                                # Move path after setup → move files too; nothing back-fill.
 
@@ -167,12 +167,12 @@ branch:
   worktree: false              # with per_task: each task branch checked out in own git worktree
                                #   at {worktrees}/<slug> — main checkout never switch branch, tasks
                                #   open side by side. Cost: cold build per worktree, open IDE there.
-  prefix: "wa/"                # branch name: <prefix><slug> → wa/login-apple
+  prefix: "feature/"           # branch name: <prefix><slug> → feature/login-apple
   base: current                # fork point: current | main | <branch name>
                                # GitHub provider: named branch, same as close.target
   sprint_prefix: "sprint/"     # task carrying `sprint:` branch off SPRINT branch, not base:
                                #   sprint/login-refacto ← created from base: on first task of sprint
-                               #   wa/login-apple       ← forked from it, merged back by /wa-close
+                               #   feature/login-apple  ← forked from it, merged back by /wa-close
                                # So task 3 of sprint see task 1 work — same screen, no blind conflict.
                                # Created by whoever need it first: /wa-code step 0 or /wa-autopilot
                                # wave setup. Empty string → sprint get no branch, tasks use base:.

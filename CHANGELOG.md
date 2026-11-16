@@ -4,6 +4,11 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** new projects keep everything in `.lunabee/agents/` instead of `.whackagent/`: `/wa-setup` writes `.lunabee/agents/config.md`, and missing `paths:` keys default to `.lunabee/agents/BACKLOG.md`, `.lunabee/agents/tasks`, `.lunabee/agents/wiki`, `.lunabee/agents/reports` and `.lunabee/agents/conventions`. A project set up before keeps working from `.whackagent/config.md` with its old defaults; `/wa-setup` offers to move it into `.lunabee/agents/` (migration 0003; under a GitHub or Plane board the tasks folder stays where it is, since ticket branches and the board files name it).
+- **Breaking:** the default task branch prefix is now `feature/` instead of `wa/` (`branch.prefix`, and the hooks caller's `branches:` filter for new GitHub boards). Configs that already set `branch.prefix` are unchanged; moving an old project to `.lunabee/agents/` pins `wa/` when the key was missing.
+
 ## [3.4.0] - 2026-11-12
 
 ### Changed

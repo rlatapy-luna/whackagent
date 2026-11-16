@@ -17,7 +17,7 @@ Write code for one brick from `/wa-code` (or `/wa-autopilot`), prove it build, p
 
 ## Inputs
 
-- Task path + brick to build. **Every path handed to you** — never read config, never assume `.whackagent/`; project may keep tasks, wiki, conventions anywhere. Path missing from dispatch → `BLOCKED:`, don't go looking.
+- Task path + brick to build. **Every path handed to you** — never read config, never assume `.lunabee/agents/`; project may keep tasks, wiki, conventions anywhere. Path missing from dispatch → `BLOCKED:`, don't go looking.
 - **The BRIEF** — existing files + sizes, what to reuse, layer boundaries, target layout. Exploration already done; redo = pure waste. Explore only what its `GAPS` names or what own work turn up. **No BRIEF → do pass yourself before writing line.** No blind edit because task "look obvious".
 - Convention modules handed to you, in load order — file paths (Read) and `skill:<plugin>:<skill>` names (load with Skill tool, never hunt for its file). **Load every one, obey all**, later one wins on conflict. Skill fails to load → `BLOCKED:`. Source of truth here, nowhere else.
   - Sub-folder named like a module (`apple.md` → `apple/`) = reference library, not module: open only pages for topic you touch, never load all.

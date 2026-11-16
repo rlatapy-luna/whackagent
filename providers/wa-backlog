@@ -11,7 +11,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 Shared core (same for every board): CLI, verbs, states, claim-from rules, exit codes, claims (git refs
 on the GitHub repo), ticket branches and task phases, pull requests, merge, stacks, screenshots and the
 contract check. Everything the board tool owns sits behind `Board`, picked by `backlog.provider` in
-.whackagent/config.md: `github` (a GitHub Project v2) or `plane`; anything else falls back to GitHub.
+.lunabee/agents/config.md (legacy .whackagent/config.md): `github` (a GitHub Project v2) or `plane`; anything else falls back to GitHub.
 A Plane board runs on lb-board (Lunabee's Plane board CLI, vendored as .lunabee/board/lb-board): its board
 verbs are forwarded there (`forward`), claims and hooks included, and this script holds no Plane code.
 
@@ -176,8 +176,12 @@ def fingerprint(variables):
 def board_name():
     """`backlog.provider` of the project config; None without one (a vendored copy in a repo without whackagent)."""
     try:
-        text = (Path(git("rev-parse", "--show-toplevel")) / ".whackagent" / "config.md").read_text()
-    except (subprocess.CalledProcessError, OSError):
+        root = Path(git("rev-parse", "--show-toplevel"))
+    except subprocess.CalledProcessError:
+        return None
+    # .whackagent/: legacy layout, set up before .lunabee/agents/
+    text = next((p.read_text() for p in (root / ".lunabee" / "agents" / "config.md", root / ".whackagent" / "config.md") if p.is_file()), None)
+    if text is None:
         return None
     block = None
     for line in text.splitlines():
@@ -198,8 +202,8 @@ def board_class():
 def code_settings(variables):
     """Code-host settings every board shares: where task files and ticket branches live."""
     return {
-        "tasks_path": variables.get("WA_TASKS_PATH", ".whackagent/tasks"),
-        "branch_prefix": variables.get("WA_BRANCH_PREFIX", "wa/"),
+        "tasks_path": variables.get("WA_TASKS_PATH", ".lunabee/agents/tasks"),
+        "branch_prefix": variables.get("WA_BRANCH_PREFIX", "feature/"),
         # "none" = sprints have no branch (an empty variable reads as unset), as WA_SPRINT_PREFIX in board.yml
         "sprint_prefix": "" if variables.get("WA_SPRINT_PREFIX") == "none" else variables.get("WA_SPRINT_PREFIX", "sprint/"),
         "stale_after_hours": int(variables.get("WA_STALE_AFTER_HOURS", "24")),
@@ -1166,7 +1170,7 @@ def remote_branch(config, number):
 
 def task_phase(config, branch):
     """`phase:` of the task file on a ticket branch (`in-progress`, `review`, `validated`); None when
-    the branch or file is missing or the field is empty. Branch `wa/12-login` holds `{tasks}/12-login.md`."""
+    the branch or file is missing or the field is empty. Branch `feature/12-login` holds `{tasks}/12-login.md`."""
     if not branch:
         return None
     path = f"{config['tasks_path'].rstrip('/')}/{branch.removeprefix(config['branch_prefix'])}.md"
@@ -1436,8 +1440,8 @@ def op_depend(args):
 
 def op_link_pr(args):
     """Manual link from PR <pr> to ticket <n>. Idempotent. Repair only: the hooks link every PR whose ticket
-    they find. GitHub board: closing link (Development), from `Closes #n` in the body or a wa/<n>-… branch.
-    Plane board: work-item link on the card, from a wa/<id>-… branch or the card link in the body."""
+    they find. GitHub board: closing link (Development), from `Closes #n` in the body or a <prefix><n>-… branch.
+    Plane board: work-item link on the card, from a <prefix><id>-… branch or the card link in the body."""
     open_board().link_pr(args.number, args.pr)
     emit({"number": args.number, "pr": args.pr, "linked": True})
 
@@ -1873,8 +1877,8 @@ def parser():
         help="drop this Status option (no state maps to it, no card on it), repeatable; reorders states into "
         "lifecycle order, extras after (new non-template boards drop every extra)",
     )
-    s.add_argument("--tasks-path", default=".whackagent/tasks")
-    s.add_argument("--branch-prefix", default="wa/")
+    s.add_argument("--tasks-path", default=".lunabee/agents/tasks")
+    s.add_argument("--branch-prefix", default="feature/")
     s.add_argument("--sprint-prefix", default="sprint/", help='branch.sprint_prefix ("" = sprints have no branch)')
     s.add_argument("--stale-after-hours", type=int, default=24)
     s.add_argument("--track", action="append", metavar="MILESTONE", help="branch.tracks key: never a default milestone")

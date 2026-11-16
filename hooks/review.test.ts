@@ -17,13 +17,13 @@ function world(on: On, session: string, store: Record<string, unknown> = {}) {
   on('session.start', () => ({ cwd: '/p' }))
   on('command.register', () => ({ value: { command: 'wa-pane' } }))
   on('tool.register', ($, e) => ({ value: { tool: `mcp__whackagent__${e.name}` } }))
-  on('fs.read', ($, e) => (e.path === '/p/.whackagent/config.md' ? { value: CONFIG } : { deny: `ENOENT ${e.path}` }))
+  on('fs.read', ($, e) => (e.path === '/p/.lunabee/agents/config.md' ? { value: CONFIG } : { deny: `ENOENT ${e.path}` }))
   on('process.run', ($, e) => {
     const argv = e.argv.join(' ')
     const ids = e.argv.filter(arg => arg.startsWith('ids[]=')).map(arg => arg.slice('ids[]='.length))
     const nodes = ids.map(id => ({ id, comments: { nodes: (state.comments[id] ?? []).map(body => ({ body })) } }))
     const stdout = argv.startsWith('gh pr list')
-      ? JSON.stringify(state.isMerged ? [] : [{ number: 34, headRefName: 'wa/12-login', url: 'u', reviews: state.reviews }])
+      ? JSON.stringify(state.isMerged ? [] : [{ number: 34, headRefName: 'feature/12-login', url: 'u', reviews: state.reviews }])
       : argv.startsWith('gh api graphql')
         ? JSON.stringify({ data: { nodes } })
         : ''

@@ -2,9 +2,9 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
 const FILES: Record<string, string> = {
-  '/p/.whackagent/config.md': '---\nbacklog:\n  provider: local\n---\n',
-  '/p/.whackagent/BACKLOG.md': '# Backlog\n\n## Todo\n\n- [Login Apple](tasks/login-apple.md)\n',
-  '/p/.whackagent/tasks/login-apple.md':
+  '/p/.lunabee/agents/config.md': '---\nbacklog:\n  provider: local\n---\n',
+  '/p/.lunabee/agents/BACKLOG.md': '# Backlog\n\n## Todo\n\n- [Login Apple](tasks/login-apple.md)\n',
+  '/p/.lunabee/agents/tasks/login-apple.md':
     '---\ntitle: Login Apple\nsummary: Sign in with Apple\nsize: medium\nstatus: todo\ngrilled: false\n---\n',
 }
 
@@ -55,8 +55,8 @@ const ROWS = [
   { number: 13, title: 'Export', summary: 'S', state: 'review', size: 'medium', assignees: [], reserved: false, claims: [] },
 ]
 const PULLS = [
-  { number: 40, headRefName: 'wa/13-export', isDraft: true, url: 'https://github.com/o/r/pull/40' },
-  { number: 41, headRefName: 'wa/12-login', isDraft: true, url: 'https://github.com/o/r/pull/41' },
+  { number: 40, headRefName: 'feature/13-export', isDraft: true, url: 'https://github.com/o/r/pull/40' },
+  { number: 41, headRefName: 'feature/12-login', isDraft: true, url: 'https://github.com/o/r/pull/41' },
 ]
 
 test('a PR opens from its tag and its in-flight tab: link on desktop, gh button on terminal', async ($, on) => {
@@ -66,7 +66,7 @@ test('a PR opens from its tag and its in-flight tab: link on desktop, gh button 
   on('command.register', () => ({ value: { command: 'wa-pane' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('clock.now', () => ({ value: 1_800_000_000_000 }))
-  on('fs.read', ($, e) => (e.path === '/p/.whackagent/config.md' ? { value: GITHUB_CONFIG } : { deny: `ENOENT ${e.path}` }))
+  on('fs.read', ($, e) => (e.path === '/p/.lunabee/agents/config.md' ? { value: GITHUB_CONFIG } : { deny: `ENOENT ${e.path}` }))
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   const opened: string[] = []
   on('process.run', ($, e) => {
@@ -112,8 +112,8 @@ test('board key ids: WA-42 row, its task file named after the branch, Task tab',
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('fs.read', ($, e) => {
     read.push(e.path)
-    if (e.path === '/p/.whackagent/config.md') return { value: GITHUB_CONFIG }
-    if (e.path === '/p/.whackagent/tasks/WA-42-login.md') return { value: '---\nphase: in-progress\n---\n## Acceptance criteria\n1. Sign in with Apple.\n' }
+    if (e.path === '/p/.lunabee/agents/config.md') return { value: GITHUB_CONFIG }
+    if (e.path === '/p/.lunabee/agents/tasks/WA-42-login.md') return { value: '---\nphase: in-progress\n---\n## Acceptance criteria\n1. Sign in with Apple.\n' }
     return { deny: `ENOENT ${e.path}` }
   })
   on('fs.stat', () => ({ deny: 'ENOENT' }))
@@ -122,7 +122,7 @@ test('board key ids: WA-42 row, its task file named after the branch, Task tab',
     if (command.includes('wa-backlog list')) return ok(JSON.stringify(rows))
     if (command.includes('wa-backlog milestones')) return ok('[]')
     if (command.startsWith('gh pr list') || command.startsWith('gh issue list')) return ok('[]')
-    if (command.includes('rev-parse --abbrev-ref')) return ok('wa/WA-42-login')
+    if (command.includes('rev-parse --abbrev-ref')) return ok('feature/WA-42-login')
     return ok(command.startsWith('git') ? '' : '{}')
   })
 
@@ -131,7 +131,7 @@ test('board key ids: WA-42 row, its task file named after the branch, Task tab',
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui.find({ key: 'task-WA-42' }))?.props.label).toBe('● 🔨 WA-42 Login 📍')
   expect(await ui.find({ type: 'Text', text: 'Sign in with Apple.' })).toBeDefined()
-  expect(read).toContain('/p/.whackagent/tasks/WA-42-login.md')
+  expect(read).toContain('/p/.lunabee/agents/tasks/WA-42-login.md')
   await ui.unmount()
 })
 
@@ -148,7 +148,7 @@ test('plane board: WA-<n> rows through wa-backlog, provider named, no GitHub iss
   on('command.register', () => ({ value: { command: 'wa-pane' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('fs.read', ($, e) =>
-    e.path === '/p/.whackagent/config.md'
+    e.path === '/p/.lunabee/agents/config.md'
       ? { value: '---\nbacklog:\n  provider: plane\nvcs:\n  provider: github\n---\n' }
       : { deny: `ENOENT ${e.path}` },
   )
@@ -173,12 +173,33 @@ test('plane board: WA-<n> rows through wa-backlog, provider named, no GitHub iss
   await ui.unmount()
 })
 
+test('legacy .whackagent config still draws the board', async ($, on) => {
+  const files = Object.fromEntries(Object.entries(FILES).map(([path, text]) => [path.replace('/p/.lunabee/agents/', '/p/.whackagent/'), text]))
+  on('session.root', () => ({ value: '/p' }))
+  on('session.start', () => ({ cwd: '/p' }))
+  on('command.register', () => ({ value: { command: 'wa-pane' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('fs.read', ($, e) => {
+    const text = files[e.path]
+    return text === undefined ? { deny: `ENOENT ${e.path}` } : { value: text }
+  })
+  on('fs.list', () => ({ value: [] }))
+  on('fs.stat', () => ({ deny: 'ENOENT' }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Login Apple/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('+N more under Done shows every task, show less folds it back', async ($, on) => {
   const slugs = ['t1', 't2', 't3', 't4', 't5']
   const files: Record<string, string> = {
-    '/p/.whackagent/config.md': '---\nbacklog:\n  provider: local\n---\n',
-    '/p/.whackagent/BACKLOG.md': `# Backlog\n\n## Done\n\n${slugs.map(slug => `- [${slug}](tasks/${slug}.md)`).join('\n')}\n`,
-    ...Object.fromEntries(slugs.map(slug => [`/p/.whackagent/tasks/${slug}.md`, `---\ntitle: Task ${slug}\nstatus: done\n---\n`])),
+    '/p/.lunabee/agents/config.md': '---\nbacklog:\n  provider: local\n---\n',
+    '/p/.lunabee/agents/BACKLOG.md': `# Backlog\n\n## Done\n\n${slugs.map(slug => `- [${slug}](tasks/${slug}.md)`).join('\n')}\n`,
+    ...Object.fromEntries(slugs.map(slug => [`/p/.lunabee/agents/tasks/${slug}.md`, `---\ntitle: Task ${slug}\nstatus: done\n---\n`])),
   }
   on('session.root', () => ({ value: '/p' }))
   on('session.start', () => ({ cwd: '/p' }))
@@ -209,7 +230,7 @@ test('the next command an answer ends on becomes the prompt suggestion, over the
   const shown: string[] = []
   on('session.root', () => ({ value: '/p' }))
   on('command.register', () => ({ value: { command: 'wa-pane' } }))
-  on('fs.read', ($, e) => (e.path === '/p/.whackagent/config.md' ? { value: FILES[e.path]! } : { deny: 'ENOENT' }))
+  on('fs.read', ($, e) => (e.path === '/p/.lunabee/agents/config.md' ? { value: FILES[e.path]! } : { deny: 'ENOENT' }))
   on('fs.list', () => ({ value: [] }))
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
@@ -247,7 +268,7 @@ function nameSessionHooks(on: Parameters<TestBody>[1], registered: string[], ren
     renamed.push(`/${e.command} ${e.args}`)
     return { text: '' }
   })
-  on('fs.read', ($, e) => (e.path === '/work/shop/.whackagent/config.md' ? { value: GITHUB_CONFIG } : { deny: 'ENOENT' }))
+  on('fs.read', ($, e) => (e.path === '/work/shop/.lunabee/agents/config.md' ? { value: GITHUB_CONFIG } : { deny: 'ENOENT' }))
   on('fs.list', () => ({ value: [] }))
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   on('process.run', ($, e) => {

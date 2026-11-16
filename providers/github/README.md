@@ -20,7 +20,7 @@ Local cache: `<git-common-dir>/whackagent/github-cache.json` (ids, shared by all
 | Contract | GitHub |
 |---|---|
 | ticket id | issue number |
-| ticket branch | `wa/<n>-<slug>`, created by `gh issue develop` → linked in issue **Development**. Only branches GitHub creates can be linked — never `git checkout -b` + push |
+| ticket branch | `feature/<n>-<slug>`, created by `gh issue develop` → linked in issue **Development**. Only branches GitHub creates can be linked — never `git checkout -b` + push |
 | title / summary | issue title / first non-empty body line |
 | state | Project `Status` single-select, options named per `WA_STATES` |
 | priority | Project item position (top = next) |
@@ -42,8 +42,8 @@ Every issue = ticket (opt-out `wa-ignore`). Project draft items = not tickets: n
 | Event | Condition | Result |
 |---|---|---|
 | `issues: opened/edited` | no `wa-ignore` / `wa-sprint`; edited = body changed | add to Project, `todo`. Body holds non-empty `## Acceptance criteria`, state `todo`/`grilling`, editor can push → `grilled`, grilling claim deleted. Editor can't push → reported on issue, card stays |
-| `push` to `wa/**` | branch `wa/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
-| PR → ticket | every `pull_request` row | head `<WA_SPRINT_PREFIX>…` → none (sprint PR). Else the one issue **of this repo** PR links (`closingIssuesReferences`), else the one `Closes #n` in body, else head `wa/<n>-…`; open PR found by body or branch → Development link added. Sprint parents, `wa-ignore` never. Several → reported on PR, board untouched |
+| `push` to `feature/**` | branch `feature/<n>-…`, `{tasks}/<n>-*.md` with `issue: <n>` + non-empty `## Acceptance criteria`, state `todo`/`grilling` | `grilled`, grilling claim deleted |
+| PR → ticket | every `pull_request` row | head `<WA_SPRINT_PREFIX>…` → none (sprint PR). Else the one issue **of this repo** PR links (`closingIssuesReferences`), else the one `Closes #n` in body, else head `feature/<n>-…`; open PR found by body or branch → Development link added. Sprint parents, `wa-ignore` never. Several → reported on PR, board untouched |
 | `pull_request: opened/reopened` | ticket found, same repo, not `done` — **draft or not** | `review`, claims deleted; card watched ~30 s, taken back from built-in workflow's column |
 | `pull_request: edited` | ticket found late, card in `todo`/`grilled` | `review`, coding claim deleted. Never from `coding` (round live) |
 | `pull_request: ready_for_review/converted_to_draft` | — | nothing moves, claim untouched (agent mid-round may flip it) — draft = human tests, ready = human merges (GitHub UI or `/wa-close`) |

@@ -16,7 +16,7 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 0. **Resolve task.** Slug, display index or ticket id (`12`, `#12`, `WA-42`) per **reference/display.md → Task indexes**, echo `3 → sync-offline`. No arg → top `todo` not grilled (GitHub: top unclaimed `todo`). Free text instead of task → that's a new task: run **`/wa-task`** with it, then grill the task it created (user asked for grill). Name session per **reference/session-name.md**.
    - Already `grilled: true` (GitHub: `grilled`) → say so; re-grill only on yes (recommend: no — unless scope changed since).
    - Past `todo` / `grilled` (coding started; GitHub: `coding`, `review`) → stop: changes now go through `/wa-feedback`.
-1. **Read** `.whackagent/config.md`, `{wiki}/index.md`, task file (GitHub: issue body via `wa-backlog get <id>`). `{…}` paths per **reference/paths.md**. `## Context / Decisions` holds what `/wa-task` left: user idea, or **spec excerpt** with `Open for grill` points.
+1. **Read** `.lunabee/agents/config.md`, `{wiki}/index.md`, task file (GitHub: issue body via `wa-backlog get <id>`). `{…}` paths per **reference/paths.md**. `## Context / Decisions` holds what `/wa-task` left: user idea, or **spec excerpt** with `Open for grill` points.
 2. **Grill.** Invoke **grill-me** skill (absent → run interview inline, per *Question format*): interview user relentlessly down design tree, one question at time. Resolve scope with **YAGNI** — push back on speculative. Question answerable from code → **go read code** (targeted Grep/Glob, scoped to feature). Never ask user what project already tells you.
    - **Start from what task already says.** Spec excerpt → ask its `Open for grill` points and what it leaves open, never re-ask what it states.
    - **Glossary terms.** `{wiki}/glossary.md` exists → decisions and criteria name things by its terms (screens by `Screens` name). User names new thing or second word for listed one → propose row *"add `+ Term — means` to glossary? (recommended: yes — next task, review and PR use same word)"*; second word for listed term → recommend listed term, new word under `Never`. On yes `Glossary: + <row>` in `## Context / Decisions` (`/wa-wiki` writes it).
@@ -80,7 +80,7 @@ Whole skill about no guessing. User answers leave contradiction → surface it, 
 
 - Never create task from nothing — `/wa-task` creates, grill clarifies.
 - Never code, never commit code — only task file (GitHub step 4).
-- Never write to literal `.whackagent/` path when config `paths:` points elsewhere.
+- Never write to literal `.lunabee/agents/` path when config `paths:` points elsewhere.
 
 ## Next step
 

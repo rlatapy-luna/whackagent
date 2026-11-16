@@ -19,7 +19,7 @@
 
 - **Ticket id = work item key** (**reference/code-github.md**, *Ticket id*): `<id>` = `<#id>` = `WA-42`, the project
   identifier plus sequence number as Plane shows it, never `#WA-42`.
-  - Branch `wa/WA-42-login-apple`. lb-board finds the key anywhere in a branch name; whackagent keeps
+  - Branch `feature/WA-42-login-apple`. lb-board finds the key anywhere in a branch name; whackagent keeps
     `<branch.prefix><id>-<slug>`.
   - Task file `{tasks}/WA-42-login-apple.md`.
   - Claim ref `refs/lb-claims/WA-42/coding`.
