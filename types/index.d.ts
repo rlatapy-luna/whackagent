@@ -62,6 +62,7 @@ export type MilestoneCount = { title: string; isOpen: boolean; tickets: number; 
 export type Board =
   | { kind: 'loading' }
   | { kind: 'no-config' }
+  | { kind: 'old-layout' }
   | { kind: 'error'; message: string }
   | { kind: 'local'; tasks: BoardTask[]; milestones: string[]; tracks: string[]; active: TaskFocus[]; here: string }
   | {

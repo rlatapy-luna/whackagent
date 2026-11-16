@@ -143,19 +143,19 @@ function frontmatter(text: string): string[] {
   return lines.slice(1, end < 0 ? lines.length : end)
 }
 
-// reference/paths.md → Config file: `.lunabee/agents/config.md`, else the legacy `.whackagent/config.md`, read with its old defaults.
+// reference/paths.md → Config file: `.lunabee/agents/config.md`; the old `.whackagent/config.md` only draws a notice.
 export const CONFIG_FILE = '.lunabee/agents/config.md'
-export const LEGACY_CONFIG_FILE = '.whackagent/config.md'
+export const OLD_CONFIG_FILE = '.whackagent/config.md'
+export const OLD_LAYOUT_NOTICE = 'old layout — /wa-setup moves it to .lunabee/agents/ (migration 0003)'
 
-export function parseConfig(text: string, isLegacy = false): WaConfig {
-  const home = isLegacy ? '.whackagent' : '.lunabee/agents'
+export function parseConfig(text: string): WaConfig {
   const config: WaConfig = {
-    backlog: `${home}/BACKLOG.md`,
-    tasks: `${home}/tasks`,
+    backlog: '.lunabee/agents/BACKLOG.md',
+    tasks: '.lunabee/agents/tasks',
     provider: 'local',
     milestones: [],
     tracks: [],
-    branchPrefix: isLegacy ? 'wa/' : 'feature/',
+    branchPrefix: 'feature/',
   }
   let block = ''
   let blockList: 'milestones' | 'tracks' | '' = ''

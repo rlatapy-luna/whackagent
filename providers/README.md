@@ -16,7 +16,7 @@ OpenProject, Vikunja…) takes one of two routes.
 
 - **Adapter in `wa-backlog`**, like `GitHubBoard`. Write a `Board` subclass registered in `BOARDS` under its
   `backlog.provider` name; the module docstring at the top of the script is the interface. Its settings come from
-  repository variables (`WA_<TOOL>_…`), and `provision` adopts an existing project, never creates one. The board
+  repository variables (`LB_<TOOL>_…`), and `provision` adopts an existing project, never creates one. The board
   must also be moved from GitHub events, by hooks of its own (like `board.yml` for GitHub).
 - **External board CLI**, like Plane's lb-board (`LbBoard`). The tool's own CLI, vendored in projects, speaks the
   same verbs, flags, JSON and exit codes, and runs its own hooks. `wa-backlog` forwards the board verbs to it

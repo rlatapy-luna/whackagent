@@ -99,11 +99,6 @@ test('missing config keys fall back to defaults', async () => {
   expect(parseConfig('---\nyagni: strict\n---\n').backlog).toBe('.lunabee/agents/BACKLOG.md')
 })
 
-test('legacy .whackagent config keeps its old defaults', async () => {
-  const legacy = parseConfig('---\nyagni: strict\n---\n', true)
-  expect([legacy.backlog, legacy.tasks, legacy.branchPrefix]).toEqual(['.whackagent/BACKLOG.md', '.whackagent/tasks', 'wa/'])
-})
-
 test('backlog skips commented lines and keeps section status', async () => {
   expect(parseBacklog(BACKLOG)).toEqual([
     { title: 'Login Apple', path: 'tasks/login-apple.md', status: 'todo' },

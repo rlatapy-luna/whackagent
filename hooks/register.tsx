@@ -24,7 +24,8 @@ import {
   nextCommand,
   parseBacklog,
   CONFIG_FILE,
-  LEGACY_CONFIG_FILE,
+  OLD_CONFIG_FILE,
+  OLD_LAYOUT_NOTICE,
   parseConfig,
   parseFields,
   parseTaskFile,
@@ -287,11 +288,8 @@ async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, is
 // endregion
 
 async function readConfig($: EngineInterface, root: string): Promise<{ text: string; config: WaConfig } | undefined> {
-  for (const file of [CONFIG_FILE, LEGACY_CONFIG_FILE]) {
-    const text = await $.fs.read(`${root}/${file}`).catch(() => undefined)
-    if (text !== undefined) return { text, config: parseConfig(text, file === LEGACY_CONFIG_FILE) }
-  }
-  return undefined
+  const text = await $.fs.read(`${root}/${CONFIG_FILE}`).catch(() => undefined)
+  return text === undefined ? undefined : { text, config: parseConfig(text) }
 }
 
 async function hasConfig($: EngineInterface) {
@@ -302,6 +300,9 @@ async function load($: EngineInterface, isForced: boolean): Promise<{ next: Boar
   const root = await $.session.root()
   const found = await readConfig($, root)
   if (!found) {
+    if ((await $.fs.read(`${root}/${OLD_CONFIG_FILE}`).catch(() => undefined)) !== undefined) {
+      return lastSignature === 'old-layout' ? undefined : { next: { kind: 'old-layout' }, signature: 'old-layout' }
+    }
     return lastSignature === 'no-config' ? undefined : { next: { kind: 'no-config' }, signature: 'no-config' }
   }
   const { text: configText, config } = found
@@ -433,6 +434,8 @@ function viewOf(current: Board, milestone: string, expanded: readonly string[]):
       return 'Reading backlog…'
     case 'no-config':
       return `No ${CONFIG_FILE} here — run /wa-setup.`
+    case 'old-layout':
+      return `${OLD_LAYOUT_NOTICE}.`
     case 'error':
       return `Backlog unreadable: ${current.message}`
     case 'local':
