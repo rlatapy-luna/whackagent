@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking:** the move of a Plane board set up before 2.0.0 (whackagent's own Plane provider, `WA_PLANE_*` variables) onto lb-board. Live Plane boards must already run on lb-board.
+
 ## [4.0.0] - 2026-11-16
 
 ### Changed
