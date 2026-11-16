@@ -20,7 +20,7 @@ Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms s
 
 ## Conventions
 
-- Config exists (`.lunabee/agents/config.md`, or legacy `.whackagent/config.md` — **reference/paths.md**, *Config file*): use its `review.modules`, resolved per **reference/paths.md** (*Convention modules*), + toggles.
+- Config exists (`.lunabee/agents/config.md`; old layout → stop, **reference/paths.md**, *Config file*): use its `review.modules`, resolved per **reference/paths.md** (*Convention modules*), + toggles.
 - No config (fresh existing project): detect language + kind, fall back to plugin defaults in `${CLAUDE_PLUGIN_ROOT}/conventions/` — multi-module pack (`swift/`, `kotlin/`: style, elegance, testing, architecture-global, matching architecture-\*, UI module — `swiftui.md`/`compose.md` — only if project use that toolkit), or single `<lang>.md`, else `generic.md`. Tell user it run on defaults; suggest `/wa-setup` to customize.
 - Glossary: config present and `{wiki}/glossary.md` exists → pass its path to verifier and `--fix` implementer. Absent → nothing.
 

@@ -11,7 +11,7 @@ Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the
 Shared core (same for every board): CLI, verbs, states, claim-from rules, exit codes, claims (git refs
 on the GitHub repo), ticket branches and task phases, pull requests, merge, stacks, screenshots and the
 contract check. Everything the board tool owns sits behind `Board`, picked by `backlog.provider` in
-.lunabee/agents/config.md (legacy .whackagent/config.md): `github` (a GitHub Project v2) or `plane`; anything else falls back to GitHub.
+.lunabee/agents/config.md: `github` (a GitHub Project v2) or `plane`; anything else falls back to GitHub.
 A Plane board runs on lb-board (Lunabee's Plane board CLI, vendored as .lunabee/board/lb-board): its board
 verbs are forwarded there (`forward`), claims and hooks included, and this script holds no Plane code.
 
@@ -179,10 +179,12 @@ def board_name():
         root = Path(git("rev-parse", "--show-toplevel"))
     except subprocess.CalledProcessError:
         return None
-    # .whackagent/: legacy layout, set up before .lunabee/agents/
-    text = next((p.read_text() for p in (root / ".lunabee" / "agents" / "config.md", root / ".whackagent" / "config.md") if p.is_file()), None)
-    if text is None:
+    config = root / ".lunabee" / "agents" / "config.md"
+    if not config.is_file():
+        if (root / ".whackagent" / "config.md").is_file():
+            raise Failure("old layout — /wa-setup moves it to .lunabee/agents/ (migration 0003)")
         return None
+    text = config.read_text()
     block = None
     for line in text.splitlines():
         top = re.match(r"(\w+):", line)
@@ -238,9 +240,12 @@ def load(refresh=False):
     repo = cached["repo"] if cached else current_repo()
     variables = repo_variables(repo)
     check_renamed(repo, variables, ("TASKS_PATH", "BRANCH_PREFIX", "SPRINT_PREFIX", "STALE_AFTER_HOURS", "TRACKS"))
+    board = board_class()
+    missing = [n for n in ("LB_TASKS_PATH", "LB_BRANCH_PREFIX") if board is LbBoard and n not in variables]
+    if missing:
+        raise Failure(f"{repo} has no {' '.join(missing)} — a Plane board needs them (/wa-setup writes them)")
     # a cache written before a code setting existed is rebuilt, never read with the setting missing; so is one of
     # another board (backlog.provider switched, e.g. by migrate), the board's own ids differing
-    board = board_class()
     fresh = cached and cached.get("fingerprint") == fingerprint(variables) and set(code_settings(variables)) <= set(cached)
     if fresh and not refresh and cached.get("board", "GitHubBoard") == board.__name__:
         return cached

@@ -173,7 +173,7 @@ test('plane board: WA-<n> rows through wa-backlog, provider named, no GitHub iss
   await ui.unmount()
 })
 
-test('legacy .whackagent config still draws the board', async ($, on) => {
+test('old .whackagent config draws the migration notice, no board', async ($, on) => {
   const files = Object.fromEntries(Object.entries(FILES).map(([path, text]) => [path.replace('/p/.lunabee/agents/', '/p/.whackagent/'), text]))
   on('session.root', () => ({ value: '/p' }))
   on('session.start', () => ({ cwd: '/p' }))
@@ -190,7 +190,8 @@ test('legacy .whackagent config still draws the board', async ($, on) => {
   await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /Login Apple/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /old layout — \/wa-setup moves it to \.lunabee\/agents\// })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Login Apple/ })).toBeUndefined()
   await ui.unmount()
 })
 

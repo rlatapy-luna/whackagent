@@ -4,8 +4,12 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-16
+
 ### Changed
 
+- **Breaking:** new projects keep everything in `.lunabee/agents/` instead of `.whackagent/`: `/wa-setup` writes `.lunabee/agents/config.md`, and missing `paths:` keys default to `.lunabee/agents/BACKLOG.md`, `.lunabee/agents/tasks`, `.lunabee/agents/wiki`, `.lunabee/agents/reports` and `.lunabee/agents/conventions`. A project set up before stops every skill, the backlog pane and `wa-backlog` with a pointer to `/wa-setup`, which offers to move it into `.lunabee/agents/` (migration 0003; under a GitHub or Plane board the move lands through a PR, and the tasks folder stays where it is, since ticket branches and the board files name it).
+- **Breaking:** the default task branch prefix is now `feature/` instead of `wa/` (`branch.prefix`, and the hooks caller's `branches:` filter for new GitHub boards). Configs that already set `branch.prefix` are unchanged; moving an old project to `.lunabee/agents/` pins `wa/` when the key was missing.
 - **Breaking:** whackagent writes only Lunabee names into your project, so teammates who don't run it see only Lunabee tooling. The plugin, its commands and its agents keep their names. On a GitHub or Plane board:
   - Repository settings are `LB_*` instead of `WA_*` (`LB_PROJECT_NUMBER`, `LB_BRANCH_PREFIX`, `LB_TASKS_PATH`, …). The hooks secret is `LB_PROJECT_TOKEN`, and the agent id override is `LB_AGENT`.
   - On a GitHub board, labels are `lb-ignore` and `lb-sprint`, and claim locks are `refs/lb-claims/`. The board CLI is `.lunabee/board/lb-backlog`. The hooks caller is `.github/workflows/lunabee-board.yml`, named "Lunabee board". It is now caller template version 17 on the new `hooks-v3` tag, and the board contract is 3.0.
@@ -13,17 +17,12 @@ All notable changes to whackagent are listed here, newest first. The format foll
   - The backlog script refuses to run while an old `WA_*` setting has no `LB_*` twin. Callers at version 16 keep the frozen `hooks-v2`, and agent rounds stop until you upgrade.
   - `/wa-setup` reconfigure does the whole rename: it asks you to set the same token again as `LB_PROJECT_TOKEN` (secrets can't be read), copies the variables, and opens the board PR. Right after the merge, it renames the labels, claim refs and open PR markers, then deletes the old names.
 - Comments in config, task, backlog and wiki templates, and the convention module headers, name steps (code step, verifier) instead of `/wa-*` commands and `wa-*` agents. Migration 0004 rewords them in existing projects.
+- On a Plane board, `wa-backlog` refuses to run without `LB_TASKS_PATH` and `LB_BRANCH_PREFIX`. New Plane setups write them, and `/wa-setup` reconfigure offers to set them from your config.
+- Test branches and PR markers of the old names are renamed by `/wa-setup` (migration 0005 for local branches and local-provider PRs, the *Lunabee names* step for board PRs). Skills stop and point to `/wa-setup` when they meet an old test branch, PR marker or hooks caller name.
 
 ### Removed
 
 - **Breaking:** the move of a Plane board set up before 2.0.0 (whackagent's own Plane provider, `WA_PLANE_*` variables) onto lb-board. Live Plane boards must already run on lb-board.
-
-## [4.0.0] - 2026-11-16
-
-### Changed
-
-- **Breaking:** new projects keep everything in `.lunabee/agents/` instead of `.whackagent/`: `/wa-setup` writes `.lunabee/agents/config.md`, and missing `paths:` keys default to `.lunabee/agents/BACKLOG.md`, `.lunabee/agents/tasks`, `.lunabee/agents/wiki`, `.lunabee/agents/reports` and `.lunabee/agents/conventions`. A project set up before keeps working from `.whackagent/config.md` with its old defaults; `/wa-setup` offers to move it into `.lunabee/agents/` (migration 0003; under a GitHub or Plane board the tasks folder stays where it is, since ticket branches and the board files name it).
-- **Breaking:** the default task branch prefix is now `feature/` instead of `wa/` (`branch.prefix`, and the hooks caller's `branches:` filter for new GitHub boards). Configs that already set `branch.prefix` are unchanged; moving an old project to `.lunabee/agents/` pins `wa/` when the key was missing.
 
 ## [3.4.0] - 2026-11-12
 
