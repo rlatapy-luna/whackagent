@@ -395,9 +395,7 @@ Set `backlog.provider: plane` and the board lives in a project on Lunabee's Plan
 
 **Setup.** `/wa-setup` runs `/lb-board-setup` (it adopts the Plane project, writes the `PLANE_*` repository variables, opens a setup PR with `.lunabee/board/lb-board` and `.lunabee/board/BOARD.md`, and has the repository added to the App) with `{tasks}` as the spec path, then commits whackagent's scaffold onto the same PR. A task file pushed on the ticket branch moves the card to Grilled, a PR to Review, a merge to Done, as on GitHub; `.lunabee/board/BOARD.md` has the rules, and `.lunabee/board/lb-board check` reports drift.
 
-**Boards set up before 2.0.0** (whackagent's own Plane provider) move with `/wa-setup`'s *Plane board → lb-board* step: same project, same columns (adopted by id), labels renamed (`wa-ignore`, `wa-sprint` → `lb-ignore`, `lb-sprint`), one PR swapping `.github/board/wa-backlog` for lb-board.
-
-Not available: moving a local file backlog or a GitHub board to Plane (`wa-backlog migrate` was removed in 2.0.0), and the Plane board outside Lunabee.
+Not available: moving a local file backlog or a GitHub board to Plane, a Plane board set up before 2.0.0 on whackagent's own Plane provider (live boards run on lb-board), and the Plane board outside Lunabee.
 
 ## File tree created in your project
 

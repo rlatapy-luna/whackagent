@@ -17,7 +17,7 @@ Claude Code plugin that runs a dev workflow (backlog, wiki, task lifecycle) in t
 - `README.md`: public doc on GitHub. No agent reads it.
 - `WORKFLOW.md`: public workflow cheat sheet, telegraphic notes plus mermaid diagrams (board states, turns, landing cases, commands, hook events, the Plane board's differences). No agent reads it; keep it in sync with `BOARD.md`, the hooks and the skills' GitHub provider sections.
 - `GITHUB.md`: public walkthrough of the GitHub provider across the whole workflow. No agent reads it; keep it in sync when a skill's GitHub provider section changes.
-- `PLANE.md`: public pointer for the Plane board (lb-board, setup, moving a pre-2.0 board). No agent reads it; keep it in sync with `reference/board-plane.md` and `/wa-setup`'s Plane sections.
+- `PLANE.md`: public pointer for the Plane board (lb-board, setup). No agent reads it; keep it in sync with `reference/board-plane.md` and `/wa-setup`'s Plane sections.
 - `CHANGELOG.md`: public release notes, Keep a Changelog format, newest first. No agent reads it.
 
 ## Task lifecycle

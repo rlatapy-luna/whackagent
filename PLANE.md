@@ -27,18 +27,10 @@ pane. Its `wa-backlog` forwards every board verb to the repository's `.lunabee/b
 
 The repository's rules are in `.lunabee/board/BOARD.md`, written by lb-board.
 
-## A board set up before 2.0.0
-
-A board set up before 2.0.0 ran on whackagent's own Plane provider: `.github/board/wa-backlog` and the `WA_PLANE_*`
-variables. `/wa-setup` offers *Plane board → lb-board*, which works like this:
-- **Project:** it adopts the same project and the same columns, by id.
-- **Labels:** `wa-ignore` and `wa-sprint` are renamed to `lb-ignore` and `lb-sprint`.
-- **PR:** one PR swaps the vendored script and the board contract.
-- **Claims:** it needs no live claim. Claims move from `refs/wa-claims/` to `refs/lb-claims/`.
-
 ## Not available
 
-- Moving a local backlog or a GitHub board to Plane. `wa-backlog migrate` was removed in 2.0.0.
+- Moving a local backlog or a GitHub board to Plane.
+- A Plane board set up before 2.0.0 on whackagent's own Plane provider: live boards run on lb-board.
 - A Plane board outside Lunabee.
 - The Actions hooks mode and its self-hosted runner.
 
