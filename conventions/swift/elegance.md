@@ -1,6 +1,6 @@
 # Swift — Elegance (idiomatic Swift)
 
-> whackagent convention module · lens: **elegance**. The "real Swift, not C written in Swift" gate.
+> Convention module · lens: **elegance**. The "real Swift, not C written in Swift" gate.
 
 ## Code speaks for itself
 

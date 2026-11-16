@@ -17,12 +17,12 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 
 ## Do
 
-1. **Resolve task.** Slug or display index, per **reference/display.md → Task indexes**; echo what resolved. No arg → most recent `validated`. Name session per **reference/session-name.md**. Arg names sprint, no task (**reference/sprints.md**, *Resolving a name*; GitHub: open `wa-sprint` parent, kebab title) → *Sprint arg* below instead. Read `.lunabee/agents/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **reference/paths.md**.
+1. **Resolve task.** Slug or display index, per **reference/display.md → Task indexes**; echo what resolved. No arg → most recent `validated`. Name session per **reference/session-name.md**. Arg names sprint, no task (**reference/sprints.md**, *Resolving a name*; GitHub: open `lb-sprint` parent, kebab title) → *Sprint arg* below instead. Read `.lunabee/agents/config.md` + `{tasks}/<slug>.md` — `{…}` paths per **reference/paths.md**.
    - `status: validated` → normal path, continue.
    - `status: review` → **never reviewed.** Say so, send to `/wa-validate <slug>`, stop. Closing here close unreviewed code.
    - `status: in-progress` → not coded. Stop.
    - `status: done` / `canceled` → already closed. Say what branch did, stop.
-   - Started on `wa-test/` branch → **reference/test-branch.md**, *Leaving it*: never close or merge from it.
+   - Started on `lb-test/` branch → **reference/test-branch.md**, *Leaving it*: never close or merge from it.
 2. **Check nothing moved** since review round — `git diff` against state `## Review` recorded. Code changed → say what, send back to `/wa-validate` for delta. Review only worth tree it read.
 2b. **Sync wiki — always, before plan.** Run **`/wa-wiki`** update mode scoped to this task (its diff + task file, `wiki:` pages it flagged), on task branch. Wiki pages edited → listed in plan block, committed **with task** in step 4 (one commit, one PR — wiki never lands separately or later). Nothing to update → say `wiki: nothing to sync`. Wiki edits don't count as "code moved" for step 2: docs, not reviewed code.
 3. **Show landing plan, get yes.** One block, before touching git — see *Plan block*. Only confirmation command ask; everything after run without more prompting.
@@ -79,7 +79,7 @@ commit    : 2 uncommitted files + 2 wiki pages → commit (Jane Doe)
 sprint    : merge feature/login-apple → sprint/login-refacto
 branch    : feature/login-apple deleted (merged)
 worktree  : ../<repo>-worktrees/login-apple removed
-test      : wa-test/sprint-login-refacto rebuilt — login-layout · login-errors
+test      : lb-test/sprint-login-refacto rebuilt — login-layout · login-errors
 after     : 🏁 login-refacto — 3/5
 
 ok? [y/n]
@@ -139,7 +139,7 @@ Rules:
    - **Draft** (opened by hand, or earlier round) → refresh body (**reference/pull-requests.md**, *Refresh*), base differs → `gh pr edit <pr> --base <base>`, then `gh pr ready <pr>` + `pr.reviewers` requested. Draft = your test, ready = review.
    - **Ready already** → refresh body only, base fixed same way.
    - **None** → `gh pr create --base <base> --head <branch>`, **not** `--draft`: title, body, labels, assignees, reviewers at creation per **reference/pull-requests.md**.
-3. Status line in whackagent block: `Ready — validated. Review, then merge.` Print URL.
+3. Status line in agents block: `Ready — validated. Review, then merge.` Print URL.
 4. **Never merge it** — no `gh pr merge`, no local merge of that branch into base. Merge = human's, on GitHub.
 5. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
 
@@ -184,7 +184,7 @@ Last task of sprint reach `done` — no task of that sprint left in `todo`, `in-
    ```
    Lands by **merge commit, never squash** (**reference/sprints.md**): PR body says so, `merge` strategy uses `--no-ff`. GitHub provider → offer merging sprint PR (`gh pr merge <pr> --merge`), own yes, only when GitHub step 2 checks already pass; local `pr` strategy → only when user asks.
 3. **Only on yes.** No is a normal answer — the branch stays, the sprint stays complete, nothing is lost. Never fold this into the task's own confirmation at step 3: two different things landing, two yeses.
-4. Sprint branch merged or PR'd → `delete_branch` applies to it the same way it applies to a task branch. Its test branch `wa-test/<sprint branch>` → deleted whatever the answer: no task of it left to test.
+4. Sprint branch merged or PR'd → `delete_branch` applies to it the same way it applies to a task branch. Its test branch `lb-test/<sprint branch>` → deleted whatever the answer: no task of it left to test.
 
 A sprint is never `done` as a thing — there's no sprint status to set. It's complete when its tasks are, and this step is the only place that notices.
 
@@ -200,7 +200,7 @@ A sprint is never `done` as a thing — there's no sprint status to set. It's co
 - Never close a task the verifier never saw (`review` → `/wa-validate` first).
 - Never merge, push, open a PR, mark one ready or delete a branch without the confirmed plan block.
 - Never merge a PR the confirmed plan block didn't name. Never `--admin`, never bypass branch protection. Local `close.strategy: pr` → PR never merged, branch never merged locally (sprint PR only when user asks).
-- Never plain force-push, never rewrite a shared branch, never touch a branch that isn't this task's, its sprint's or their `wa-test/` one. Only exception: `--force-with-lease` on this ticket's own branch after ticket-range rebase (*GitHub provider* step 4).
+- Never plain force-push, never rewrite a shared branch, never touch a branch that isn't this task's, its sprint's or their `lb-test/` one. Only exception: `--force-with-lease` on this ticket's own branch after ticket-range rebase (*GitHub provider* step 4).
 - Never delete a branch whose work isn't somewhere else.
 - Never commit as Claude.
 - Never write to a literal `.lunabee/agents/` path when the config's `paths:` points elsewhere.

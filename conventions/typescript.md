@@ -1,6 +1,6 @@
 # Conventions — TypeScript
 
-> whackagent convention module · single file, front end and back end. Read by `wa-verifier`; `wa-implementer` writes against it. Edit the **Toggles** block per project.
+> Convention module · single file, front end and back end. Read by the verifier; the implementer writes against it. Edit the **Toggles** block per project.
 
 ## Toggles
 

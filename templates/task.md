@@ -11,14 +11,14 @@ type:                   # OPTIONAL feature | improvement | bug | refactor — co
                         # Empty = inferred as before. See reference/task-types.md. GitHub: kept here too.
 sprint:                 # OPTIONAL kebab-case label group big work ("login-refacto").
                         # Empty = standalone task. Sprint exist because task name it —
-                        # no sprint file, no create command. See /wa-task → Sprints.
+                        # no sprint file, no create command. See task step → Sprints.
 milestone:              # release scope. Set at creation = highest open (version order of backlog.milestones).
                         # Not sprint. See reference/milestones.md.
 status: todo            # todo | in-progress | review | validated | done | canceled
                         #   review    = coded, wait YOU test it
                         #   validated = you say match spec, verifier ran, wait your retest
-                        #   done       = retested + closed by /wa-close
-grilled: false          # true once clarified via /wa-grill (grill-me)
+                        #   done       = retested + closed by close step
+grilled: false          # true once clarified via grill (grill-me)
 wiki:                   # [[page]] refs, comma-separated
 note:                   # free-form trigger / context (optional, not auto-evaluated)
 blocked_by:             # OPTIONAL [slug, …] — tasks whose code must land first. Written by `depend`.
@@ -30,32 +30,32 @@ created:                # YYYY-MM-DD
 
 ## Context / Decisions
 
-<!-- /wa-task: user idea or spec excerpt. /wa-grill: what, why, scope (YAGNI), decisions
+<!-- task step: user idea or spec excerpt. grill: what, why, scope (YAGNI), decisions
      resolved in grill, starting from that. -->
 
 ## Acceptance criteria
 
-<!-- Fill by /wa-grill. Observable checks mean "done" — each one thing you see
-     on screen or state input must produce. wa-implementer drives these on device
-     when verify.mode puts runtime proof on agent; wa-verifier checks diff meets them. -->
+<!-- Fill by grill. Observable checks mean "done" — each one thing you see
+     on screen or state input must produce. implementer drives these on device
+     when verify.mode puts runtime proof on agent; verifier checks diff meets them. -->
 
 ## Implementation
 
-<!-- Fill by /wa-code. Approach, files touched, build proof, notes from wa-implementer. -->
+<!-- Fill by code step. Approach, files touched, build proof, notes from implementer. -->
 
 ## Review
 
-<!-- Fill by /wa-validate (and /wa-code when review.when: each_round). Findings tagged by
+<!-- Fill by validate step (and code step when review.when: each_round). Findings tagged by
      lens (style / elegance / structure / correctness) + what autofix changed, one block per
      round. Findings the fixer rejected: withdrawn or disputed, with evidence. -->
 
 ## Verification
 
-<!-- Fill by /wa-code and /wa-feedback. wa-implementer runtime CHECKS (✅/❌) + screenshot paths per
+<!-- Fill by code step and feedback step. implementer runtime CHECKS (✅/❌) + screenshot paths per
      criterion, or "manual validation — not run by agent" when verify.mode leaves the run to you. -->
 
 ## Feedback
 
-<!-- Fill by /wa-feedback, one `### Round <n> — YYYY-MM-DD` block per round: what you asked (your words), triage
+<!-- Fill by feedback step, one `### Round <n> — YYYY-MM-DD` block per round: what you asked (your words), triage
      (defect / adjustment / new scope / rule), what changed, review + verify verdicts,
      any rule promoted into convention module. Rounds append, never overwrite. -->

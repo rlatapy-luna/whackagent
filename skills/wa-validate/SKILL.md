@@ -25,7 +25,7 @@ Review every round burn one verifier per note, review code about to change anywa
    - `status: in-progress` → code not finished. Say so, don't review half-task.
    - `status: validated` → already reviewed. Code moved since → re-review delta; untouched → nothing to do, closing is **`/wa-close <slug>`**.
    - `status: done` / `canceled` → nothing to do.
-2. **Be on right branch.** `branch.per_task` or `/wa-autopilot` delivery → work live on `<branch.prefix><slug>`. Not here → say which branch, switch **only after user confirms** (their tree may be dirty). On `wa-test/` branch → **reference/test-branch.md**, *Leaving it*. `branch.worktree: true` → no switch: review in task worktree, recreated from branch if gone (**reference/worktrees.md**).
+2. **Be on right branch.** `branch.per_task` or `/wa-autopilot` delivery → work live on `<branch.prefix><slug>`. Not here → say which branch, switch **only after user confirms** (their tree may be dirty). On `lb-test/` branch → **reference/test-branch.md**, *Leaving it*. `branch.worktree: true` → no switch: review in task worktree, recreated from branch if gone (**reference/worktrees.md**).
 3. **State what you take as validated** — the `## Acceptance criteria`, listed back in one block. Criterion they know unmet means they wanted `/wa-feedback`, not this: say so and stop rather than review feature still being finished.
 4. **Run project tools** — `tools` entries whose `when` holds `validation`, each `run` as given, whole project, here in main thread (verifier read-only). Failures in diff files → `tool:<name>` findings, severity `major`. Failures in files diff never touched → pre-existing: one line in report, never findings, never fixed. No such entry → skip, echo nothing.
    - **Open build warnings** — always, tools or not. New warnings rounds left open (`WARNINGS:` lines in `## Implementation` and `## Feedback`, not fixed by later round, not accepted in `## Review`) → `tool:build` findings, severity `minor`, same path as tool findings. Verifier never builds: these lines only warnings record.
@@ -77,7 +77,7 @@ Report (step 10) names PR + state. Hand-back: clean → `Ready #42 — test, the
 
 - Never mark task `done` — that's `/wa-close`, after user retests reviewed code.
 - Never review task user hasn't validated: without their yes, you review feature still moving. Only exception: `/wa-autopilot`, where its green runtime check is the yes.
-- Never commit, merge, push, open PR or delete branch — **git belong to `/wa-close`**. Test branch rebuild aside (throwaway `wa-test/` branch, step 10). GitHub provider exception: round-end commit, ticket-range rebase, push to ticket PR, mark it ready when clean or back to draft when findings open (above) — never merge.
+- Never commit, merge, push, open PR or delete branch — **git belong to `/wa-close`**. Test branch rebuild aside (throwaway `lb-test/` branch, step 10). GitHub provider exception: round-end commit, ticket-range rebase, push to ticket PR, mark it ready when clean or back to draft when findings open (above) — never merge.
 - Never write code yourself — findings go to implementer, same as `/wa-code`.
 
 ## Asking

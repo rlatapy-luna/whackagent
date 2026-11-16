@@ -5,7 +5,7 @@ Ticket from idea to merged code. Who moves it, what board shows, what you do nex
 - **Board state** — six contract states, GitHub Project `Status` column (`backlog.provider: github`) or Plane card column (`plane`, on lb-board: [Plane board](#plane-board)). Rules: project's `BOARD.md`.
 - **Task phase (whackagent only)** — `phase:` field of whackagent's task file `{tasks}/<n>-<slug>.md`, committed on ticket branch: `in-progress` → `review` → `validated`. Says how far whackagent loop got inside one board state (verifier run or not). Board never shows it. Dev without whackagent: no task file, no phase — PR draft / ready tells same story.
 
-Matches board contract 2.5, hooks `hooks-v2`: GitHub caller template version 16, Plane caller template version 1. Sections below describe GitHub board; [Plane board](#plane-board) lists what differs.
+Matches board contract 3.0, hooks `hooks-v3`: GitHub caller template version 17. Sections below describe GitHub board; [Plane board](#plane-board) lists what differs.
 
 ## Big picture
 
@@ -103,7 +103,7 @@ flowchart LR
 | draft PR | `review` | you test |
 | ready PR | `review` | you merge |
 
-- Claim held, no push for `WA_STALE_AFTER_HOURS` (default 24) → board check comments on ticket. Only human clears stale lock.
+- Claim held, no push for `LB_STALE_AFTER_HOURS` (default 24) → board check comments on ticket. Only human clears stale lock.
 - PR → ticket = the one issue it links (Development link or `Closes #n`), branch name `feature/<n>-…` as fallback. Any branch name works.
 - **Human decides every merge.** GitHub button, or agent asked to merge that PR: ready, checks green, reviews in, squash, never `--admin`.
 
@@ -131,7 +131,7 @@ Every command touching ticket branch after grilling runs same round:
 sequenceDiagram
     autonumber
     participant A as Agent
-    participant C as Claim ref<br/>refs/wa-claims/n/coding
+    participant C as Claim ref<br/>refs/lb-claims/n/coding
     participant G as GitHub<br/>branch + PR
     participant H as Board hook
     participant B as Project board
@@ -215,7 +215,7 @@ stateDiagram-v2
 
 ```mermaid
 flowchart LR
-    base["base<br/>sprint/login-refacto"] --> test["wa-test/sprint-login-refacto<br/>local, throwaway"]
+    base["base<br/>sprint/login-refacto"] --> test["lb-test/sprint-login-refacto<br/>local, throwaway"]
     a["feature/login-apple<br/>review"] -->|merge --no-ff| test
     b["feature/login-layout<br/>validated"] -->|merge --no-ff| test
     c["feature/login-errors<br/>conflicts"] -.->|skipped, logged| test
@@ -223,7 +223,7 @@ flowchart LR
 
 - Takes tasks in `review` / `validated` with commits on their branch. ≥ 2 → built; fewer → test the task branch.
 - Rebuilt from base after `/wa-code`, `/wa-feedback`, `/wa-validate`, end of `/wa-autopilot`. `/wa-close` rebuilds without the closed task, deletes it under 2.
-- Worktree mode → own worktree `../<repo>-worktrees/wa-test-<base>`. Else a branch ref, checked out only at the end of attended `/wa-code`, `/wa-feedback`, `/wa-validate`, on a clean tree. `/wa-autopilot` and `/wa-close` never check it out.
+- Worktree mode → own worktree `../<repo>-worktrees/lb-test-<base>`. Else a branch ref, checked out only at the end of attended `/wa-code`, `/wa-feedback`, `/wa-validate`, on a clean tree. `/wa-autopilot` and `/wa-close` never check it out.
 - Conflict → task left out, never resolved there. Never pushed, PR'd, landed or forked from. Hooks never see it.
 - Report 📍 line = where to test: branch you're on, worktree, or test branch.
 
@@ -231,7 +231,7 @@ flowchart LR
 
 | Event | Condition | Result |
 | --- | --- | --- |
-| `issues: opened` | no `wa-ignore` / `wa-sprint` label | card added, `todo` |
+| `issues: opened` | no `lb-ignore` / `lb-sprint` label | card added, `todo` |
 | `issues: edited` | body holds non-empty `## Acceptance criteria`, card `todo` / `grilling`, editor can push | `grilled`, grilling claim dropped. Editor can't push → reported, card stays |
 | `push` to `feature/**` | task file `issue: <n>` with non-empty criteria, card `todo` / `grilling` | `grilled`, grilling claim dropped |
 | `pull_request: opened` / `reopened` | links one ticket of this repo, not a sprint PR, not `done` | `review`, claims dropped, Development link added if missing, dev assigned if none; card watched ~30 s against built-in workflow |
@@ -250,12 +250,12 @@ Dev assigned if none = issue has no assignee → event sender, else PR author; h
 
 ## Board check
 
-Once a day on weekdays (06:17 UTC), or by hand: `gh workflow run whackagent-board.yml`. **Reports, never moves cards.** One comment per problem, flipped to resolved once fixed.
+Once a day on weekdays (06:17 UTC), or by hand: `gh workflow run lunabee-board.yml`. **Reports, never moves cards.** One comment per problem, flipped to resolved once fixed.
 
 On ticket:
 
 - `grilling` / `coding` card, no claim held
-- claim held, nothing new for `WA_STALE_AFTER_HOURS` (age = newer of claim and branch's last commit)
+- claim held, nothing new for `LB_STALE_AFTER_HOURS` (age = newer of claim and branch's last commit)
 - `review` card, no open PR
 - linked PR open, card `todo` / `grilled`
 - linked PR merged, card not `done`
@@ -279,11 +279,11 @@ Same six states, same claims, same rounds, same merge as above. Differences:
 | State | Project `Status` | card column, six states + `Canceled` |
 | Spec | task file pushed, or criteria in issue body | task file pushed (`PLANE_SPECS_PATH` = `{tasks}`) **only**. Criteria in card description move nothing |
 | PR → ticket | Development link / `Closes #n`, branch fallback | key anywhere in head branch, else in PR title, else the one card link in PR body. Never `Closes` |
-| Claims | `refs/wa-claims/<id>/<phase>` | `refs/lb-claims/<id>/<phase>` |
+| Claims | `refs/lb-claims/<id>/<phase>` | `refs/lb-claims/<id>/<phase>` |
 | Size | Project `Size` | none |
 | Sprint | parent issue + sub-issues | parent card `lb-sprint` + children, mirrored by cycle of same name |
 | Milestone | GitHub milestone | Plane module |
-| Hooks | `board.yml`, GitHub-hosted runner, `WA_PROJECT_TOKEN` | `lb-board hook`, run by Lunabee Plane board GitHub App's receiver. No runner, no caller |
+| Hooks | `board.yml`, GitHub-hosted runner, `LB_PROJECT_TOKEN` | `lb-board hook`, run by Lunabee Plane board GitHub App's receiver. No runner, no caller |
 | Hooks events | `issues`, `push`, `pull_request`, schedule | `push`, `pull_request`. Plane edits fire nothing. Board check = `lb-board check`, by hand |
 
 Hook rules: lb-board's (`.lunabee/board/BOARD.md`) — task file pushed → `grilled`; PR opened / round pushed with coding claim → `review` (+ `## Feedback` rounds linked); merged → `done` (run report on card, assignees removed, sprint landing); closed unmerged → `grilled` (task file on head) else `todo`. Push without claim: nothing (no PR comment). Card not moved → receiver's delivery log (https://hooks.lunabee.ovh/), never move card by hand.

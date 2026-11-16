@@ -4,6 +4,16 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** whackagent writes only Lunabee names into your project, so teammates who don't run it see only Lunabee tooling. The plugin, its commands and its agents keep their names. On a GitHub or Plane board:
+  - Repository settings are `LB_*` instead of `WA_*` (`LB_PROJECT_NUMBER`, `LB_BRANCH_PREFIX`, `LB_TASKS_PATH`, …). The hooks secret is `LB_PROJECT_TOKEN`, and the agent id override is `LB_AGENT`.
+  - On a GitHub board, labels are `lb-ignore` and `lb-sprint`, and claim locks are `refs/lb-claims/`. The board CLI is `.lunabee/board/lb-backlog`. The hooks caller is `.github/workflows/lunabee-board.yml`, named "Lunabee board". It is now caller template version 17 on the new `hooks-v3` tag, and the board contract is 3.0.
+  - PR sections are `<!-- lb-agents -->`, `<!-- lb-report -->` and `<!-- lb-screenshots -->`, and PR replies are signed `_— <AI tool> · lb-agents_`. The test and track sync branches are `lb-test/` and `lb-sync/`.
+  - The backlog script refuses to run while an old `WA_*` setting has no `LB_*` twin. Callers at version 16 keep the frozen `hooks-v2`, and agent rounds stop until you upgrade.
+  - `/wa-setup` reconfigure does the whole rename: it asks you to set the same token again as `LB_PROJECT_TOKEN` (secrets can't be read), copies the variables, and opens the board PR. Right after the merge, it renames the labels, claim refs and open PR markers, then deletes the old names.
+- Comments in config, task, backlog and wiki templates, and the convention module headers, name steps (code step, verifier) instead of `/wa-*` commands and `wa-*` agents. Migration 0004 rewords them in existing projects.
+
 ### Removed
 
 - **Breaking:** the move of a Plane board set up before 2.0.0 (whackagent's own Plane provider, `WA_PLANE_*` variables) onto lb-board. Live Plane boards must already run on lb-board.

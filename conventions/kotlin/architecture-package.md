@@ -1,6 +1,6 @@
 # Kotlin — Architecture (package / non-app)
 
-> whackagent convention module · lens: **structure**. JVM server / library / CLI: module + package rules. Pair with `architecture-global.md` (platform-agnostic principles). Freer than app — not free-for-all.
+> Convention module · lens: **structure**. JVM server / library / CLI: module + package rules. Pair with `architecture-global.md` (platform-agnostic principles). Freer than app — not free-for-all.
 
 No UI-layer mandate here (app-only). Surviving discipline:
 

@@ -1,6 +1,6 @@
 # Conventions — Generic
 
-> whackagent convention module · language-agnostic fallback for any language without its own pack (Rust, Go, Python, C#, Java, Dart, …). Read by `wa-verifier`, written against by `wa-implementer`. Replace or extend with the project's real conventions.
+> Convention module · language-agnostic fallback for any language without its own pack (Rust, Go, Python, C#, Java, Dart, …). Read by the verifier, written against by the implementer. Replace or extend with the project's real conventions.
 
 ## Toggles
 

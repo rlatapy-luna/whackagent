@@ -1,6 +1,6 @@
 # Kotlin — Architecture (Android / KMP app)
 
-> whackagent convention module · lens: **structure**. Android or Kotlin Multiplatform app: layers + file tree. Pairs with `architecture-global.md` (platform-agnostic principles). Base: Google's recommended app architecture.
+> Convention module · lens: **structure**. Android or Kotlin Multiplatform app: layers + file tree. Pairs with `architecture-global.md` (platform-agnostic principles). Base: Google's recommended app architecture.
 
 **Project already has a screen pattern** (MVVM, MVI, presenter/reducer library, …) → follow it exactly; this file only fills gaps. Never mix a second pattern into one project.
 

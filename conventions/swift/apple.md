@@ -1,8 +1,8 @@
 # Swift — Apple references
 
-> whackagent convention module · lens: **correctness**, **elegance** (see *Reviewing*). Present only when `/wa-setup` exported Xcode's own skill pages into `apple/`, next to this file.
+> Convention module · lens: **correctness**, **elegance** (see *Reviewing*). Present only when setup exported Xcode's own skill pages into `apple/`, next to this file.
 
-Apple-written guidance, exported from installed Xcode (`xcrun agent skills export`, Xcode 27+). Lives in `apple/<skill>/`: one `SKILL.md` index + `references/*.md`. Reference library, not rules. Not written by this project, never edited by hand — `/wa-setup` replaces folder whole after Xcode update.
+Apple-written guidance, exported from installed Xcode (`xcrun agent skills export`, Xcode 27+). Lives in `apple/<skill>/`: one `SKILL.md` index + `references/*.md`. Reference library, not rules. Not written by this project, never edited by hand — setup replaces folder whole after Xcode update.
 
 `apple/` absent (gitignored, teammate without Xcode 27) → this module points at nothing: skip it.
 

@@ -242,7 +242,7 @@ async function loadGithub($: EngineInterface, at: Checkout, config: WaConfig, is
     ),
     ticketRefs($, at, config.branchPrefix),
     isGithubBoard
-      ? runJson($, ['gh', 'issue', 'list', '--label', 'wa-sprint', '--state', 'open', '--json', 'number,title,milestone', '--limit', '100'], at.root, 'gh issue list').catch(
+      ? runJson($, ['gh', 'issue', 'list', '--label', 'lb-sprint', '--state', 'open', '--json', 'number,title,milestone', '--limit', '100'], at.root, 'gh issue list').catch(
           () => [],
         )
       : [],
