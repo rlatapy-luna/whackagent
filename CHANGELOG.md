@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-18
+
 ### Changed
 
 - The session is renamed after its ticket as soon as it claims one (`grilling` or `coding`), even when the agent skips the rename: `shop · #12 Login Apple`, title from the board. A claim made by calling `.lunabee/board/lb-backlog` or `.lunabee/board/lb-board` directly counts too, and a `coding` claim made that way now also starts the review watch (`review_feedback`). A session that already has a name keeps it, and the task command's own rename still wins.
