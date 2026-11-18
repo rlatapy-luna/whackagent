@@ -14,7 +14,7 @@ import {
   branchTaskId,
   parseWorktrees,
   bricksComment,
-  claimedTicket,
+  claimOf,
   bareReviews,
   feedbackReviews,
   githubFocusView,
@@ -796,13 +796,18 @@ const review = (id: string, login: string, state: string, body = '', comments?: 
 const SIGNED = 'Fixed in abc1234.\n\n_— Claude · lb-agents_'
 const SIGNED_BEFORE = 'Fixed in abc1234.\n\n_— Claude · whackagent_'
 
-test('a coding claim names its ticket, any other command none', async () => {
-  expect(claimedTicket('python3 "$CLAUDE_PLUGIN_ROOT/providers/github/wa-backlog" claim 12 coding --blocked-ok')).toBe('#12')
-  expect(claimedTicket("providers/github/wa-backlog claim '#12' coding")).toBe('#12')
-  expect(claimedTicket('wa-backlog claim WA-42 coding')).toBe('WA-42')
-  expect(claimedTicket('wa-backlog claim 12 grilling')).toBe('')
-  expect(claimedTicket('wa-backlog release 12 coding --reset-to review')).toBe('')
-  expect(claimedTicket('wa-backlog claim wa-42 coding')).toBe('')
+test('a claim names its ticket and phase, any other command none', async () => {
+  expect(claimOf('python3 "$CLAUDE_PLUGIN_ROOT/providers/github/wa-backlog" claim 12 coding --blocked-ok')).toEqual({ id: '#12', phase: 'coding' })
+  expect(claimOf("providers/github/wa-backlog claim '#12' coding")).toEqual({ id: '#12', phase: 'coding' })
+  expect(claimOf('wa-backlog claim WA-42 coding')).toEqual({ id: 'WA-42', phase: 'coding' })
+  expect(claimOf('wa-backlog claim 12 grilling')).toEqual({ id: '#12', phase: 'grilling' })
+  expect(claimOf('.lunabee/board/lb-backlog claim 12 coding')).toEqual({ id: '#12', phase: 'coding' })
+  expect(claimOf('.lunabee/board/lb-board claim WA-42 grilling')).toEqual({ id: 'WA-42', phase: 'grilling' })
+  expect(claimOf('"./.lunabee/board/lb-board" claim WA-42 coding --blocked-ok')).toEqual({ id: 'WA-42', phase: 'coding' })
+  expect(claimOf('wa-backlog release 12 coding --reset-to review')).toBeUndefined()
+  expect(claimOf('wa-backlog claim wa-42 coding')).toBeUndefined()
+  expect(claimOf('wa-backlog claim 12 review')).toBeUndefined()
+  expect(claimOf('lb-board claims')).toBeUndefined()
 })
 
 test('feedback reviews: not seen, asking for something, own ones included', async () => {

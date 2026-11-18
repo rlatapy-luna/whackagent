@@ -963,14 +963,18 @@ export type PrReview = { id: string; author: { login: string } | null; state: st
 export type ReviewedPull = { number: number; headRefName: string; url: string; reviews: PrReview[] }
 export type ReviewNews = { id: string; pr: number; reviewers: string[] }
 
-const CLAIM_CODING = /wa-backlog["']?\s+claim\s+["']?#?([A-Za-z0-9-]+)["']?\s+coding\b/
+// Board CLIs: the plugin's wa-backlog, its project copy lb-backlog, and lb-board, which wa-backlog forwards to on Plane
+const CLAIM = /(?:wa-backlog|lb-backlog|lb-board)["']?\s+claim\s+["']?#?([A-Za-z0-9-]+)["']?\s+(grilling|coding)\b/
 // lb-agents since the Lunabee names; whackagent on replies posted before
 const AGENT_SIGNATURE = /·\s*(?:lb-agents|whackagent)_$/
 
-/** Ticket a Bash command claims `coding` on through `wa-backlog`, as the board labels it (#12, WA-42); '' for any other command. */
-export function claimedTicket(command: string): string {
-  const raw = command.match(CLAIM_CODING)?.[1] ?? ''
-  return /^\d+$/.test(raw) || BOARD_KEY.test(raw) ? ticketLabel(toTicketId(raw)) : ''
+export type Claim = { id: string; phase: 'grilling' | 'coding' }
+
+/** Ticket and phase a Bash command claims through a board CLI, the ticket as the board labels it (#12, WA-42); undefined for any other command. */
+export function claimOf(command: string): Claim | undefined {
+  const [, raw = '', phase] = command.match(CLAIM) ?? []
+  if (!(/^\d+$/.test(raw) || BOARD_KEY.test(raw))) return undefined
+  return { id: ticketLabel(toTicketId(raw)), phase: phase === 'coding' ? 'coding' : 'grilling' }
 }
 
 const pullOf = (pulls: readonly ReviewedPull[], id: string, prefix: string) =>

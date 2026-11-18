@@ -257,7 +257,7 @@ test('the next command an answer ends on becomes the prompt suggestion, over the
 
 const NAME_TOOL = 'mcp__whackagent__name_session'
 
-function nameSessionHooks(on: Parameters<TestBody>[1], registered: string[], renamed: string[]) {
+function nameSessionHooks(on: Parameters<TestBody>[1], registered: string[], renamed: string[], rows: unknown[] = []) {
   on('session.root', () => ({ value: '/work/shop' }))
   on('session.start', () => ({ cwd: '/work/shop' }))
   on('command.register', () => ({ value: { command: 'wa-pane' } }))
@@ -273,9 +273,19 @@ function nameSessionHooks(on: Parameters<TestBody>[1], registered: string[], ren
   on('fs.list', () => ({ value: [] }))
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   on('process.run', ($, e) => {
-    const stdout = e.argv.includes('--git-common-dir') ? '/work/shop/.git\n' : ''
+    const command = e.argv.join(' ')
+    const stdout = e.argv.includes('--git-common-dir')
+      ? '/work/shop/.git\n'
+      : command.includes('wa-backlog list')
+        ? JSON.stringify(rows)
+        : command.includes('wa-backlog milestones') || command.startsWith('gh ')
+          ? '[]'
+          : ''
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
+  on('tool.call', { tool: 'Bash' }, ($, e) =>
+    String(e.command).includes('fails') ? { result: { stdout: '', stderr: 'claim lost' }, isError: true } : { result: { stdout: '{}', stderr: '' } },
+  )
 }
 
 test('name_session renames the session after its tasks, once per name', async ($, on) => {
@@ -303,4 +313,52 @@ test('name_session is not offered when the option is off', { options: { rename_s
 
   await $.session.start({ cwd: '/work/shop', surface: 'terminal', isInteractive: true })
   expect(registered).toEqual([])
+})
+
+test('a claim renames an unnamed session after its ticket, board title, any board CLI', async ($, on) => {
+  const clock = mock.clock(on)
+  const renamed: string[] = []
+  nameSessionHooks(on, [], renamed, ROWS)
+
+  await $.session.start({ cwd: '/work/shop', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Bash', command: 'python3 "$CLAUDE_PLUGIN_ROOT/providers/github/wa-backlog" claim 12 coding' })
+  await clock.settle()
+  await clock.advance(10)
+  expect(renamed).toEqual(['/rename shop · #12 Login'])
+  await $.tool.call({ tool: 'Bash', command: '.lunabee/board/lb-board claim 13 coding' })
+  await clock.settle()
+  await clock.advance(10)
+  expect(renamed).toEqual(['/rename shop · #12 Login'])
+  await $.tool.call({ tool: NAME_TOOL, tasks: [{ id: '#12', title: '' }, { id: '#13', title: '' }] })
+  await clock.advance(10)
+  expect(renamed).toEqual(['/rename shop · #12 Login', '/rename shop · #12 Login · #13 Export'])
+})
+
+test('a grilling claim through lb-board renames too', async ($, on) => {
+  const clock = mock.clock(on)
+  const renamed: string[] = []
+  nameSessionHooks(on, [], renamed, [{ number: 'WA-42', title: 'Offline sync', summary: 'S', state: 'todo', size: 'medium', assignees: [], reserved: false, claims: [] }])
+
+  await $.session.start({ cwd: '/work/shop', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Bash', command: 'git status' })
+  await $.tool.call({ tool: 'Bash', command: '.lunabee/board/lb-board claim WA-41 grilling && echo fails' })
+  await clock.settle()
+  await clock.advance(10)
+  expect(renamed).toEqual([])
+  await $.tool.call({ tool: 'Bash', command: '.lunabee/board/lb-board claim WA-42 grilling' })
+  await clock.settle()
+  await clock.advance(10)
+  expect(renamed).toEqual(['/rename shop · WA-42 Offline sync'])
+})
+
+test('a claim keeps the session name when the option is off', { options: { rename_session: false } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const renamed: string[] = []
+  nameSessionHooks(on, [], renamed, ROWS)
+
+  await $.session.start({ cwd: '/work/shop', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Bash', command: 'wa-backlog claim 12 coding' })
+  await clock.settle()
+  await clock.advance(10)
+  expect(renamed).toEqual([])
 })

@@ -13,7 +13,7 @@ import {
   branchTaskId,
   boardTitles,
   bricksComment,
-  claimedTicket,
+  claimOf,
   dirname,
   githubFocusView,
   githubView,
@@ -381,6 +381,21 @@ async function watchTicket($: EngineInterface, id: string, mode: string) {
   await publishWatches($, mode)
 }
 
+function renameSession($: EngineInterface, name: string) {
+  sessionTitle = name
+  $.clock.after(0, () => void $.command.run({ command: 'rename', args: name }))
+}
+
+/** Names a session nothing named yet after the first ticket it claims, title from the board: no wait on the agent calling name_session. */
+async function nameAfterClaim($: EngineInterface, id: string) {
+  if (!(await hasConfig($))) return
+  const titles = boardTitles(await read($, board))
+  const known = titles.has(id) ? titles : boardTitles(await refresh($, true))
+  const { mainRoot } = await checkout($, await $.session.root())
+  const name = sessionName(mainRoot.split('/').pop() ?? '', [{ id, title: '' }], known)
+  if (name && sessionTitle === '') renameSession($, name)
+}
+
 async function announce($: EngineInterface, news: ReviewNews, mode: string) {
   const command = `/wa-feedback ${news.id}`
   const said = `Review on PR #${news.pr} by ${news.reviewers.map(reviewer => `@${reviewer}`).join(', ')}`
@@ -506,18 +521,17 @@ export const register: Register = (on, options) => {
     const current = await read($, board)
     const known = current.kind === 'local' || current.kind === 'github' ? current : await refresh($, true)
     const name = sessionName(mainRoot.split('/').pop() ?? '', tasks, boardTitles(known))
-    if (name && name !== sessionTitle) {
-      sessionTitle = name
-      $.clock.after(0, () => void $.command.run({ command: 'rename', args: name }))
-    }
+    if (name && name !== sessionTitle) renameSession($, name)
 
     return { result: name ? `Session named "${name}".` : 'No task given: session name unchanged.' }
   }).catch(() => ({ result: 'Session name unchanged.' }))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const done = await next(e)
-    const id = feedbackMode === 'off' ? '' : claimedTicket(e.command)
-    if (id && !('deny' in done) && !done.isError) void watchTicket($, id, feedbackMode).catch(() => undefined)
+    const claim = claimOf(e.command)
+    if (!claim || 'deny' in done || done.isError) return done
+    if (claim.phase === 'coding' && feedbackMode !== 'off') void watchTicket($, claim.id, feedbackMode).catch(() => undefined)
+    if (options.rename_session !== false && sessionTitle === '') void nameAfterClaim($, claim.id).catch(() => undefined)
 
     return done
   })
