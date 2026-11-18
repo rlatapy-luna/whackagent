@@ -31,7 +31,7 @@ function world(on: On, session: string, store: Record<string, unknown> = {}) {
   })
   on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '{}', stderr: '' } }))
   on('command.run', ($, e) => {
-    state.commands.push(`${e.command} ${e.args}`)
+    if (e.command !== 'rename') state.commands.push(`${e.command} ${e.args}`)
     return { text: '' }
   })
   on('prompt.suggest', ($, e) => {
