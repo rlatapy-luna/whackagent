@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-23
+
 ### Added
 
 - `wa-backlog settle <id> --pr <pr>`: after a round's push, one call waits for GitHub to compute `mergeable` and for the hooks to move the ticket out of `coding`, then says `moved`, `conflicting` or `stuck` (with the board workflow runs, or the Plane hooks log). Agent rounds use it instead of polling turn by turn, so a round no longer re-sends its whole context every 15 seconds while the hooks run.
