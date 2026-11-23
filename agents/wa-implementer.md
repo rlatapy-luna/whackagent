@@ -73,9 +73,9 @@ Skip entirely for pure-logic or library bricks: nothing to drive.
    - **desktop** → launch built binary; drive through desktop/computer-use MCP if one loaded. None → no GUI proof, say so.
    - **server** → start service in background (project run command, test config / local DB), wait for health/port, exercise endpoints with `curl` — status, body, side effects. Read its log for errors. Stop it after.
    - **cli** → run built binary with inputs acceptance criteria name; check stdout/stderr, exit code, files written.
-3. **Drive with real inputs.** GUI: read UI tree first (`snapshot_ui`, `android layout`, browser accessibility snapshot), target by **stable identifier** — accessibility identifier, Compose `testTag`, `data-testid`/ARIA role — conventions require them on interactive elements. Raw coordinates only when no identifier exist; missing identifier = gap worth fixing, not just fallback. Screenshot at every checkpoint, above all moment that prove or break criterion. Server/CLI: keep exact command + trimmed response as evidence instead.
+3. **Drive with real inputs.** GUI: read UI tree first (`snapshot_ui`, `android layout`, browser accessibility snapshot), target by **stable identifier** — accessibility identifier, Compose `testTag`, `data-testid`/ARIA role — conventions require them on interactive elements. Raw coordinates only when no identifier exist; missing identifier = gap worth fixing, not just fallback. **Evidence = UI tree by default**: element present, text, enabled/selected state, all prove from tree (filtered: `grep`/`jq` to nodes that matter, never whole dump). **Screenshot only where tree can't prove criterion** — layout, color, theme, image, overlap, clipping — at most one per such criterion, not one per checkpoint. Capture to file, **downscale before you `Read` it** (`sips -Z 900 <png>` macOS, `magick <png> -resize '900x900>' <png>` else): full-size phone shot cost ~3–4k tokens, re-sent every later turn; ~900 px ≈ 1k. Never `Read` same shot twice. Server/CLI: keep exact command + trimmed response as evidence instead.
 - **Secrets never reach your output.** Typing a credential into an app: verify the target field by its tag/id *before* typing, never after. Never print a UI dump, accessibility tree, logcat or screenshot while a credential sits in a field — filter dumps to non-secret nodes (`grep -v` the password/username fields) and check length only (`${#value}`), never the value. A leak already happened → say so first line of receipt, no repeat of the value.
-4. **Judge from evidence, not intent.** You wrote this code, so you know what it *supposed* to do — criterion pass only if screenshot, UI tree, response or output show it. Crash, wrong screen, missing element, dead input, wrong status/output = fail: record what you saw vs expected, fix before returning `done`.
+4. **Judge from evidence, not intent.** You wrote this code, so you know what it *supposed* to do — criterion pass only if UI tree, screenshot, response or output show it. Crash, wrong screen, missing element, dead input, wrong status/output = fail: record what you saw vs expected, fix before returning `done`.
 5. Can't run at all (no device after the steps above, won't install, no MCP server, service won't start) → don't improvise ad-hoc driver. Report in `NOTES:` with build still `done`, or `BLOCKED:` if brick can't be judged without it.
 
 ## Read budget — hard rule
@@ -86,6 +86,7 @@ Your context cost ~50k before you open anything, and you resumed across bricks a
 - **Never read same file twice.** Different region → one more ranged read.
 - **`Grep -n` to locate, then one ranged `Read`.**
 - **No `cat` of whole file** — uncapped `Read` in disguise. Pipe long output through `head`/`tail`.
+- **One Bash call per step, not per command.** Every call = one more turn re-sending whole context. Chain build + exit code + warning grep in one call: `<build> > "$LOG" 2>&1; echo "exit=$?"; grep -E '<warning pattern>' "$LOG" | head -40` (red → `grep -E 'error|FAILED' "$LOG" | head -40` same call). Same for test run, tool runs, device setup (install + launch + first `layout`). Gradle: `--console=plain` (no progress bar noise in log).
 - **Keep build output out of context.** Never dump, re-read, quote whole build/test log. Green → keep success line plus warning lines (step 6), nothing else. Red → pull error lines you need, act, drop rest; never re-run build just to look at log again. Full build log don't die with round — sit in transcript, re-sent every turn after.
 
 ## Fix mode — dispatched with findings, not a brick
@@ -130,7 +131,7 @@ TOOLS: <only when tools handed: detekt ✅ · swiftlint ✅ (4 pre-existing, unt
 CHECKS:                          ← only when you owed a runtime proof and ran it
   ✅ <criterion> — <what you saw>
   ❌ <criterion> — expected <x>, saw <y>
-EVIDENCE: <screenshot paths or command + trimmed output, mapped to the check they prove>
+EVIDENCE: <UI-tree node, screenshot path or command + trimmed output, mapped to the check they prove>
 SCREENSHOTS: <only when dispatch asks: final-state shots for the PR, one per platform proved
              (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
 FINDINGS:                        ← fix mode only: every finding handed, in order

@@ -42,7 +42,7 @@ Shoot screens a ticket's diff touched, for its PR. Dispatched once review clean,
    - `git worktree remove --force <tmp>` after, whatever happened.
 5. **After** — build checkout, install, shoot.
 6. **Drive** each side per *Driving*: same launch, same taps, same data.
-7. **Files** — downscaled ~900 px, kebab-case stem = caption: `<screen>-<state>.png` new, `<screen>-<state>.before.png` + `<screen>-<state>.after.png` changed.
+7. **Files** — downscaled ~900 px **right after capture, before any `Read`** (`sips -Z 900 <png>` macOS, `magick <png> -resize '900x900>' <png>` else), each shot `Read` at most once to check it, kebab-case stem = caption: `<screen>-<state>.png` new, `<screen>-<state>.before.png` + `<screen>-<state>.after.png` changed.
 
 ## Building
 

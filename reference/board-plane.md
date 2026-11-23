@@ -113,7 +113,7 @@
   release, open the PR) or tell the user; never by moving a card by hand.
 
   **Confirm the card moved** after every push or PR action the hook acts on:
-  - Re-read `get <id>` every ~15 s, up to ~3 min.
+  - `wa-backlog settle <id> --pr <pr>`: one blocking call, re-reads card every ~15 s up to ~3 min. Never own poll loop.
   - Not moved → tell the user which event (push or PR action, branch), and point at the receiver's delivery log at
     https://hooks.lunabee.ovh/. Its reason line says why. Redeliver once fixed.
   - Never set a state or release a claim to fake the move.

@@ -1739,6 +1739,49 @@ def op_merge(args):
     emit({"pr": args.pr, "status": result.get("status"), "sha": details.get("sha") or details.get("oid")})
 
 
+def op_settle(args):
+    """After a round's push: wait until the hooks moved the ticket out of `coding`, in one blocking call.
+
+    Replaces the agent's own poll loop (one model turn per poll). With --pr, first waits for GitHub to compute
+    `mergeable`: CONFLICTING runs no pull_request workflow, so the card would never move (exit 4, rebase first).
+    Card still `coding` at the deadline → exit 4 with the last board-workflow runs (GitHub caller) or the
+    receiver's log URL (Plane board), for the user.
+    """
+    board = open_board()
+    config = board.config
+    deadline = time.monotonic() + args.timeout
+    if args.pr:
+        while True:
+            pr = json.loads(gh(["pr", "view", str(args.pr), "--repo", config["repo"], "--json", "mergeable"]).stdout)
+            if pr["mergeable"] != "UNKNOWN" or time.monotonic() > deadline:
+                break
+            time.sleep(3)
+        if pr["mergeable"] == "CONFLICTING":
+            emit({"number": args.number, "pr": args.pr, "status": "conflicting"})
+            sys.exit(EXIT_WRONG_STATE)
+    polls = 0
+    while True:
+        state = board.get(args.number)["state"]
+        polls += 1
+        if state != "coding" or time.monotonic() > deadline:
+            break
+        time.sleep(args.interval)
+    result = {"number": args.number, "state": state, "polls": polls}
+    if state != "coding":
+        emit({**result, "status": "moved"})
+        return
+    result["status"] = "stuck"
+    branch = remote_branch(config, args.number)
+    if isinstance(board, LbBoard):
+        result["hooks_log"] = "https://hooks.lunabee.ovh/"
+    elif branch:
+        runs = gh(["run", "list", "--repo", config["repo"], "--workflow", "lunabee-board.yml", "--branch", branch,
+                   "--limit", "3", "--json", "status,conclusion,event,url"], check=False)
+        result["runs"] = json.loads(runs.stdout) if runs.returncode == 0 and runs.stdout.strip() else []
+    emit(result)
+    sys.exit(EXIT_WRONG_STATE)
+
+
 # ---------------------------------------------------------------- cli
 
 
@@ -1848,6 +1891,13 @@ def parser():
     s.add_argument("--method", choices=["squash", "merge"], default="squash")
     s.add_argument("--timeout", type=int, default=300, help="seconds to wait for GitHub to finish the merge")
     s.set_defaults(func=op_merge)
+
+    s = sub.add_parser("settle", help="after a push: wait until hooks move the ticket out of coding; exit 4 conflicting or stuck")
+    s.add_argument("number", type=ticket_id)
+    s.add_argument("--pr", type=int, help="ticket PR: wait for mergeable first, CONFLICTING → exit 4")
+    s.add_argument("--timeout", type=int, default=180, help="seconds to wait, mergeable check included")
+    s.add_argument("--interval", type=int, default=15, help="seconds between board reads")
+    s.set_defaults(func=op_settle)
 
     s = sub.add_parser("screenshots", help="upload images (gh pr edit --attach, else gh image), show them in the PR body")
     s.add_argument("pr", type=int)

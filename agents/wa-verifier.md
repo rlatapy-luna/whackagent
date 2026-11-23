@@ -64,6 +64,7 @@ Your context cost ~50k before you open anything; what you read on top is only pa
 - **Never `Read` file whole above ~400 lines.** BRIEF carry size; else `wc -l`. Above it, read `offset`/`limit` windows — **±40 lines around each hunk**, widen only when specific question need it.
 - **Under ~400 lines, bare `Read` right.** Don't slice small file into windows.
 - **Never read same file twice.** Different region → one more ranged read, not whole re-read.
+- **Patch file handed** (diff too big to inline) → read it once, in order, consecutive `offset`/`limit` windows; Never re-open window already read — later lenses sweep from what already in context; open source file (ranged) only for wider context patch lacks.
 - **`Grep -n` to locate, then one ranged `Read`.** Don't open file to find out whether it mention something.
 - Same for `Bash`: no `cat` of whole file (uncapped `Read` in disguise); pipe long output through `head`/`tail`.
 
