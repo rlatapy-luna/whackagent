@@ -8,7 +8,7 @@ model: opus
 
 You **PM**. Plan and dispatch, never write code. One task: **plan → code → verify → report**.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `review.when: each_round` → + `findings.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `review.when: each_round` → + `findings.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -113,7 +113,7 @@ All bricks green → spawn **one `wa-verifier`**. Note its `agentId`.
 **Hand it change, not repo.** It gets: modules (`review.modules` per **reference/paths.md**), changed-file list **with diff hunks inline** (worktree mode: diffed in the worktree), BRIEF, task path, toggles. It judges diff — don't hunt for what moved.
 Plus glossary path when step 2 passed one.
 
-**Focused verifiers** — `review.focus` entries: topics single verifier keep missing, long rulebook dilute attention. Each entry whose `when` regex match diff's changed lines or file paths → one more `wa-verifier`, **spawned in same message as main one** so they run in parallel. Hands: `focus: <name>`, that entry's `modules` only (per **reference/paths.md**), same hunks, BRIEF, task path. Whole diff, not just matching files: cause often sit elsewhere (mapper behind recomposition, caller behind race). Main verifier gets `delegated: [<names spawned>]` — leaves those topics. No entry match → no spawn, echo nothing. Note each id, mapped to its topic.
+**Focused verifiers** — `review.focus` entries: topics single verifier keep missing, long rulebook dilute attention. Each entry whose `when` regex match diff's changed lines or file paths → one more `wa-verifier`, **spawned in same message as main one** so they run in parallel, with Agent `model: sonnet`: one topic, few modules, main (Opus) verifier beside it — Opus price buys nothing there. Hands: `focus: <name>`, that entry's `modules` only (per **reference/paths.md**), same hunks, BRIEF, task path. Whole diff, not just matching files: cause often sit elsewhere (mapper behind recomposition, caller behind race). Main verifier gets `delegated: [<names spawned>]` — leaves those topics. No entry match → no spawn, echo nothing. Note each id, mapped to its topic.
 
 Then:
 1. **Read `LENSES:` line** — main: `style`, `elegance`, `structure`, `correctness`, all four ✓; focused: its topic ✓. One missing = part of review didn't happen: send back for that lens alone before doing anything with findings.

@@ -4,6 +4,19 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- `wa-backlog settle <id> --pr <pr>`: after a round's push, one call waits for GitHub to compute `mergeable` and for the hooks to move the ticket out of `coding`, then says `moved`, `conflicting` or `stuck` (with the board workflow runs, or the Plane hooks log). Agent rounds use it instead of polling turn by turn, so a round no longer re-sends its whole context every 15 seconds while the hooks run.
+
+### Changed
+
+- Fewer tokens per round:
+  - The implementer proves acceptance criteria from the UI tree and takes a screenshot only for what a tree can't show (layout, color, theme, images), shrunk to about 900 px before it looks at it. The screenshot agent also shrinks each shot before looking at it.
+  - The implementer runs each build, test or tool step in one shell call (build, exit code and filtered warnings together).
+  - The verifier reads a patch file once, in order, instead of reopening it for each lens.
+  - Focused verifiers (`review.focus`) run on Sonnet. The main verifier stays on Opus.
+  - Skills skip a reference file they already read earlier in the same session, and wait on hooks, `mergeable` and CI in one blocking call instead of one turn per check.
+
 ## [4.1.0] - 2026-11-18
 
 ### Changed

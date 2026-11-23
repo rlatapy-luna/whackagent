@@ -7,7 +7,7 @@ description: Create tasks from idea or spec, cutting large specs, then re-priori
 
 Idea or spec → task(s) in backlog, ordered. **Creates, cuts, places — never grills, never starts `/wa-grill`**: run ends on suggestion, user launches `/wa-grill` — it clarifies one task at a time.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `display.md` `paths.md` `milestones.md` `task-types.md` `blockers.md` · task gets `sprint:` (split, user names one) → + `sprints.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `display.md` `paths.md` `milestones.md` `task-types.md` `blockers.md` · task gets `sprint:` (split, user names one) → + `sprints.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 

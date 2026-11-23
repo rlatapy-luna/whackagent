@@ -7,7 +7,7 @@ description: Interactively bootstrap the whackagent workflow in a project — or
 
 Set up orchestrated dev flow for project. Short interactive setup, then scaffold, then index.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` · other `reference/` files cited below → read when that step runs.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` · other `reference/` files cited below → read when that step runs. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 

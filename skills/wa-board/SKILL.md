@@ -8,7 +8,7 @@ model: haiku
 
 Dashboard. Lift lid on backlog, point next move.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `blockers.md` · arg given → + `sprints.md` `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `display.md` `blockers.md` · arg given → + `sprints.md` `milestones.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 ## Do
 

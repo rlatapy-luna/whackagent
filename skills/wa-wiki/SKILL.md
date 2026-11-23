@@ -7,7 +7,7 @@ description: Keep the wiki up to date, or look up project knowledge. /wa-wiki up
 
 Two modes, picked by argument.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` · commit step runs → + `commits.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` · commit step runs → + `commits.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 

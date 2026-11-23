@@ -7,7 +7,7 @@ description: Close validated task — commit, land branch, clean up. GitHub: mer
 
 **Task finished.** You retested reviewed code, still does what you asked. `/wa-close` write that down, put branch where belong.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or `backlog.provider` ≠ `local` → + `pull-requests.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or `backlog.provider` ≠ `local` → + `pull-requests.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -49,7 +49,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
    - **Ready, `phase: review`** → findings never cleared: `/wa-validate <id>`, stop.
    - **Ready, no task file / `phase` empty** → another work loop's PR (**BOARD.md → Working a ticket** allows it): merge on yes after step 2 checks, no rebase offered — `CONFLICTING` → stop, say so (PR owner rebases).
    - **Ready** → continue.
-2. **Mergeable?** `gh pr view <pr> --json mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,body` (retry while `UNKNOWN`):
+2. **Mergeable?** `gh pr view <pr> --json mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,body` (`UNKNOWN` → retry inside one Bash loop, **reference/code-github.md**, *Waiting = one blocking call*):
    - Base = another ticket's open branch (stacked, parent not landed) → stop: parent merges first (`/wa-close <parent>`), GitHub then retargets and rebases this one (**reference/code-github.md**, *Stacked PRs*) — start from `origin/<branch>`.
    - Checks failing → name them, stop: `/wa-feedback <id>`. Pending → plan says it waits (`gh pr checks <pr> --watch`).
    - `reviewDecision` `REVIEW_REQUIRED` / `CHANGES_REQUESTED` → GitHub refuses: name who's requested, stop. Never `--admin`.
