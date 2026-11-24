@@ -24,10 +24,11 @@ A dev writing to a colleague: short, plain, direct.
 - **Everyday word**: `fix`, `affiche`, never the rare precise one (`pose`, `relève`).
 - **What the app shows**, not the code concept: `le nombre`, not `la vue`. Type name only when the line is about code.
 - **No recap, no conclusion, no announce.**
-- **Tech terms stay English**, any language: `bouton Apple pas disabled pendant le loading`. Never a calque (`fil principal`).
+- **Tech terms stay English**, any language: `bouton Apple pas disabled pendant le loading`.
+- **Written in the output language**, never translated from English: no calque (`fil principal`, `porte ce fond`).
 - **No dash as separator** (`—`, ` - `): `:` or new line.
 - **Meaning never lost.** Readable two ways → add the word.
-- Reread once before publishing, against **Tics**. Same pass, no extra step.
+- Reread once against **Tics** before publishing.
 
 ## User style
 
@@ -54,46 +55,47 @@ Never, in User or Human text:
 | tic | ❌ | ✅ |
 |---|---|---|
 | thing with intent | `la case le refuse` · `the button takes care of saving` · `l'app se charge de synchroniser` | `5 chiffres max` · `the button saves` · `l'app synchronise` |
-| explain the format | `À lire commit par commit : une ligne = un commit` · `Each section below covers one change` · `Ci-dessous, le détail de chaque étape` | *(nothing)* |
+| explain the format | `À lire commit par commit : une ligne = un commit` · `Each section below covers one change` | *(nothing)* |
 | say the obvious | `traductions : fichiers générés, apporte les textes` · `Rename X to Y: X is now called Y` · `Ajout de tests qui testent le parsing` | `Mise à jour des traductions depuis Loco` · `Rename X to Y` · `Ajout de tests du parsing` |
-| over-precise, repeated | `déplacement seul, aucun changement de logique` · `pure refactor with strictly no behavior change` · `uniquement côté iOS, Android non concerné` | *(nothing)* · `refactor` · `iOS seulement` |
+| over-precise, repeated | `déplacement seul, aucun changement de logique` · `uniquement côté iOS, Android non concerné` | *(nothing)* · `iOS seulement` |
+| translated from English | `la sheet porte ce fond` · `obtient une 2ᵉ carte` · `sans changement visuel attendu` | `la sheet a ce fond` · `a une 2ᵉ carte` · `même rendu` |
 | AI linkers | `désormais, la sheet permet de saisir` · `This ensures that the cache is cleared` · `afin de garantir la cohérence` | `la sheet accepte la distance` · `the cache is cleared` · *(cut)* |
 | judgment | `gestion robuste des erreurs` · `seamless transition` · `s'affiche correctement` | `les erreurs réseau relancent 3 fois` · `no flicker` · `s'affiche` |
 | announce | `Voici ce qui change :` · `Here's a summary of the fix:` · `Pour résumer,` | *(say it)* |
-| stacked fragments | `Ligne garde la distance en mètres, 0 relu vide` · `pool full → waiter queued, timeout 5s` · `Unité à droite, masquée si vide, cachée VoiceOver` | `La ligne garde la distance en mètres. Une distance à 0 s'affiche vide.` · `When the pool is full, the call waits up to 5 s.` · `L'unité s'affiche à droite, sauf si la case est vide.` |
+| stacked fragments | `Modification du picker en ajout seul` · `Ligne garde la distance en mètres, 0 relu vide` · `pool full → waiter queued, timeout 5s` · `Unité à droite, masquée si vide, cachée VoiceOver` | `La ligne garde la distance en mètres. Une distance à 0 s'affiche vide.` · `When the pool is full, the call waits up to 5 s.` · `L'unité s'affiche à droite, sauf si la case est vide.` · `Le picker ajoute sans retirer` |
 
 **Banned words** (pr-check refuses them in PR body and commits): `désormais` · `permet de` · `permettent de` · `afin de` · `en effet` · `à noter` · `voici` · `robuste` · `fluide` · `parfaitement` · `correctement` · `seamless` · `robust` · `leverage` · `ensures` · `it's worth noting` · `note that` · `here's`
 
 ## Learning
 
-Glossary and wording grow from the user. Always proposed (**components → Glossary rows**), written on yes only.
+Glossary and wording grow from the user. Proposed (**components → Glossary rows**), written on yes only.
 
 - **New thing** named (concept, screen, part, flow) → `+` row.
 - **Other word, 2nd time** this session for a listed term → one **Question**: rename (recommended: their word; old term → `Never`) or add to `Also`.
-  - Rename → UI strings and code untouched; offer `/wa-draft` to align them.
+  - Rename → UI strings and code untouched, offer `/wa-draft`.
 - **Term used for something else** → `~` its `Means`.
-- **String rewritten** by the user → `wording.md` **Validated examples**: `before → after · <situation>`. Max 12, 2 per situation: full → replace the oldest.
+- **String rewritten** by the user → `wording.md` **Validated examples**: `before → after · <situation>`. Max 12, 2 per situation, full → drop the oldest.
 - **Same tone fix, 2nd time**, or 3 examples one way → one ❌/✅ example in **Tics** (new row, or a 4th example on its row).
-- Refused → never asked again this session for that word.
+- Refused → never asked again.
 - No `{conventions}` → apply for this session, write nothing.
 
 ## Layout
 
 - Order matters → numbered.
-- Two dimensions → table. Tasks → never a table.
-- **Readable cold.** Task bodies and pitch: bullets, each names its subject. No "it" pointing at the grill.
+- Two dimensions → table, never for tasks.
+- **Readable cold.** Task bodies and pitch: each bullet names its subject.
 
 ## Language
 
-- Output: `discussion_language`. Translate headings and labels (`Done` → `Fait`), keep tech terms.
+- Output: `discussion_language`. Headings and labels translated (`Done` → `Fait`).
 - Task file headings stay English, fixed: `## Context / Decisions`, `## Acceptance criteria`, `## Implementation`, `## Review`, `## Verification`, `## Feedback`.
 
 ## Titles
 
-Read cold — issue list, branch, PR.
+Read cold: issue list, branch, PR.
 
-- **Task title** = verb + thing, imperative, ≤ 5 words: `Add Apple login`, `Fix flaky CLI tests`.
-  - No narrative, no metaphor, no rephrasing of the user's words.
+- **Task title** = verb first + thing, ≤ 5 words plus articles: `Add Apple login`.
+  - No verbless fragment, narrative, metaphor or rephrasing of the user's words.
   - Never repeats the sprint.
 - **Summary** = the goal, plain, ≤ 8 words. Never repeats the title.
 - **Sprint** = ≤ 3 words, no verb: `Login refacto`. Kebab-case only in its branch.
@@ -101,5 +103,5 @@ Read cold — issue list, branch, PR.
 | ❌ | ✅ title | ✅ summary |
 |---|---|---|
 | After a purge, jobs don't replay | `Replay jobs after purge` | purge doesn't reset watermarks |
+| Exo depuis son détail | `Ajouter un exo depuis son détail` | ajout d'exo sans quitter son détail |
 | CLI tests turn red at random | `Fix flaky CLI tests` | 4 TUI tests fail in suite, pass alone |
-| crash when i zoom | `Fix crash on map zoom` | zoom past 18 no longer crashes |

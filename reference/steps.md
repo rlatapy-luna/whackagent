@@ -42,6 +42,7 @@ Tree identical = `## Review` still valid: code unchanged.
 ## Changes
 
 - Construction order, never by type. Line text = commit subject without prefix (`Ajout du nettoyage de la saisie Distance`).
+- Line = what changes for the user, as a teammate would say it: `Ajout d'exos depuis leur détail`, `Le picker ajoute sans retirer`. Never `<thing> : <action noun>` (`Exo depuis son détail : ouverture en sheet`) or a mode noun (`en ajout seul`).
 - `: <detail>` only when it adds a fact the title lacks (`: 5 chiffres max`). Plain step (move, generated) → never.
 - Signals per commit: `pr-check signals <base-branch> --steps`. Step with signals → fold (**how-it-works**). No signal, or `refactor` / `chore` / `docs` → plain `- ` line.
 - Check: `pr-check check <body.md> <base-branch> --steps`: one line per code commit, same order, fold when signals.

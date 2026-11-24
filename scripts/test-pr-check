@@ -33,6 +33,12 @@ has "$out" "To test: UI changed, no path line" "swift bad body"
 scripts/pr-check check $F/swift/body-good.md --diff $F/swift/diff.patch >/dev/null \
   && echo "✅ swift good body green" || err "swift good body red"
 
+tmp=$(mktemp); sed 's/^Lancement → écran Calculatrice$/Build Dev : Lancement → écran Calculatrice/' $F/swift/body-good.md > "$tmp"
+out=$(scripts/pr-check check "$tmp" --diff $F/swift/diff.patch) && err "swift path with label green"
+has "$out" "To test: UI changed, no path line" "swift path with label"
+rm -f "$tmp"
+[ "$fail" = 0 ] && echo "✅ swift path with label fails"
+
 tmp=$(mktemp); awk '/^<details>/ && !h {skip=1} skip && /^<\/details>/ {skip=0; h=1; next} !skip' \
   $F/swift/body-good.md > "$tmp"
 out=$(scripts/pr-check check "$tmp" --diff $F/swift/diff.patch) && err "swift body without overview green"

@@ -311,7 +311,7 @@ def check(body, files):
     for name in type_nodes(body, types):
         miss.append(f"diagram: node `{name}` is a type: show a step or a state")
     if any(s["ui"] for s in report.values()) and path_missing(body):
-        miss.append("To test: UI changed, no path line (`Inbox → a mail`) right before the first check")
+        miss.append("To test: UI changed, no path line (`Inbox → a mail`, no label) right before the first check")
     return miss
 
 
@@ -331,13 +331,14 @@ def outside_fences(body):
 
 
 def path_missing(body):
-    """No plain `A → B` line right before the first checkbox."""
+    """No plain `A → B` line right before the first checkbox, no label before it."""
     lines = outside_fences(body)
     first = next((i for i, l in enumerate(lines) if CHECKBOX.match(l)), None)
     if first is None:
         return False
     prev = next((l.strip() for l in reversed(lines[:first]) if l.strip()), "")
-    return "→" not in prev or prev.startswith(("-", "*", "#", "<", "|"))
+    head = prev.split("→")[0]
+    return "→" not in prev or prev.startswith(("-", "*", "#", "<", "|")) or ":" in head
 
 
 def has_signal(s):
