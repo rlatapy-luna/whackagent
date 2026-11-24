@@ -1,11 +1,27 @@
 {
-  "description": "whackagent board sync: task files, PRs and locks reconciled locally, no GitHub Actions",
+  "description": "whackagent hooks: board sync (task files, PRs, locks reconciled locally), PR bodies checked before publish",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/board-hook\" post-tool", "timeout": 150 }
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/board-hook\" post-tool",
+            "timeout": 150
+          }
         ]
       }
     ],
@@ -13,7 +29,11 @@
       {
         "matcher": "startup|resume",
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/board-hook\" session", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/board-hook\" session",
+            "timeout": 10
+          }
         ]
       }
     ]

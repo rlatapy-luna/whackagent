@@ -18,7 +18,8 @@ Every PR whackagent opens or edits. Read by teammates who never saw the task. **
 - **Rewritten whole** at every write: end state, never round history.
 - **Sprint PR**: intro sums up the sprint, `Changes` → **steps → Sprint PR**.
 - No task slugs, sprint jargon, verifier rounds, test counts, process section, follow-up list.
-- Before `gh pr create` / `gh pr edit` → drop any `🤖`, `Generated with`, `Co-Authored-By` line, then **how-it-works → Check** green.
+- Rule doesn't fit → ask, never keep a deviation.
+- Before publishing → drop any `🤖`, `Generated with`, `Co-Authored-By` line, then **how-it-works → Check**.
 
 ## Changes
 
@@ -32,7 +33,7 @@ One change a line, glossary terms. `commit.steps: on` → one line a step, build
 | gone | `Remove …` | `Suppression de …` |
 | measured perf / UX | `Improve … : <measure>` | `Amélioration de … : <mesure>` |
 
-- Other language → native words. Nothing fits → plain line.
+- Other language → native words, else plain line.
 - User words, not `debounce`. Why, not how: how → the bullet folds, **how-it-works**.
 
 ## Screenshots

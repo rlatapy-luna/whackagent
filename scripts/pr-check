@@ -473,6 +473,9 @@ def main(argv):
             usage()
         diff, marked = open(rest[1]).read(), frozenset()
     else:
+        if git("rev-parse", "--git-dir").returncode != 0:
+            print("❌ not in a git repo: run from the project root, or pass --diff <file>")
+            return 2
         ref, note = resolve_base(rest[0])
         print(f"base: {note}")
         diff = subprocess.run(["git", "diff", "-U100000", f"{ref}...HEAD"],

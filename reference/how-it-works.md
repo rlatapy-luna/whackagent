@@ -1,10 +1,10 @@
 # How it works
 
-Detail of each `Changes` bullet, for a reviewer new to the task. **voice**, **pr** apply.
+Detail of each `Changes` bullet, for a reviewer new to the task.
 
 ## Signals
 
-Before writing: `${CLAUDE_PLUGIN_ROOT}/scripts/pr-check signals <base-branch>` → signals per code file. `<base-branch>` = branch name (`develop`; sprint PR → sprint branch), never a sha. Generated → `generated (skipped)`, no signal. Close with `commit.steps: on` → **steps → Changes**.
+Before writing, from the repo: `${CLAUDE_PLUGIN_ROOT}/scripts/pr-check signals <base-branch>`. `<base-branch>` = branch name (`develop`; sprint PR → sprint branch), never a sha. Generated → `generated (skipped)`, no signal. Close with `commit.steps: on` → **steps → Changes**.
 
 - **Coverage**: each code file → one `Changes` line. In none → add its line. Tests follow their code.
 - **Split**: new types of a line not linked → one line per group.
@@ -62,7 +62,7 @@ Labels in `pr_language`, this order:
 
 ## Check
 
-Before `gh pr create` / `gh pr edit`: `pr-check check <body.md> <base-branch>`. ❌ → fix, rerun. Publish green only.
+From the repo: `pr-check check <body.md> <base-branch>` on the final body. ❌ → fix, rerun. Hook `pr-guard` reruns it at publish (`--body-file` only).
 
 ## Code
 

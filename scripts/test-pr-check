@@ -149,5 +149,28 @@ out=$(cd "$t/work" && "$pc" check "$t/none.md" develop --steps 2>&1) && err "ste
 has "$out" "no Changes line starting with it" "steps missing line"
 [ "$fail" = 0 ] && echo "✅ steps checked"
 
+# pr-check outside a repo: clear message, no traceback.
+out=$(cd "$t" && "$pc" check "$t/good.md" develop 2>&1); code=$?
+[ "$code" = 2 ] || err "outside repo: exit $code, want 2"
+has "$out" "not in a git repo" "outside repo"
+echo "$out" | grep -q Traceback && err "outside repo: traceback"
+[ "$fail" = 0 ] && echo "✅ pr-check outside a repo says so"
+
+# pr-guard: hook JSON in, deny JSON out on red, silent on pass.
+guard() { printf '{"cwd":"%s","tool_input":{"command":%s}}' "$1" "$(printf '%s' "$2" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" | scripts/pr-guard; }
+denied() { echo "$1" | grep -q '"permissionDecision": "deny"'; }
+mkdir -p "$t/plain"; git -C "$t/plain" init -q
+out=$(guard "$t/plain" "gh pr create --body 'x'"); [ -z "$out" ] || err "guard: non-whackagent repo touched"
+echo "  backend: files" > "$t/work/.whackagent/config.md"
+out=$(guard "$t/work" "gh pr edit 12 --title 'Fix crash'"); [ -z "$out" ] || err "guard: edit without body denied"
+out=$(guard "$t/work" "gh pr create --base develop --body 'Intro.'"); denied "$out" || err "guard: inline body passed"
+out=$(guard "$t/work" "gh pr create --base develop --body-file -"); denied "$out" || err "guard: stdin body passed"
+out=$(guard "$t/work" "gh pr create --base develop --title x"); denied "$out" || err "guard: create without body passed"
+out=$(guard "$t/work" "gh pr create --base develop --body-file $t/flat.md"); denied "$out" || err "guard: red body passed"
+has "$out" "Changes: no fold" "guard red body"
+out=$(guard "$t/work" "gh pr create --base develop --body-file $t/good.md --assignee @me"); [ -z "$out" ] || err "guard: green body denied: $out"
+out=$(guard / "cd $t/work && gh pr create -B develop -F $t/flat.md"); denied "$out" || err "guard: cd prefix not followed"
+[ "$fail" = 0 ] && echo "✅ pr-guard blocks unchecked bodies"
+
 [ "$fail" = 0 ] && echo "✅ pr-check proven"
 exit "$fail"

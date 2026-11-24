@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""whackagent Claude Code hook — no PR body published unchecked.
+
+  pr-guard   PreToolUse on Bash: before `gh pr create` / `gh pr edit` with a body, runs
+             `pr-check check <body-file> <base>` on that exact file. Red → the call is denied,
+             the ❌ lines go back to the model. Inline `--body` / stdin body → denied: a file is checked.
+
+Base: `--base`, else the PR's `baseRefName`, else the repo default branch.
+Diff: local HEAD when it is the PR branch, else `gh pr diff` (PR checked out elsewhere).
+Projects without `.whackagent/config.md` and calls without a body pass untouched.
+Prints nothing on pass. Never blocks on its own failure (gh down, bad JSON): passes.
+"""
+
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+GH = re.compile(r"\bgh\s+pr\s+(create|edit)\b")
+SEP = ("&&", "||", ";", "|")
+
+
+def run(cwd, *args):
+    return subprocess.run(list(args), cwd=cwd, capture_output=True, text=True)
+
+
+def deny(reason):
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse", "permissionDecision": "deny",
+        "permissionDecisionReason": reason}}))
+    sys.exit(0)
+
+
+def workdir(command, cwd):
+    """cwd after a leading `cd <dir> &&`, the shape agents use."""
+    m = re.match(r"\s*cd\s+(\"[^\"]+\"|'[^']+'|\S+)\s*(&&|;)", command)
+    if not m:
+        return cwd
+    d = os.path.expanduser(m.group(1).strip("\"'"))
+    return d if os.path.isabs(d) else os.path.join(cwd, d)
+
+
+def gh_args(command):
+    """(verb, words after `gh pr <verb>` up to the next separator)."""
+    m = GH.search(command)
+    try:
+        words = shlex.split(command[m.end():], posix=True)
+    except ValueError:
+        words = command[m.end():].split()
+    cut = next((i for i, w in enumerate(words) if w in SEP), len(words))
+    return m.group(1), words[:cut]
+
+
+def flag(words, *names):
+    """Value of the first flag among names (`--x v` or `--x=v`), None if absent."""
+    for i, w in enumerate(words):
+        for n in names:
+            if w == n and i + 1 < len(words):
+                return words[i + 1]
+            if n.startswith("--") and w.startswith(n + "="):
+                return w.split("=", 1)[1]
+    return None
+
+
+def pr_ref(words):
+    """First positional word of `gh pr edit`: number, URL or branch."""
+    skip = {"--base", "-B", "--title", "-t", "--body", "-b", "--body-file", "-F", "--repo", "-R",
+            "--add-label", "--remove-label", "--add-assignee", "--remove-assignee", "--milestone", "-m",
+            "--add-reviewer", "--remove-reviewer", "--add-project", "--remove-project", "--attach"}
+    i = 0
+    while i < len(words):
+        w = words[i]
+        if w in skip:
+            i += 2
+            continue
+        if not w.startswith("-"):
+            return w
+        i += 1
+    return None
+
+
+def main():
+    try:
+        event = json.load(sys.stdin)
+    except ValueError:
+        return
+    command = (event.get("tool_input") or {}).get("command") or ""
+    if not GH.search(command):
+        return
+    cwd = workdir(command, event.get("cwd") or os.getcwd())
+    top = run(cwd, "git", "rev-parse", "--show-toplevel").stdout.strip()
+    if not top or not (Path(top) / ".whackagent" / "config.md").exists():
+        return
+    verb, words = gh_args(command)
+    inline = flag(words, "--body", "-b")
+    body = flag(words, "--body-file", "-F")
+    if inline is not None:
+        deny("pr-guard: write the body to a file and pass `--body-file <file>`: it is checked first (how-it-works → Check).")
+    if body is None:
+        if verb == "create" and "--fill" not in words and "-f" not in words:
+            deny("pr-guard: `gh pr create` needs `--body-file <file>`, checked first (how-it-works → Check).")
+        return
+    if body == "-":
+        deny("pr-guard: body from stdin can't be checked. Write it to a file, pass `--body-file <file>`.")
+    path = body if os.path.isabs(body) else os.path.join(cwd, body)
+    if not os.path.isfile(path):
+        deny(f"pr-guard: body file not found: {body}")
+
+    repo = flag(words, "--repo", "-R")
+    rflag = ["-R", repo] if repo else []
+    base, head = flag(words, "--base", "-B"), None
+    if verb == "edit":
+        ref = pr_ref(words) or ""
+        view = run(cwd, "gh", "pr", "view", *([ref] if ref else []), *rflag, "--json", "baseRefName,headRefName")
+        if view.returncode == 0:
+            info = json.loads(view.stdout)
+            base, head = base or info["baseRefName"], info["headRefName"]
+    if not base:
+        view = run(cwd, "gh", "repo", "view", *rflag, "--json", "defaultBranchRef")
+        if view.returncode != 0:
+            return
+        base = json.loads(view.stdout)["defaultBranchRef"]["name"]
+
+    branch = run(top, "git", "branch", "--show-current").stdout.strip()
+    check = [str(HERE / "pr-check"), "check", path]
+    tmp = None
+    if verb == "edit" and head and head != branch:
+        diff = run(cwd, "gh", "pr", "diff", *([ref] if ref else []), *rflag)
+        if diff.returncode != 0:
+            return
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".diff", delete=False)
+        tmp.write(diff.stdout)
+        tmp.close()
+        check += ["--diff", tmp.name]
+    else:
+        check.append(base)
+    res = run(top, *check)
+    if tmp:
+        os.unlink(tmp.name)
+    if res.returncode == 1:
+        fails = "\n".join(l for l in res.stdout.splitlines() if l.startswith("❌"))
+        deny(f"pr-guard: pr-check is red on {body}. Fix the body, then publish again.\n{fails}")
+
+
+if __name__ == "__main__":
+    main()
