@@ -31,6 +31,7 @@ Add the marketplace, then install the plugin:
 
 | Command | Description |
 | --- | --- |
+| `/wa-pitch <pitch>` | Kicks off a project from your pitch: grills it (user, core loop, v1 cut, screens, data, stack), writes `{wiki}/pitch.md`, seeds the glossary, optionally previews the screens through `/wa-proto`. Creates no task: `/wa-task <pitch page>` cuts it next |
 | `/wa-setup` | Config + scaffolding (`.lunabee/agents/`). On a project already set up: reconfigure, plus migrations of older task files (`/wa-setup migrate` for those alone) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action (runs on Haiku) |
 | `/wa-board <sprint\|milestone>` | Same, filtered to one sprint or milestone, with its progress |
@@ -411,6 +412,7 @@ Not available: moving a local file backlog or a GitHub board to Plane, a Plane b
   tasks/<slug>.md      # one task = one file (frontmatter + body)
   wiki/index.md        # wiki summary
   wiki/glossary.md     # one word per thing (concepts, screens), used in UI, code, tasks and PRs
+  wiki/pitch.md        # /wa-pitch only: what we build, for whom, v1 scope
   wiki/protos/         # /wa-proto sources (HTML), each also published as a Claude artifact
   wiki/<page>.md       # domain pages, [[wikilink]] links (Obsidian-compatible)
   reports/<slug>.md    # run reports, local only: /wa-setup gitignores them
