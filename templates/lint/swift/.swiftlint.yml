@@ -11,6 +11,7 @@ excluded:
   - DerivedData
   - "**/.build"
   - Package.swift
+  - "*Screenshots"               # PR screenshot UI test target: agent-written, never shipped
 
 # default rules the modules rely on: todo, force_try, force_cast, trailing_comma
 

@@ -258,6 +258,10 @@ pr:                            # HOW every PR agents open look — ticket draft,
                                #     Re-shot only when screen moved since. Coding rounds shoot none.
                                #   each_round — final state after every coding round (key missing → this).
                                #   off — none.
+  screenshots_replay: off      # iOS only, validation shots: on — screenshot agent writes one XCUITest
+                               #   per task into <App>Screenshots/Generated/ (git-ignored), xcodebuild
+                               #   replays it on base and branch (needs target: setup). off (default) —
+                               #   agent drives app by hand, every platform. Rules: reference/shots.md.
 
 compress_wiki: true            # caveman-compress config + wiki pages to save re-read tokens
                                # (at setup and after every wiki step update; .original backups removed)

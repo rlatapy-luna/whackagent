@@ -5,3 +5,4 @@ excludes:
   - Architecture
   - Package.swift
   - DerivedData
+  - Screenshots
