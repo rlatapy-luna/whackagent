@@ -67,6 +67,7 @@ Rules:
 
 - **Recommendation, then one-line why.** Why makes it reviewable — naked "I'd do X" gives user nothing to push against.
 - **Name alternative you rejected** when real one exists, one line. Shows fork actually considered.
+- **Options differ by mechanism** → sketch under each (**reference/voice.md → Sketch**).
 - **Cite ground.** Recommendation follows from something concrete: convention module, existing code you read, acceptance criteria, YAGNI. Never coin flip dressed as advice.
 - **No basis to recommend?** Still recommend: give least-risk / most-reversible default, say plainly what you'd need to know to be sure. "It depends on your product intent" alone is non-answer — pick cheapest-to-undo option, flag as guess.
 - **One question at a time.** Recommendation attached to each. Batch of five bare questions = exact failure this rule stops.
