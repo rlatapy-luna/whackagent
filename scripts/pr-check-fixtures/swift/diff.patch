@@ -1,0 +1,335 @@
+diff --git a/RPN Calculator/Core/Layout/Edges/KeypadEdgeReach.swift b/RPN Calculator/Core/Layout/Edges/KeypadEdgeReach.swift
+new file mode 100644
+index 0000000..e3950cd
+--- /dev/null
++++ b/RPN Calculator/Core/Layout/Edges/KeypadEdgeReach.swift	
+@@ -0,0 +1,48 @@
++//
++//  KeypadEdgeReach.swift
++//  RPN Calculator
++//
++//  Created by Benjamin Pisano on 08/11/2026.
++//
++
++import SwiftUI
++
++/// How far the keypad spreads on its sides, decided by a `LayoutModeRule`.
++enum KeypadEdgeReach: Sendable, Equatable {
++    /// The keypad stays within the safe area.
++    case safeArea
++    /// The keypad spreads to both physical sides of the screen, over the horizontal safe area.
++    case screenEdges
++    /// The keypad spreads to each physical side of the screen no `.occlusion` crosses at its height, and stays within the safe area until the occlusions are read.
++    case unoccludedScreenEdges
++
++    /// The sides of the safe area the keypad spreads over.
++    ///
++    /// - Parameters:
++    ///   - occlusions: The occlusions of the screen, or `nil` until they are read.
++    ///   - keypadSpan: The height the keypad spans, in the same space as the occlusions, or `nil` before it is laid out.
++    /// - Returns: The horizontal edges of the safe area to ignore.
++    func ignoredEdges(clearOf occlusions: [ScreenOcclusion]?, alongside keypadSpan: ClosedRange<CGFloat>?) -> Edge.Set {
++        switch self {
++        case .safeArea:
++            []
++        case .screenEdges:
++            .horizontal
++        case .unoccludedScreenEdges:
++            occlusions?
++                .filter { occlusion in keypadSpan.map(occlusion.crosses) ?? false }
++                .reduce(into: .horizontal) { edges, occlusion in edges.remove(occlusion.edge) } ?? []
++        }
++    }
++}
++
++#if DEBUG
++import Playgrounds
++
++#Playground("KeypadEdgeReach · a closed foldable in landscape") {
++    let keypadSpan: ClosedRange<CGFloat> = 200...440
++    let reach: KeypadEdgeReach = .unoccludedScreenEdges
++    print("camera top left:", reach.ignoredEdges(clearOf: [.mock()], alongside: keypadSpan))
++    print("camera bottom right:", reach.ignoredEdges(clearOf: [.mock(side: .trailing, verticalSpan: 384...466)], alongside: keypadSpan))
++}
++#endif
+diff --git a/RPN Calculator/Core/Layout/Hinge/HingeStatus.swift b/RPN Calculator/Core/Layout/Hinge/HingeStatus.swift
+new file mode 100644
+index 0000000..3a063c4
+--- /dev/null
++++ b/RPN Calculator/Core/Layout/Hinge/HingeStatus.swift	
+@@ -0,0 +1,39 @@
++//
++//  HingeStatus.swift
++//  RPN Calculator
++//
++//  Created by Benjamin Pisano on 08/11/2026.
++//
++
++import SwiftUI
++
++/// How far the screen of a foldable iPhone is opened.
++enum HingeStatus: Sendable, Equatable {
++    /// Folded shut, only the outer screen in use.
++    case closed
++    /// Half folded, the screen bent along its `.division`.
++    case partiallyOpen
++    /// Opened flat.
++    case fullyOpen
++}
++
++extension HingeStatus {
++    /// The status of a hinge the system reports.
++    ///
++    /// - Parameters:
++    ///   - status: The status the system reports.
++    /// - Returns: The matching status, or `nil` for a status this version of the app does not know.
++    @available(anyAppleOS 27.1, *)
++    init?(_ status: DeviceHinge.Status) {
++        switch status {
++        case .closed:
++            self = .closed
++        case .partiallyOpen:
++            self = .partiallyOpen
++        case .fullyOpen:
++            self = .fullyOpen
++        default:
++            return nil
++        }
++    }
++}
+diff --git a/RPN Calculator/Core/Layout/LayoutContext.swift b/RPN Calculator/Core/Layout/LayoutContext.swift
+index e7130a5..987e5ca 100644
+--- a/RPN Calculator/Core/Layout/LayoutContext.swift	
++++ b/RPN Calculator/Core/Layout/LayoutContext.swift	
+@@ -1,34 +1,49 @@
+ //
+ //  LayoutContext.swift
+ //  RPN Calculator
+ //
+ //  Created by Benjamin Pisano on 12/10/2026.
+ //
+ 
+ import SwiftUI
+ 
+-/// The size classes of the container the calculator is given, as a `LayoutModeRule` reads them.
++/// The container the calculator is given and the posture of the device, as a `LayoutModeRule` reads them.
+ struct LayoutContext: Sendable, Equatable {
+     /// The horizontal size class of the container, or `nil` when the system gives none.
+     let horizontalSizeClass: UserInterfaceSizeClass?
+     /// The vertical size class of the container, or `nil` when the system gives none.
+     let verticalSizeClass: UserInterfaceSizeClass?
++    /// The axis the container stretches along: `.horizontal` in landscape, `.vertical` in portrait.
++    let containerAxis: Axis
++    /// How far the screen is opened, or `nil` on a device without hinge.
++    let hingeStatus: HingeStatus?
++    /// The axis of the `.division` that crosses the container, or `nil` when none does.
++    let divisionAxis: Axis?
+ }
+ 
+ extension LayoutContext {
+-    /// A context for previews and tests, an iPhone in portrait by default.
++    /// A context for previews and tests, an iPhone without hinge in portrait by default.
+     ///
+     /// - Parameters:
+     ///   - horizontalSizeClass: The horizontal size class of the container. Defaults to compact.
+     ///   - verticalSizeClass: The vertical size class of the container. Defaults to regular.
++    ///   - containerAxis: The axis the container stretches along. Defaults to vertical, portrait.
++    ///   - hingeStatus: How far the screen is opened. Defaults to `nil`, no hinge.
++    ///   - divisionAxis: The axis of the `.division` that crosses the container. Defaults to `nil`, none.
+     /// - Returns: The context.
+     static func mock(
+         horizontalSizeClass: UserInterfaceSizeClass? = .compact,
+-        verticalSizeClass: UserInterfaceSizeClass? = .regular
++        verticalSizeClass: UserInterfaceSizeClass? = .regular,
++        containerAxis: Axis = .vertical,
++        hingeStatus: HingeStatus? = nil,
++        divisionAxis: Axis? = nil
+     ) -> LayoutContext {
+         .init(
+             horizontalSizeClass: horizontalSizeClass,
+-            verticalSizeClass: verticalSizeClass
++            verticalSizeClass: verticalSizeClass,
++            containerAxis: containerAxis,
++            hingeStatus: hingeStatus,
++            divisionAxis: divisionAxis
+         )
+     }
+ }
+diff --git a/RPN Calculator/Core/Layout/Rules/HingeRule.swift b/RPN Calculator/Core/Layout/Rules/HingeRule.swift
+new file mode 100644
+index 0000000..04bc43d
+--- /dev/null
++++ b/RPN Calculator/Core/Layout/Rules/HingeRule.swift	
+@@ -0,0 +1,68 @@
++//
++//  HingeRule.swift
++//  RPN Calculator
++//
++//  Created by Benjamin Pisano on 08/11/2026.
++//
++
++import SwiftUI
++
++/// The rule of iPhone and iPad that also reads the posture of a foldable iPhone.
++///
++/// Without hinge or closed, the device is laid out by its fallback rule. Opened flat in landscape, the keypad is wide. The keypad spreads to the sides of the screen where its fallback rule spreads it.
++struct HingeRule: LayoutModeRule {
++    private let fallback: any LayoutModeRule
++
++    var keySizing: KeySizing {
++        fallback.keySizing
++    }
++
++    /// Creates the rule.
++    ///
++    /// - Parameters:
++    ///   - fallback: The rule for the postures this rule leaves alone. Defaults to the size classes.
++    init(fallback: any LayoutModeRule = SizeClassRule()) {
++        self.fallback = fallback
++    }
++
++    func mode(for context: LayoutContext) -> KeypadLayoutMode {
++        switch context.hingeStatus {
++        case .fullyOpen where context.containerAxis == .horizontal:
++            .wide
++        case .closed, .partiallyOpen, .fullyOpen, nil:
++            fallback.mode(for: context)
++        }
++    }
++
++    func keypadEdgeReach(in context: LayoutContext) -> KeypadEdgeReach {
++        fallback.keypadEdgeReach(in: context)
++    }
++}
++
++#if DEBUG
++import Playgrounds
++
++#Playground("HingeRule · no hinge") {
++    let rule: HingeRule = .init()
++    print("portrait:", rule.mode(for: .mock()))
++    print("landscape:", rule.mode(for: .mock(verticalSizeClass: .compact, containerAxis: .horizontal)))
++}
++
++#Playground("HingeRule · closed") {
++    let rule: HingeRule = .init()
++    print("portrait:", rule.mode(for: .mock(hingeStatus: .closed)))
++    print("landscape:", rule.mode(for: .mock(verticalSizeClass: .compact, containerAxis: .horizontal, hingeStatus: .closed)))
++}
++
++#Playground("HingeRule · opened flat") {
++    let rule: HingeRule = .init()
++    print("landscape:", rule.mode(for: .mock(horizontalSizeClass: .regular, containerAxis: .horizontal, hingeStatus: .fullyOpen)))
++    print("portrait:", rule.mode(for: .mock(horizontalSizeClass: .regular, hingeStatus: .fullyOpen)))
++}
++
++#Playground("HingeRule · half folded") {
++    let rule: HingeRule = .init()
++    print("fold across:", rule.mode(for: .mock(horizontalSizeClass: .regular, containerAxis: .horizontal, hingeStatus: .partiallyOpen, divisionAxis: .horizontal)))
++    print("fold down:", rule.mode(for: .mock(horizontalSizeClass: .regular, hingeStatus: .partiallyOpen, divisionAxis: .vertical)))
++}
++#endif
+diff --git a/RPN Calculator/Core/Layout/Rules/LayoutModeRule.swift b/RPN Calculator/Core/Layout/Rules/LayoutModeRule.swift
+index 9a8e1e4..4d869ce 100644
+--- a/RPN Calculator/Core/Layout/Rules/LayoutModeRule.swift	
++++ b/RPN Calculator/Core/Layout/Rules/LayoutModeRule.swift	
+@@ -1,19 +1,26 @@
+ //
+ //  LayoutModeRule.swift
+ //  RPN Calculator
+ //
+ //  Created by Benjamin Pisano on 12/10/2026.
+ //
+ 
+ /// Decides which shape the keypad takes in a given container, and how big its keys are. Each platform injects its own rule.
+ protocol LayoutModeRule: Sendable {
+     /// What presses the keys on the platform.
+     var keySizing: KeySizing { get }
+ 
+     /// The shape of the keypad for a container.
+     ///
+     /// - Parameters:
+-    ///   - context: The size classes of the container the calculator is given.
++    ///   - context: The container the calculator is given and the posture of the device.
+     /// - Returns: The mode to lay the keypad out in.
+     func mode(for context: LayoutContext) -> KeypadLayoutMode
++
++    /// How far the keypad spreads on its sides, over the horizontal safe area.
++    ///
++    /// - Parameters:
++    ///   - context: The container the calculator is given and the posture of the device.
++    /// - Returns: How far to lay the keypad out towards the physical sides of the screen.
++    func keypadEdgeReach(in context: LayoutContext) -> KeypadEdgeReach
+ }
+diff --git a/RPN Calculator/UI/ViewModifiers/Layout/Hinge/HingeStatusChangeModifier.swift b/RPN Calculator/UI/ViewModifiers/Layout/Hinge/HingeStatusChangeModifier.swift
+new file mode 100644
+index 0000000..d6a4f6d
+--- /dev/null
++++ b/RPN Calculator/UI/ViewModifiers/Layout/Hinge/HingeStatusChangeModifier.swift	
+@@ -0,0 +1,32 @@
++//
++//  HingeStatusChangeModifier.swift
++//  RPN Calculator
++//
++//  Created by Benjamin Pisano on 08/11/2026.
++//
++
++import SwiftUI
++
++/// Reports how far the screen of the device is opened, each time it folds or unfolds.
++struct HingeStatusChangeModifier: ViewModifier {
++    private let action: (HingeStatus?) -> Void
++
++    /// Creates the modifier.
++    ///
++    /// - Parameters:
++    ///   - action: The action to run with the new status, `nil` on a device without hinge.
++    init(_ action: @escaping (HingeStatus?) -> Void) {
++        self.action = action
++    }
++
++    func body(content: Content) -> some View {
++        if #available(anyAppleOS 27.1, *) {
++            content
++                .onHingeChange { _, context in
++                    action(context.hinge.flatMap { HingeStatus($0.status) })
++                }
++        } else {
++            content
++        }
++    }
++}
+diff --git a/RPN CalculatorTests/Utils/Extensions/AxisExtensionTests.swift b/RPN CalculatorTests/Utils/Extensions/AxisExtensionTests.swift
+new file mode 100644
+index 0000000..50c730e
+--- /dev/null
++++ b/RPN CalculatorTests/Utils/Extensions/AxisExtensionTests.swift	
+@@ -0,0 +1,28 @@
++//
++//  AxisExtensionTests.swift
++//  RPN CalculatorTests
++//
++//  Created by Benjamin Pisano on 08/11/2026.
++//
++
++import SwiftUI
++import Testing
++@testable import RPN_Calculator
++
++@Suite
++struct AxisExtensionTests {
++    @Test
++    func `is horizontal for a rectangle wider than tall`() {
++        #expect(Axis(longSideOf: CGSize(width: 669, height: 40)) == .horizontal)
++    }
++
++    @Test
++    func `is vertical for a rectangle taller than wide`() {
++        #expect(Axis(longSideOf: CGSize(width: 40, height: 669)) == .vertical)
++    }
++
++    @Test
++    func `is vertical for a square`() {
++        #expect(Axis(longSideOf: CGSize(width: 100, height: 100)) == .vertical)
++    }
++}
