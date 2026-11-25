@@ -1,6 +1,9 @@
 ---
 # Agents config — written by setup, edit freely.
 discussion_language: en        # language Claude talk to you in
+ui_strings_language: ""        # language of user-facing strings (UI copy, protos). Empty → discussion_language.
+                               # UI project with wording.md: mirrored as source (first) in its
+                               # Project voice `languages` — setup keeps both in step.
 primary_language: generic      # swift | kotlin | typescript | generic  (picks convention pack;
                                # any other language → generic)
 project_kind: app              # app | web | server | cli | package  (picks architecture module)
@@ -82,6 +85,9 @@ review:
                                # + apple.md when setup exported Xcode's Apple references
                                # into {conventions}/apple/ (Xcode 27+): index only, agents
                                # open one page per topic they touch.
+                               # + wording.md for UI project (kind app or web, or UI toolkit):
+                               # UI copy rules + project voice; {conventions}/wording/ beside it,
+                               # pages opened on demand. Absent → no UI copy rules, old behavior.
                                # `skill:<plugin>:<skill>` = rulebook from another installed plugin
                                # (company guidelines), loaded by name on every machine; project rules
                                # on top go to overlay file listed after it. Order = load order, later

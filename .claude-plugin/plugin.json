@@ -41,6 +41,9 @@
     "./skills/wa-release",
     "./skills/wa-review",
     "./skills/wa-wiki",
-    "./skills/wa-autopilot"
+    "./skills/wa-autopilot",
+    "./skills/wa-pitch",
+    "./skills/wa-proto",
+    "./skills/wa-wording"
   ]
 }

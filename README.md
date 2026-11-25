@@ -31,6 +31,7 @@ Add the marketplace, then install the plugin:
 
 | Command | Description |
 | --- | --- |
+| `/wa-pitch <pitch>` | Kicks off a project from your pitch: grills it (user, core loop, v1 cut, screens, data, stack), writes `{wiki}/pitch.md`, seeds the glossary, optionally previews the screens through `/wa-proto`. Creates no task: `/wa-task <pitch page>` cuts it next |
 | `/wa-setup` | Config + scaffolding (`.lunabee/agents/`). On a project already set up: reconfigure, plus migrations of older task files (`/wa-setup migrate` for those alone) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action (runs on Haiku) |
 | `/wa-board <sprint\|milestone>` | Same, filtered to one sprint or milestone, with its progress |
@@ -48,8 +49,11 @@ Add the marketplace, then install the plugin:
 | `/wa-review [scope]` | Standalone review, 4 lenses (diff / path / project) — audit, optional `--fix` |
 | `/wa-wiki` | Updates the wiki |
 | `/wa-wiki <feature>` | Looks up info in the wiki, then the code |
+| `/wa-proto [idea\|task]` | Prototypes a UI idea as a Claude artifact: light/dark, a controls panel for states and variants, real content, the target platform's look. No argument: what you're talking about. Run alone it touches no task; inside `/wa-grill` the grill records the proto link in the task's decisions |
 
 Each step suggests the next one. You never have to figure out what to run.
+
+One skill has no command: `wa-wording` (you never type `/wa-wording`) loads by itself whenever Claude writes or edits UI copy outside the task pipeline, with the same rules as the [wording module](#ui-copy-wording).
 
 ### Backlog pane
 
@@ -187,6 +191,7 @@ pr:
 | Key | Default | What it does |
 | --- | --- | --- |
 | `discussion_language` | `en` | Language Claude talks to you in. Files and code stay in English |
+| `ui_strings_language` | `""` | Language of user-facing strings (UI copy, protos). Empty follows `discussion_language`. Asked by `/wa-setup` only for a UI project when your strings don't already tell |
 | `primary_language` | `generic` | Picks the convention pack: `swift`, `kotlin`, `typescript`, or `generic` for anything else |
 | `review.inline_micro_fixes` | `true` | `/wa-feedback` applies a micro-fix itself (≤2 files, ≤~20 lines, no new type or API change) instead of spawning the implementer |
 | `review.public_doc` | `true` | The verifier requires doc comments on public API |
@@ -407,6 +412,8 @@ Not available: moving a local file backlog or a GitHub board to Plane, a Plane b
   tasks/<slug>.md      # one task = one file (frontmatter + body)
   wiki/index.md        # wiki summary
   wiki/glossary.md     # one word per thing (concepts, screens), used in UI, code, tasks and PRs
+  wiki/pitch.md        # /wa-pitch only: what we build, for whom, v1 scope
+  wiki/protos/         # /wa-proto sources (HTML), each also published as a Claude artifact
   wiki/<page>.md       # domain pages, [[wikilink]] links (Obsidian-compatible)
   reports/<slug>.md    # run reports, local only: /wa-setup gitignores them
 ```
@@ -497,6 +504,12 @@ review:
 The verifier and the implementer load exactly `review.modules`, in order, and nothing else in the tree.
 
 With Xcode 27 or later, `/wa-setup` can also export Apple's own SwiftUI guidance from your Xcode (`xcrun agent skills export`) into `conventions/apple/`, indexed by the `swift/apple.md` module. The pages are a reference library, not rules: agents open only the page for the API they touch. Setup asks whether to commit the folder (about 170 KB, so teammates without Xcode 27 get it too) or gitignore it (better on a public repo, since it is Apple's text). Run `/wa-setup` again after an Xcode update to refresh it.
+
+### UI copy (wording)
+
+For a UI project (kind `app` or `web`, or SwiftUI / Compose detected), `/wa-setup` copies `wording.md` and its reference pages (`wording/`) into your conventions and lists it in `review.modules`. Every string the implementer writes goes down a ladder: remove it, show it (icon, button state, native empty state), shorten it, then tune its tone. A blacklist rejects the usual marks of AI-written copy (narrating what the app did, explaining the UI, filler politeness, dev jargon), and fixed guardrails cover destructive actions, errors, payment, permissions and legal text. Strings are written natively in each language, never translated, with each language's typography. The verifier checks the copy the diff adds, and existing copy the diff doesn't touch is never a finding.
+
+Setup asks up to three questions about your app's voice, each with a recommended answer detected from your existing strings: base tone (`neutral`, `sober`, `complice`, `premium`, `energetic`, or your own), formal or informal address for languages that have one, and audience. Answers land in the module's **Project voice** block, yours to edit; strings you rewrite can become **Validated examples** the agents copy. On an existing project, `/wa-setup` (or `/wa-setup wording`) offers the module as new. No module means no UI copy rules, as before.
 
 ### Focused reviewers
 
