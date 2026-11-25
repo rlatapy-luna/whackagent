@@ -15,6 +15,7 @@ import {
   parseWorktrees,
   bricksComment,
   claimOf,
+  prBodyCall,
   bareReviews,
   feedbackReviews,
   githubFocusView,
@@ -808,6 +809,37 @@ test('a claim names its ticket and phase, any other command none', async () => {
   expect(claimOf('wa-backlog claim wa-42 coding')).toBeUndefined()
   expect(claimOf('wa-backlog claim 12 review')).toBeUndefined()
   expect(claimOf('lb-board claims')).toBeUndefined()
+})
+
+const bodyCall = { verb: 'create', pr: '', base: '', head: '', repo: '', bodyFile: '', isInline: false, isFill: false, cwd: '' }
+
+test('a PR body call names its body source, base, head and PR, any other command none', async () => {
+  expect(prBodyCall('gh pr create --draft --base sprint/3 --head feature/12-login --title "Log in" --body-file /tmp/body.md')).toEqual({
+    ...bodyCall,
+    base: 'sprint/3',
+    head: 'feature/12-login',
+    bodyFile: '/tmp/body.md',
+  })
+  expect(prBodyCall('gh pr edit 12 --body-file=body.md -R me/app')).toEqual({ ...bodyCall, verb: 'edit', pr: '12', bodyFile: 'body.md', repo: 'me/app' })
+  expect(prBodyCall('gh pr edit --title "a; b" --add-label bug https://github.com/me/app/pull/7 -F b.md')).toEqual({
+    ...bodyCall,
+    verb: 'edit',
+    pr: 'https://github.com/me/app/pull/7',
+    bodyFile: 'b.md',
+  })
+  expect(prBodyCall('cd "../app worktrees/12-login" && gh pr create -B develop -F -  <<\'EOF\'\nbody\nEOF')).toEqual({
+    ...bodyCall,
+    base: 'develop',
+    bodyFile: '-',
+    cwd: '../app worktrees/12-login',
+  })
+  expect(prBodyCall('gh pr create --base develop --body "$(cat <<\'EOF\'\nIntro; more\nEOF\n)"')).toEqual({ ...bodyCall, base: 'develop', isInline: true })
+  expect(prBodyCall("gh pr create -b 'x' && gh pr view --web")).toEqual({ ...bodyCall, isInline: true })
+  expect(prBodyCall('gh pr create --fill')).toEqual({ ...bodyCall, isFill: true })
+  expect(prBodyCall('git push && gh pr edit 3 --add-assignee @me')).toEqual({ ...bodyCall, verb: 'edit', pr: '3' })
+  expect(prBodyCall('gh pr view 12 --json body')).toBeUndefined()
+  expect(prBodyCall('gh pr comment 12 --body "LGTM"')).toBeUndefined()
+  expect(prBodyCall('echo ghpr create')).toBeUndefined()
 })
 
 test('feedback reviews: not seen, asking for something, own ones included', async () => {

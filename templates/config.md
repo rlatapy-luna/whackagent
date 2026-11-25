@@ -268,6 +268,10 @@ pr:                            # HOW every PR agents open look — ticket draft,
                                #   per task into <App>Screenshots/Generated/ (git-ignored), xcodebuild
                                #   replays it on base and branch (needs target: setup). off (default) —
                                #   agent drives app by hand, every platform. Rules: reference/shots.md.
+  how_it_works: true           # ticket PR: each non-trivial Changes line folds open on how change works
+                               #   (before / now, callers, diagram only for branches or states, read links),
+                               #   plus one overview scenario when diff adds ≥ 3 types.
+                               #   Rules: reference/how-it-works.md. Key missing → plain lines (old behavior).
 
 compress_wiki: true            # caveman-compress config + wiki pages to save re-read tokens
                                # (at setup and after every wiki step update; .original backups removed)

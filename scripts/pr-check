@@ -1,0 +1,627 @@
+#!/usr/bin/env python3
+"""whackagent PR helper: internal, called by skills and the pane's PR guard, never by the user.
+
+Reads a ticket branch diff and either prints the signals that decide each How it works fold,
+or checks a PR body against them. Stdlib only.
+
+  pr-check signals <base> [--head <ref>] | --diff <file>
+  pr-check check <body.md> <base> [--head <ref>] [--folds | --no-folds] | --diff <file>
+
+<base> = the PR base branch (sprint branch, close.target, blocker branch of a stacked PR).
+A branch name is fetched from origin and the newest of local / origin wins; origin/x or a sha
+is used as given. The diff starts at the merge-base, or later at the ticket range start: the
+oldest `task: grill|spec <#id> <slug>` commit whose `<id>-<slug>` ends the head branch name
+(reference/code-github.md, Squash merge), so a squash-landed parent or blocker drops out.
+--head: the PR branch when it is not the checkout (default HEAD).
+
+Signals come from one regex table per language (Swift, Kotlin, TypeScript). Other files get
+no signal: the model judges them. Generated files (header comment, linguist-generated in
+.gitattributes), tests and `.lunabee/` are skipped.
+
+check finds `Changes` and `How to test` by heading name (the agents block's `###`, or the
+template's own section). Fails on: new type in no fold, no fold, no PR overview (only with
+folds on: `--folds`, or `pr.how_it_works: true` in .lunabee/agents/config.md), a mermaid
+flowchart node that is a bare new type name, banned words and `→` chains in the body.
+Commit messages: same wording check, warning only (already pushed).
+
+Exit 0 ok · 1 body misses something (check) · 2 usage or not a git repo.
+Rules: reference/how-it-works.md, reference/voice.md (banned words).
+"""
+import os
+import re
+import subprocess
+import sys
+
+REMOTE = "origin"
+HERE = os.path.dirname(os.path.realpath(__file__))
+VOICE = os.path.join(HERE, "..", "reference", "voice.md")
+CONFIG = os.path.join(".lunabee", "agents", "config.md")
+BANNED = ["seamless", "robust", "leverage", "ensures", "it's worth noting", "note that", "here's"]
+
+# ------------------------------------------------------------------ language tables
+
+# Swift and Kotlin: brace languages sharing one modifier list.
+SK_MODS = (r"(?:(?:@\w+(?:\([^)]*\))?|public|internal|private|fileprivate|open|final|nonisolated|"
+           r"indirect|sealed|data|abstract|inner|value|annotation|static|override|"
+           r"mutating|nonmutating|convenience|required|dynamic|lazy|weak|unowned|protected|suspend|inline|"
+           r"operator|infix|tailrec|lateinit|const|enum(?=\s+class))\s+)*")
+SK_MEMBER = re.compile(r"^\s*(" + SK_MODS + r")(func|fun|init|var|let|val|subscript)\b\s*(?:<[^>]*>\s*)?([A-Za-z_]\w*)?")
+TS_MODS = r"(?:(?:export|default|declare|public|private|protected|readonly|static|abstract|override|async|get|set|accessor)\s+)*"
+TS_MEMBER = re.compile(r"^\s*(" + TS_MODS + r")(function\s+)?([A-Za-z_$#][\w$]*)\s*[?!]?\s*(\(|<|:|=)")
+DQ = r'"(?:\\.|[^"\\])*"'
+TS_KEYWORDS = {"if", "for", "while", "switch", "return", "catch", "super", "this", "await", "new", "throw"}
+
+
+def sk_member(c):
+    m = SK_MEMBER.match(c)
+    if not m:
+        return None
+    return m.group(1), ("prop" if m.group(2) in ("var", "let", "val") else "fn"), m.group(3) or m.group(2)
+
+
+def ts_member(c):
+    m = TS_MEMBER.match(c)
+    if not m or m.group(3) in TS_KEYWORDS:
+        return None
+    return m.group(1), ("fn" if m.group(2) or m.group(4) in "(<" else "prop"), m.group(3)
+
+
+def swift_cases(lines, b):
+    if b[0] != "enum":
+        return 0
+    n = 0
+    for l in lines[b[2] + 1:b[3] + 1]:
+        m = re.match(r"\s*case\s+(.+)", l)
+        if m and not l.strip().startswith("case ."):
+            n += len([t for t in re.sub(r"\([^)]*\)", "", m.group(1)).split(",") if t.strip()])
+    return n
+
+
+def kotlin_cases(lines, b):
+    head = lines[b[2]]
+    if "enum class" not in head:
+        return 0
+    text = " ".join(lines[b[2]:b[3] + 1])
+    text = re.split(r"[;}]", text[text.find("{") + 1:], maxsplit=1)[0]
+    return len([t for t in text.split(",") if re.match(r"\s*[A-Z_]\w*", t)])
+
+
+def ts_cases(lines, b):
+    text = " ".join(lines[b[2]:b[3] + 1])
+    if b[0] == "enum":
+        body = text[text.find("{") + 1:text.rfind("}")]
+        return len([t for t in body.split(",") if re.match(r"\s*[A-Za-z_]\w*", t)])
+    if b[0] == "type":
+        parts = [p.strip().rstrip(";") for p in text.split("=", 1)[-1].split("|") if p.strip()]
+        return len(parts) if all(re.fullmatch(r'""|\d+', p) for p in parts) else 0
+    return 0
+
+
+LANGS = {
+    "swift": dict(
+        exts=(".swift",),
+        strings=[DQ],
+        type=re.compile(r"^\s*" + SK_MODS + r"(struct|enum|class|protocol|actor|extension)\s+([A-Z]\w*)"),
+        member=sk_member,
+        private=re.compile(r"\b(private|fileprivate)\b"),
+        contracts=("protocol",),
+        stores=("struct", "class", "actor"),
+        cases=swift_cases,
+        asyncs=re.compile(r"\b(async|await|actor|AsyncStream|DispatchQueue|withChecked\w*Continuation)\b|\bTask\s*[{(]"),
+        failure=re.compile(r"\b(throws?|try|catch)\b|\bResult<"),
+        ui=re.compile(r":\s*(View|ViewModifier)\b|\bsome View\b"),
+    ),
+    "kotlin": dict(
+        exts=(".kt", ".kts"),
+        strings=[DQ],
+        type=re.compile(r"^\s*" + SK_MODS + r"(enum class|class|interface|object)\s+([A-Z]\w*)"),
+        member=sk_member,
+        private=re.compile(r"\bprivate\b"),
+        contracts=("interface",),
+        stores=("class",),
+        cases=kotlin_cases,
+        asyncs=re.compile(r"\b(suspend|async|await|withContext)\b|\blaunch\s*\{|\bFlow<"),
+        failure=re.compile(r"\b(throws?|try|catch|runCatching)\b|\bResult<"),
+        ui=re.compile(r"@Composable\b"),
+    ),
+    "typescript": dict(
+        exts=(".ts", ".tsx", ".mts", ".cts"),
+        strings=[DQ, r"'(?:\\.|[^'\\])*'", r"`(?:\\.|[^`\\])*`"],
+        type=re.compile(r"^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:const\s+)?"
+                        r"(class|interface|enum|type)\s+([A-Z][\w$]*)"),
+        member=ts_member,
+        private=re.compile(r"\b(private|protected)\b|^\s*#"),
+        contracts=("interface",),
+        stores=("class",),
+        cases=ts_cases,
+        asyncs=re.compile(r"\b(async|await|Promise|Observable|setTimeout|setInterval)\b|\bnew Worker\b"),
+        failure=re.compile(r"\b(throw|try|catch)\b|\.catch\(|\breject\(|\bResult<"),
+        ui=re.compile(r"^\s*<[A-Za-z][\w.]*(\s|>|/>|$)|@Component\b|\bdefineComponent\b"),
+    ),
+}
+
+GENERATED = re.compile(r"\b(auto-?generated|generated\s+(by|using|with|from)|do\s+not\s+edit)\b|@generated\b", re.I)
+COMMENT = re.compile(r"^\s*(//|/\*|\*|#)")
+TEST_PATH = re.compile(r"(^|/)[^/]*Tests?/|(^|/)(test|tests|__tests__)/|Tests?\.(swift|kt)$|\.(test|spec)\.[cm]?[jt]sx?$")
+
+
+def lang_of(path):
+    return next((name for name, l in LANGS.items() if path.endswith(l["exts"])), None)
+
+
+def usage():
+    print("usage: pr-check signals <base> [--head <ref>] | --diff <file>\n"
+          "       pr-check check <body.md> <base> [--head <ref>] [--folds|--no-folds] | --diff <file>", file=sys.stderr)
+    sys.exit(2)
+
+
+def code(line, lang):
+    """Line without comments and string contents."""
+    for s in LANGS[lang]["strings"]:
+        line = re.sub(s, '""', line)
+    return line.split("//", 1)[0]
+
+
+def is_generated(lines):
+    """A comment saying so among the first 5 non-empty lines (SwiftGen, Sourcery, Apollo, protobuf…)."""
+    head = [l for l in lines if l.strip()][:5]
+    return any(COMMENT.match(l) and GENERATED.search(l) for l in head)
+
+
+# ------------------------------------------------------------------ git
+
+def git(*args):
+    return subprocess.run(["git", *args], capture_output=True, text=True)
+
+
+def ref_exists(ref):
+    return git("show-ref", "--verify", "--quiet", ref).returncode == 0
+
+
+def resolve_base(base):
+    """(ref to diff against, note). Branch name → fetched, newest of local / origin wins."""
+    local, remote = f"refs/heads/{base}", f"refs/remotes/{REMOTE}/{base}"
+    if base.startswith(f"{REMOTE}/") or not (ref_exists(local) or ref_exists(remote)):
+        return base, f"{base} (as given, not refreshed)"
+    warn = ""
+    if git("fetch", "--quiet", REMOTE, f"+refs/heads/{base}:{remote}").returncode != 0:
+        warn = f" ⚠️ fetch failed, cached {REMOTE}/{base}"
+    if not ref_exists(remote):
+        return base, f"{base} (no {REMOTE}/{base}){warn}"
+    if not ref_exists(local):
+        return f"{REMOTE}/{base}", f"{REMOTE}/{base}{warn}"
+
+    def count(a, b):
+        return int(git("rev-list", "--count", f"{a}..{b}").stdout.strip() or 0)
+
+    ahead, behind = count(remote, local), count(local, remote)
+    if not ahead and not behind:
+        return f"{REMOTE}/{base}", f"{REMOTE}/{base} (local up to date){warn}"
+    if not behind:
+        return base, f"{base} (local ahead {ahead}){warn}"
+    if not ahead:
+        return f"{REMOTE}/{base}", f"{REMOTE}/{base} (local behind {behind}){warn}"
+    return f"{REMOTE}/{base}", f"{REMOTE}/{base} ⚠️ local diverged (ahead {ahead}, behind {behind}){warn}"
+
+
+def resolve_head(head):
+    """(ref, branch name) of the PR branch: local branch, else origin's."""
+    if head is None:
+        name = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        return "HEAD", "" if name == "HEAD" else name
+    if ref_exists(f"refs/heads/{head}") or not ref_exists(f"refs/remotes/{REMOTE}/{head}"):
+        return head, head
+    return f"{REMOTE}/{head}", head
+
+
+def ticket_start(start, head, branch):
+    """Ticket range start (reference/code-github.md, Squash merge): `<sha>^` or None."""
+    if not branch:
+        return None
+    log = git("log", "--reverse", "--format=%H %s", "-E", "--grep=^task: (grill|spec) ", f"{start}..{head}").stdout
+    for line in log.splitlines():
+        m = re.match(r"(\w+) task: (?:grill|spec) #?(\S+) (\S+)\s*$", line)
+        if m and branch.endswith(f"{m.group(2)}-{m.group(3)}"):
+            return f"{m.group(1)}^"
+    return None
+
+
+def attr_generated(diff):
+    """Paths of the diff marked linguist-generated in .gitattributes."""
+    paths = re.findall(r"^\+\+\+ b/(.+?)\t?$", diff, re.M)
+    if not paths:
+        return set()
+    out = subprocess.run(["git", "check-attr", "linguist-generated", "--stdin"],
+                         input="\n".join(paths) + "\n", capture_output=True, text=True).stdout
+    return {l.rsplit(": linguist-generated: ", 1)[0] for l in out.splitlines()
+            if l.rsplit(": ", 1)[-1] in ("set", "true")}
+
+
+# ------------------------------------------------------------------ diff → signals
+
+def parse(diff, marked=frozenset()):
+    """({path: (lang, old_lines, new_lines, added_idx)}, [generated paths]), known languages only."""
+    files, skipped = {}, []
+    for chunk in re.split(r"^diff --git ", diff, flags=re.M)[1:]:
+        new = re.search(r"^\+\+\+ (?:b/)?(.+?)\t?$", chunk, re.M)
+        if not new or new.group(1) == "/dev/null":
+            continue
+        path = new.group(1).rstrip("\t ")
+        lang = lang_of(path)
+        if not lang or path.startswith(".lunabee/") or TEST_PATH.search(path):
+            continue
+        o, n, added = [], [], set()
+        body = chunk[chunk.find("\n@@"):] if "\n@@" in chunk else ""
+        for line in body.split("\n"):
+            if line.startswith("@@") or line.startswith("\\"):
+                continue
+            tag, text = line[:1], line[1:]
+            if tag == " ":
+                o.append(text); n.append(text)
+            elif tag == "-":
+                o.append(text)
+            elif tag == "+":
+                added.add(len(n)); n.append(text)
+        if path in marked or is_generated(n):
+            skipped.append(path)
+            continue
+        files[path] = (lang, o, n, added)
+    return files, skipped
+
+
+def blocks(lines, lang):
+    """[(kind, name, start, end, depth)] per type block; depth = brace depth of its line."""
+    L = LANGS[lang]
+    out, stack, pending, depth = [], [], None, 0
+    for i, raw in enumerate(lines):
+        c = code(raw, lang)
+        m = L["type"].match(c)
+        if m:
+            pending = (m.group(1).replace("enum class", "enum"), m.group(2), i, depth)
+        elif L["member"](c):
+            pending = None
+        for ch in c:
+            if ch == "{":
+                if pending:
+                    stack.append(pending); pending = None
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if stack and stack[-1][3] == depth:
+                    k, n, s, d = stack.pop()
+                    out.append((k, n, s, i, d))
+        if pending and pending[2] == i and "{" not in c and not c.rstrip().endswith(("(", ",", ":")):
+            out.append((*pending[:3], i, pending[3])); pending = None
+    return out
+
+
+def owner(bl, i):
+    """Innermost type block holding line i."""
+    best = None
+    for b in bl:
+        if b[2] < i <= b[3] and (best is None or b[2] > best[2]):
+            best = b
+    return best
+
+
+def members(lines, bl, lang):
+    """{(type, name): (normalized line, mods, kind, type kind)} for member-level declarations."""
+    out, d = {}, 0
+    for i, raw in enumerate(lines):
+        c = code(raw, lang)
+        m = LANGS[lang]["member"](c)
+        b = owner(bl, i) if m else None
+        if b and d == b[4] + 1:
+            out[(b[1], m[2])] = (" ".join(c.split()), m[0], m[1], b[0])
+        d += c.count("{") - c.count("}")
+    return out
+
+
+def signals(files):
+    report, types = {}, {}
+    for path, (lang, old, new, added) in files.items():
+        L = LANGS[lang]
+        nb, ob = blocks(new, lang), blocks(old, lang)
+        old_names = {b[1] for b in ob}
+        s = {"type": [], "signature": [], "states": [], "async": False, "failure": False, "ui": False}
+        for b in nb:
+            if b[2] in added and b[0] != "extension" and b[1] not in old_names:
+                s["type"].append(f"{b[1]} ({b[0]})")
+                types[b[1]] = (path, b)
+                n = L["cases"]([code(l, lang) for l in new], b)
+                if n >= 3:
+                    s["states"].append(f"{b[1]} ({n})")
+        om, nm = members(old, ob, lang), members(new, nb, lang)
+        new_types = {b[1] for b in nb if b[1] not in old_names}
+        for key, (text, mods, kind, tkind) in nm.items():
+            if key[0] in new_types or L["private"].search(mods):
+                continue
+            was = om.get(key)
+            stored = kind == "prop" and "=" not in text and "{" not in text and "static" not in mods
+            if was and was[0] != text:
+                s["signature"].append(f"{key[0]}.{key[1]} changed")
+            elif not was and tkind in L["contracts"]:
+                s["signature"].append(f"{key[0]}.{key[1]} required")
+            elif not was and stored and tkind in L["stores"]:
+                s["signature"].append(f"{key[0]}.{key[1]} stored")
+        for b in nb:
+            was = next((o for o in ob if o[1] == b[1] and o[0] == b[0]), None)
+            if was and "(" in code(new[b[2]], lang) and \
+                    " ".join(code(old[was[2]], lang).split()) != " ".join(code(new[b[2]], lang).split()):
+                s["signature"].append(f"{b[1]} constructor changed")
+        kept = {b[1] for b in nb}
+        for key, (text, mods, kind, tkind) in om.items():
+            if key not in nm and key[0] in kept and key[0] not in new_types and not L["private"].search(mods):
+                s["signature"].append(f"{key[0]}.{key[1]} removed")
+        plus = [code(new[i], lang) for i in sorted(added)]
+        s["async"] = any(L["asyncs"].search(l) for l in plus)
+        s["failure"] = any(L["failure"].search(l) for l in plus)
+        s["ui"] = any(L["ui"].search(l) for l in plus)
+        report[path] = s
+    links = {}
+    for name, (path, b) in types.items():
+        lang, _, new, _ = files[path]
+        text = "\n".join(code(l, lang) for l in new[b[2]:b[3] + 1])
+        hits = [o for o in types if o != name and re.search(rf"\b{re.escape(o)}\b", text)]
+        if hits:
+            links[name] = hits
+    return report, types, links
+
+
+def has_signal(s):
+    return bool(s["type"] or s["signature"] or s["states"] or s["async"] or s["failure"])
+
+
+def print_signals(files):
+    report, types, links = signals(files)
+    print(f"code files: {len(report)} · new types: {len(types)}")
+    for path, s in report.items():
+        print(path)
+        lines = [f"  {k}: {', '.join(v)}" for k, v in s.items() if isinstance(v, list) and v]
+        lines += [f"  {k}" for k, v in s.items() if v is True]
+        print("\n".join(lines) or "  -")
+    if links:
+        print("links:")
+        for a, bs in links.items():
+            print(f"  {a} → {', '.join(bs)}")
+    print("overview: " + ("yes, one scenario, if the types span ≥ 2 Changes lines" if len(types) >= 3 else "no"))
+
+
+# ------------------------------------------------------------------ body
+
+CHANGES = ("changes", "what changed", "what", "summary of changes")
+TESTING = ("how to test", "testing", "test steps", "to test", "test plan", "qa")
+STOPS = ("<!-- /lb-agents -->", "<!-- lb-report", "<!-- lb-screenshots")
+
+
+def outside_fences(body):
+    """Body lines, fenced blocks blanked."""
+    out, fence = [], False
+    for l in body.split("\n"):
+        if l.lstrip().startswith("```"):
+            fence = not fence
+            out.append("")
+        else:
+            out.append("" if fence else l)
+    return out
+
+
+def heading(line):
+    m = re.match(r"(#{1,6})\s+(.*)", line)
+    if not m:
+        return None
+    text = re.sub(r"[^\w\s']", " ", m.group(2)).strip().lower()
+    return len(m.group(1)), " ".join(text.split())
+
+
+def section(lines, names):
+    """(start, end) line indexes of the first heading named one of names, None if absent."""
+    for i, l in enumerate(lines):
+        h = heading(l)
+        if h and h[1] in names:
+            end = next((j for j in range(i + 1, len(lines))
+                        if (heading(lines[j]) and heading(lines[j])[0] <= h[0])
+                        or lines[j].strip().startswith(STOPS)), len(lines))
+            return i, end
+    return None
+
+
+def folds(text):
+    """Top-level <details> blocks of text."""
+    out, depth, start = [], 0, 0
+    for m in re.finditer(r"<(/?)details\b[^>]*>", text):
+        if not m.group(1):
+            if depth == 0:
+                start = m.start()
+            depth += 1
+        elif depth:
+            depth -= 1
+            if depth == 0:
+                out.append(text[start:m.end()])
+    return out
+
+
+def check_folds(lines, report, types):
+    miss = []
+    sig = any(has_signal(s) for s in report.values())
+    where = section(lines, CHANGES)
+    if where is None:
+        return ["Changes: section not found (`### Changes` in the agents block, or the template's)"] if sig else []
+    before = "\n".join(lines[:where[0]])
+    top = folds("\n".join(lines[where[0]:where[1]]))
+    if sig and not top:
+        miss.append("Changes: no fold, but the diff has signals (how-it-works → Fold)")
+    holder = {}
+    for name in types:
+        k = next((k for k, f in enumerate(top) if re.search(rf"\b{re.escape(name)}\b", f)), None)
+        if k is not None:
+            holder[name] = k
+        elif not any(re.search(rf"\b{re.escape(name)}\b", f) for f in folds(before)):
+            miss.append(f"{name}: new type named in no Changes fold")
+    if len(types) >= 3 and len(set(holder.values())) >= 2 and not folds(before):
+        miss.append(f"overview: {len(types)} new types over {len(set(holder.values()))} lines, no fold before Changes "
+                    "(how-it-works → PR overview)")
+    return miss
+
+
+def type_nodes(body, types):
+    """Flowchart nodes showing a bare new type name: a type graph, not steps."""
+    out = []
+    for block in re.findall(r"```mermaid\n(.*?)```", body, re.S):
+        if not re.match(r"\s*(flowchart|graph)\b", block):
+            continue
+        for line in block.split("\n")[1:]:
+            line = re.sub(r"\|[^|]*\|", " ", line.strip())
+            if not line or re.match(r"(subgraph|end|classDef|class|style|click|linkStyle|%%)\b", line):
+                continue
+            for part in re.split(r"\s*(?:-->|---|-\.->|==>|&)\s*", line):
+                m = re.match(r"(\w+)\s*(?:[\[({>]+\"?(.*?)\"?[\])}]+)?\s*$", part)
+                label = m and (m.group(2) if m.group(2) is not None else m.group(1)).strip().strip("`")
+                if label in types and label not in out:
+                    out.append(label)
+    return out
+
+
+def banned_words():
+    """Backticked words of the `**Banned words**` line of reference/voice.md, else the built-in list."""
+    try:
+        line = next(l for l in open(VOICE) if l.startswith("**Banned words**"))
+    except (OSError, StopIteration):
+        return BANNED
+    words = re.findall(r"`([^`]+)`", re.sub(r"\([^)]*\)", "", line[len("**Banned words**"):]))
+    return words or BANNED
+
+
+def prose(text):
+    """Lines readers see as prose: no fences, comments, code spans, URLs, run report, screenshots."""
+    text = re.sub(r"<!-- lb-report -->.*?<!-- /lb-report -->", "", text, flags=re.S)
+    text = re.sub(r"<!-- lb-screenshots.*?<!-- /lb-screenshots -->", "", text, flags=re.S)
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    out = []
+    for l in outside_fences(text):
+        l = re.sub(r"`[^`]*`", "x", l)
+        l = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", l)
+        l = re.sub(r"<[^>]+>", " ", l)
+        out.append(l)
+    return out
+
+
+def wording(text, where):
+    """Banned words, and `→` chains whose parts are sentences (one arrow a sentence)."""
+    miss, words = [], banned_words()
+    for l in prose(text):
+        low = l.lower().replace("’", "'")
+        for w in words:
+            if re.search(rf"(?<!\w){re.escape(w.lower())}(?!\w)", low):
+                miss.append(f"{where}: banned word `{w}` (voice → Banned words): {l.strip()[:60]}")
+        parts = l.split("→")
+        if len(parts) > 2 and any(len(p.split()) > 5 for p in parts):
+            miss.append(f"{where}: several `→` in a sentence, one arrow a sentence: {l.strip()[:60]}")
+    return miss
+
+
+def check(body, files, with_folds):
+    report, types, _ = signals(files)
+    lines = outside_fences(body)
+    miss = check_folds(lines, report, types) if with_folds else []
+    for name in type_nodes(body, types):
+        miss.append(f"diagram: node `{name}` is a type: show a step or a state")
+    return miss + wording(body, "body")
+
+
+def folds_on(flag):
+    """--folds / --no-folds, else `pr.how_it_works` in the project config (missing → off)."""
+    if flag is not None:
+        return flag
+    top = git("rev-parse", "--show-toplevel").stdout.strip()
+    try:
+        text = open(os.path.join(top, CONFIG)).read() if top else ""
+    except OSError:
+        return False
+    section_name = None
+    for line in text.split("\n"):
+        if line.strip() == "---" and section_name is not None:
+            break
+        top_key = re.match(r"([a-z_]+):", line)
+        if top_key:
+            section_name = top_key.group(1)
+        m = re.match(r"\s+how_it_works:\s*(\w+)", line)
+        if m and section_name == "pr":
+            return m.group(1) == "true"
+    return False
+
+
+# ------------------------------------------------------------------ main
+
+def take(args, name):
+    if name not in args:
+        return args, None
+    i = args.index(name)
+    if i + 1 >= len(args):
+        usage()
+    return args[:i] + args[i + 2:], args[i + 1]
+
+
+def main(argv):
+    if not argv or argv[0] not in ("signals", "check"):
+        usage()
+    verb, rest = argv[0], argv[1:]
+    rest, head = take(rest, "--head")
+    flag = True if "--folds" in rest else False if "--no-folds" in rest else None
+    rest = [a for a in rest if a not in ("--folds", "--no-folds")]
+    body = None
+    if verb == "check":
+        if len(rest) < 2:
+            usage()
+        try:
+            body = open(rest[0]).read()
+        except OSError:
+            print(f"❌ body file not found: {rest[0]}")
+            return 2
+        rest = rest[1:]
+    if not rest:
+        usage()
+    start = head_ref = None
+    if rest[0] == "--diff":
+        if len(rest) < 2:
+            usage()
+        diff, marked = open(rest[1]).read(), frozenset()
+    else:
+        if git("rev-parse", "--git-dir").returncode != 0:
+            print("❌ not in a git repo: run from the project root, or pass --diff <file>")
+            return 2
+        ref, note = resolve_base(rest[0])
+        head_ref, branch = resolve_head(head)
+        start = git("merge-base", ref, head_ref).stdout.strip()
+        if not start:
+            print(f"❌ no merge-base between {ref} and {head_ref}")
+            return 2
+        ticket = ticket_start(start, head_ref, branch)
+        if ticket:
+            start = ticket
+            note += f" · ticket range from {ticket}"
+        print(f"base: {note}")
+        diff = git("diff", "-U100000", start, head_ref).stdout
+        marked = attr_generated(diff)
+    files, skipped = parse(diff, marked)
+    for path in skipped:
+        print(f"generated (skipped): {path}")
+    if verb == "signals":
+        print_signals(files)
+        return 0
+    miss = check(body, files, folds_on(flag))
+    warn = []
+    if start:
+        for sha in git("rev-list", "--no-merges", f"{start}..{head_ref}").stdout.split():
+            warn += wording(git("log", "-1", "--format=%B", sha).stdout, f"commit {sha[:7]}")
+    for w in warn:
+        print(f"⚠️ {w} (warning: already pushed, wording only)")
+    for m in miss:
+        print(f"❌ {m}")
+    if not miss:
+        print("✅ body covers the diff")
+    return 1 if miss else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

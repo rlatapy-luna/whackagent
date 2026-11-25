@@ -30,6 +30,7 @@ import {
   parseFields,
   parseTaskFile,
   parseWorktrees,
+  prBodyCall,
   sessionName,
   startWatch,
   toTask,
@@ -292,6 +293,59 @@ async function readConfig($: EngineInterface, root: string): Promise<{ text: str
   return text === undefined ? undefined : { text, config: parseConfig(text) }
 }
 
+// region PR body guard (reference/pull-requests.md → Publish)
+
+const GUARD = 'whackagent PR guard'
+
+/**
+ * Why a `gh pr create` / `gh pr edit` must not run: inline or stdin body, or a body file pr-check finds red. Only the
+ * session's own ticket PR in a whackagent project: any other PR (sprint, sync, release, a setup migration rewriting
+ * old markers) passes untouched. Undefined lets the call run; the caller treats a guard failure the same way.
+ */
+async function prBodyDenial($: EngineInterface, command: string): Promise<string | undefined> {
+  const call = prBodyCall(command)
+  if (!call) return undefined
+  const cwd = joinPath(await $.session.cwd(), call.cwd)
+  const top = await git($, cwd, ['rev-parse', '--show-toplevel'])
+  const text = top ? await readText($, `${top}/${CONFIG_FILE}`) : undefined
+  if (text === undefined) return undefined
+  const config = parseConfig(text)
+  const branch = await git($, top, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  const repo = call.repo ? ['-R', call.repo] : []
+  let head = call.head || branch
+  let base = call.base
+  if (call.verb === 'edit') {
+    if (!call.bodyFile && !call.isInline) return undefined
+    const view = await $.process.run(['gh', 'pr', 'view', ...(call.pr ? [call.pr] : []), ...repo, '--json', 'headRefName,baseRefName'], {
+      cwd: top,
+      timeoutMs: 30_000,
+    })
+    if (view.exitCode !== 0) return undefined
+    const info = JSON.parse(view.stdout) as { headRefName: string; baseRefName: string }
+    head = info.headRefName
+    base ||= info.baseRefName
+  }
+  const board = TICKET_BOARDS.includes(config.provider) ? 'github' : 'local'
+  if (head !== branch || !branchTaskId(head, config.branchPrefix, board)) return undefined
+  if (call.isInline) return `${GUARD}: write the PR body to a file and pass \`--body-file <file>\`, so it gets checked first.`
+  if (call.bodyFile === '-') return `${GUARD}: a body from stdin can't be checked. Write it to a file, pass \`--body-file <file>\`.`
+  if (!call.bodyFile) return call.verb === 'create' && !call.isFill ? `${GUARD}: \`gh pr create\` needs \`--body-file <file>\`, checked first.` : undefined
+  if (!base) {
+    const view = await $.process.run(['gh', 'repo', 'view', ...repo, '--json', 'defaultBranchRef'], { cwd: top, timeoutMs: 30_000 })
+    if (view.exitCode !== 0) return undefined
+    base = (JSON.parse(view.stdout) as { defaultBranchRef: { name: string } }).defaultBranchRef.name
+  }
+  const check = await $.process.run(['python3', `${$.plugin.root}/scripts/pr-check`, 'check', joinPath(cwd, call.bodyFile), base], {
+    cwd: top,
+    timeoutMs: 120_000,
+  })
+  if (check.exitCode !== 1) return undefined
+  const fails = check.stdout.split('\n').filter(line => line.startsWith('❌'))
+  return `${GUARD}: pr-check is red on ${call.bodyFile}. Fix the body, then publish again.\n${fails.join('\n')}`
+}
+
+// endregion
+
 async function hasConfig($: EngineInterface) {
   return (await readConfig($, await $.session.root())) !== undefined
 }
@@ -527,6 +581,8 @@ export const register: Register = (on, options) => {
   }).catch(() => ({ result: 'Session name unchanged.' }))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const denial = await prBodyDenial($, e.command).catch(() => undefined)
+    if (denial) return { deny: denial }
     const done = await next(e)
     const claim = claimOf(e.command)
     if (!claim || 'deny' in done || done.isError) return done

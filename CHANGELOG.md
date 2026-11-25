@@ -14,6 +14,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 - Architecture tests, off by default (`archtest: none`). `/wa-setup` offers a Harmonize package (`Architecture/`, Swift) or a Konsist module (`architecture/`, Kotlin) built from the architecture modules, registered as a `tools:` entry `archtest` run at `/wa-validate`. Kotlin rules read your own layer names (`Layers.kt`) instead of assuming a pattern. Old violations sit in a baseline that only shrinks; a stale entry counts as the task's failure and is deleted by it. Convention sections the tests prove carry an `arch:` line the verifier then skips.
 - iOS screenshot replay, off by default (`pr.screenshots_replay: off`). On yes, `/wa-setup` adds a `<App>Screenshots` UI test target with its own scheme; the screenshot agent then writes one XCUITest per ticket into its git-ignored `Generated/` folder and replays it on the base and the branch instead of driving the app twice. Every other platform, and iOS without the target, keeps driving by hand.
 - PR screenshots show a changed view used by two or more screens alone, cropped, before | after (at most three), in the existing `## Screenshots` section.
+- New `pr.how_it_works` key (`/wa-setup` writes `true` for new projects): in a ticket PR, each non-trivial `Changes` line folds open on how the change works (before and now, the main type, callers, a diagram only for branches or states, parts, links into the diff), with one overview scenario when the diff adds three or more types and an optional Vocabulary fold pointing to your glossary. Fold size comes from `scripts/pr-check signals`, which reads the ticket's diff for Swift, Kotlin and TypeScript. Without the key, Changes lines stay plain.
+- PR bodies are checked before they are published: when a session creates or edits its own ticket PR, the backlog pane runs `scripts/pr-check check` on the body file and refuses the call while it fails (banned words, `→` chains, a mermaid node that is a bare type name, and with `pr.how_it_works: true` a new type missing from the folds). Commit messages get the same wording check as a warning only. Other PRs are not checked.
 
 ### Changed
 
@@ -23,6 +25,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 - Grill questions whose options differ by mechanism show a small sketch under each option (arrow line, ASCII of 8 lines at most, or 6 lines of code), never mermaid.
 - Kotlin and TypeScript conventions: no `TODO` left behind; TypeScript logs through the project logger. Existing projects get the module diffs offered by `/wa-setup` reconfigure.
 - The implementer never silences a project tool: no disable comment, no edit to its config or baseline. A rule it can't meet stops the round with a question.
+- PR bodies are always published from a file (`--body-file`); an inline `--body` or a body on stdin is refused for the session's ticket PR.
 
 ### Fixed
 
