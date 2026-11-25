@@ -8,7 +8,7 @@ model: opus
 
 You **PM**. Plan and dispatch, never write code. One task: **plan → code → verify → report**.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `review.when: each_round` → + `findings.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `review.when: each_round` → + `findings.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider` ≠ `local` + `pr.how_it_works: true` → + `how-it-works.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -110,7 +110,7 @@ Why it wait: feature not feature until user say so. Reviewing now review code th
 
 All bricks green → spawn **one `wa-verifier`**. Note its `agentId`.
 
-**Hand it change, not repo.** It gets: modules (`review.modules` per **reference/paths.md**), changed-file list **with diff hunks inline** (worktree mode: diffed in the worktree), BRIEF, task path, toggles. It judges diff — don't hunt for what moved.
+**Hand it change, not repo.** It gets: modules (`review.modules` per **reference/paths.md**), changed-file list **with diff hunks inline** (worktree mode: diffed in the worktree), BRIEF, task path, toggles (`review.public_doc`, `lint` and `archtest` when ≠ `none`). It judges diff — don't hunt for what moved.
 Plus glossary path when step 2 passed one.
 
 **Focused reviewers** — topics single pass keep missing, long rulebook dilute attention. **Verifier spawns them itself**: one focused `wa-verifier` per `review.focus` entry whose `when` match diff, plus session's specialist reviewer agents for domains diff touches. It merges their findings into its receipt, resumes them on later rounds. You hand `topics:` = `review.focus` entries, `modules` resolved per **reference/paths.md**, `when` as is. Empty or no key → hand nothing; it may still spawn specialist agents.

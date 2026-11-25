@@ -31,6 +31,7 @@ Add the marketplace, then install the plugin:
 
 | Command | Description |
 | --- | --- |
+| `/wa-pitch <pitch>` | Kicks off a project from your pitch: grills it (user, core loop, v1 cut, screens, data, stack), writes `{wiki}/pitch.md`, seeds the glossary, optionally previews the screens through `/wa-proto`. Creates no task: `/wa-task <pitch page>` cuts it next |
 | `/wa-setup` | Config + scaffolding (`.lunabee/agents/`). On a project already set up: reconfigure, plus migrations of older task files (`/wa-setup migrate` for those alone) |
 | `/wa-board` | Dashboard: backlog list, suggests the next action (runs on Haiku) |
 | `/wa-board <sprint\|milestone>` | Same, filtered to one sprint or milestone, with its progress |
@@ -48,8 +49,11 @@ Add the marketplace, then install the plugin:
 | `/wa-review [scope]` | Standalone review, 4 lenses (diff / path / project) — audit, optional `--fix` |
 | `/wa-wiki` | Updates the wiki |
 | `/wa-wiki <feature>` | Looks up info in the wiki, then the code |
+| `/wa-proto [idea\|task]` | Prototypes a UI idea as a Claude artifact: light/dark, a controls panel for states and variants, real content, the target platform's look. No argument: what you're talking about. Run alone it touches no task; inside `/wa-grill` the grill records the proto link in the task's decisions and its source ships with the task |
 
 Each step suggests the next one. You never have to figure out what to run.
+
+One skill has no command: `wa-wording` (you never type `/wa-wording`) loads by itself whenever Claude writes or edits UI copy outside the task pipeline, with the same rules as the [wording module](#ui-copy-wording).
 
 ### Backlog pane
 
@@ -158,6 +162,15 @@ tools:
 
 Each `run` covers the whole project. A failure in a file the task never touched is pre-existing: it's reported, never fixed, since it's not the task's scope. No `tools:` entry means no tool runs.
 
+**Strict linter** (`lint`, default `none`). When a Swift, Kotlin or TypeScript project runs no linter, `/wa-setup` offers to install a strict one built from the convention modules: SwiftLint (`.swiftlint.yml`, every rule an error: explicit types, `.init()`, member order, header, `Logger` not `print`, no Combine, no force unwrap, Swift Testing, previews, style accessors), detekt with ktlint rules through `detekt-formatting` (`maxIssues: 0`: docs, member order, expression bodies, no `TODO`, trailing commas, `GlobalScope`), or ESLint `strictTypeChecked`. It becomes one more `tools:` entry run at `code` and `validation`, so nothing new in the flow. Old code is autofixed on your yes, the rest frozen in a baseline that only shrinks, with a task offered to clear it. Running it inside the build itself (SwiftLint build plugin, `prebuild` script, `preBuild` depending on detekt) is a separate question, never forced. Each convention section the linter enforces carries a `lint:` line naming its rules; with `lint` set, the verifier skips those rules and reports any disable comment or edit to the linter config or baseline as critical. The implementer never disables a rule: when one can't be met, it stops and asks. The config is yours; `/wa-setup` reconfigure offers new template rules, never removes yours.
+
+**Architecture tests** (`archtest`, default `none`). What a linter can't see, a unit test can. For Swift and Kotlin, `/wa-setup` offers a suite built from the architecture modules, one file per subject and one test per rule, each failure saying why and how to fix it with the convention it comes from:
+
+- **Swift** (`harmonize`): an `Architecture/` package of [Harmonize](https://github.com/perrystreetsoftware/Harmonize) tests. View models behind a protocol with a UI and a mock implementation, views generic over their view model and never holding a store, stores `@MainActor @Observable`, coordinators as views, no class inheritance, errors as enums, no global `Models/` folder, extensions in `Extensions/` (packages: no flat target, tests mirror sources). Runs on macOS in seconds: `swift test --package-path Architecture`.
+- **Kotlin** (`konsist`): an `architecture/` Gradle module of [Konsist](https://docs.konsist.lemonappdev.com) tests that reads the sources without building them. No type-bucket packages (`viewmodels`, `repositories`, `models`…), no `Context`, `View` or UI toolkit type in a view model, UI code never importing the data layer, no inheritance from a project class (sealed parents excepted), every `…Error` type sealed. Layer names aren't hard-coded: `Layers.kt` holds your own (presentation suffix such as `ViewModel` or `Presenter`, UI and data packages), filled at setup from the pattern your project already follows. `./gradlew :architecture:test`.
+
+It becomes a `tools:` entry named `archtest` run at `validation`, so its failures join the review as `tool:archtest` findings. Old code is frozen in a baseline that only shrinks: an entry whose rule now passes fails the run, and that counts as the task's own failure (the task fixed it, so it deletes the entry), even though the baseline file isn't in its diff. Convention sections the tests prove carry an `arch:` line; with `archtest` set, the verifier no longer judges those rules by eye. Agents never edit the suite or the baseline beyond deleting a stale entry. Add the run to your CI.
+
 ### Pull requests
 
 Every PR whackagent opens (the ticket's draft, the `/wa-close` PR, a sprint PR) follows your repo's conventions, set in the `pr:` block of `.lunabee/agents/config.md`. `/wa-setup` proposes it from what it finds: your PR template, CODEOWNERS, a PR section in `CONTRIBUTING.md`, the title style of recent merged PRs, your labels.
@@ -171,13 +184,17 @@ pr:
   reviewers: [my-org/android]   # requested when the PR goes ready, never on a draft
   doc: CONTRIBUTING.md#Pull requests   # rules the keys can't express (changelog line, size limit)
   screenshots: validation   # GitHub provider: when UI screenshots are taken (validation | each_round | off)
+  screenshots_replay: off   # iOS: replay one XCUITest per ticket on base and branch (needs the target /wa-setup adds)
+  how_it_works: true        # ticket PR: Changes lines fold open on how the change works
 ```
 
 - **Every PR gets at least one label from your repo's own labels**, on top of `pr.labels`: the best fit for the change (bug, feature, docs, then an area label if you have them; the task's `type` decides the kind when set), named in the report. Labels are never created; a repo with no labels at all gets PRs without one.
 - **The template is filled, not replaced.** Its headings stay, each section is written from the task file, and its checkboxes are ticked only when a round proved them (build, tests, tools, runtime check) or the diff shows them.
 - **whackagent's part sits in its own marked block**: `Closes #n`, a `Changes` list (one user-visible change per line: Add, Change, Fix, Remove, Improve), the acceptance criteria checklist, numbered manual test steps (setup, navigation path from launch to the feature, then each action with its expected result), the status line. A template with its own testing or changes section gets the steps or the list there instead. Each round rewrites that block only, so whatever a human added to the body stays.
 - **Reviewers aren't pinged on drafts.** A draft is your turn to test; reviewers are requested when the PR goes ready.
-- **Screenshots** (GitHub provider, diff that changes UI): with `screenshots: validation`, `/wa-validate` shoots the touched screens once the verifier is clean, before the PR goes ready. A new screen is shown as is; a changed screen gets a before | after pair, the before side built from the ticket's fork point in a temporary worktree. At most six states, one device, fixed status bar; a later validation re-shoots only the screens whose code moved. `each_round` shoots the final state after every coding round (what happens with no `screenshots` key); `off` takes none. Images are uploaded as GitHub attachments (`gh pr edit --attach`, gh 2.102 or later, else the `gh image` extension), never pushed to a branch.
+- **Screenshots** (GitHub provider, diff that changes UI): with `screenshots: validation`, `/wa-validate` shoots the touched screens once the verifier is clean, before the PR goes ready. A new screen is shown as is; a changed screen gets a before | after pair, the before side built from the ticket's fork point in a temporary worktree. At most six states, one device, fixed status bar; a later validation re-shoots only the screens whose code moved. `each_round` shoots the final state after every coding round (what happens with no `screenshots` key); `off` takes none. A changed view used by two or more screens is also shot alone, cropped to its bounds, before | after (at most three, a few variants each), in the same section. On iOS, `screenshots_replay: on` (default `off`) has `/wa-setup` add a `<App>Screenshots` UI test target with its own scheme, run by nothing else: the screenshot agent then writes one XCUITest per ticket (in the git-ignored `Generated/` folder, never committed) and `xcodebuild` replays it on the base and the branch, for identical before/after paths and fewer tokens; components use `snap(_:of:)`. Without the target, and on every other platform, the agent drives the app by hand as before. Images are uploaded as GitHub attachments (`gh pr edit --attach`, gh 2.102 or later, else the `gh image` extension), never pushed to a branch.
+- **How it works** (`how_it_works: true`, what `/wa-setup` writes for new projects): in a ticket PR, each non-trivial `Changes` line folds open on how the change works, for a reviewer who never saw the task: before and now, the main type, the callers that change, a diagram only when there are branches or states (nodes are steps or states, never type names), the parts in execution order, and links into the PR diff. A diff adding three or more types gets one overview scenario above the list, and an optional Vocabulary fold points to your glossary terms. The size of each fold comes from `scripts/pr-check signals`, which reads the ticket's diff (Swift, Kotlin and TypeScript; other languages are judged from the diff). Without the key, the lines stay plain.
+- **The body is checked before it is published.** PR bodies always go through a file (`--body-file`). When a session publishes the body of its own ticket PR, the backlog pane runs `scripts/pr-check check` first and refuses the call while it fails: banned words, `→` chains, a mermaid node that is a bare type name and, with `how_it_works: true`, a new type missing from the folds. Commit messages get the same wording check as a warning only. PRs of other branches (sprint, sync, release, setup migrations) are not checked.
 - No `pr:` block keeps the previous behavior: no template, title = task title, assigned to you.
 
 ### Other settings
@@ -187,6 +204,7 @@ pr:
 | Key | Default | What it does |
 | --- | --- | --- |
 | `discussion_language` | `en` | Language Claude talks to you in. Files and code stay in English |
+| `ui_strings_language` | `""` | Language of user-facing strings (UI copy, protos). Empty follows `discussion_language`. Asked by `/wa-setup` only for a UI project when your strings don't already tell |
 | `primary_language` | `generic` | Picks the convention pack: `swift`, `kotlin`, `typescript`, or `generic` for anything else |
 | `review.inline_micro_fixes` | `true` | `/wa-feedback` applies a micro-fix itself (≤2 files, ≤~20 lines, no new type or API change) instead of spawning the implementer |
 | `review.public_doc` | `true` | The verifier requires doc comments on public API |
@@ -407,6 +425,8 @@ Not available: moving a local file backlog or a GitHub board to Plane, a Plane b
   tasks/<slug>.md      # one task = one file (frontmatter + body)
   wiki/index.md        # wiki summary
   wiki/glossary.md     # one word per thing (concepts, screens), used in UI, code, tasks and PRs
+  wiki/pitch.md        # /wa-pitch only: what we build, for whom, v1 scope
+  wiki/protos/         # /wa-proto sources (HTML), each also published as a Claude artifact
   wiki/<page>.md       # domain pages, [[wikilink]] links (Obsidian-compatible)
   reports/<slug>.md    # run reports, local only: /wa-setup gitignores them
 ```
@@ -497,6 +517,12 @@ review:
 The verifier and the implementer load exactly `review.modules`, in order, and nothing else in the tree.
 
 With Xcode 27 or later, `/wa-setup` can also export Apple's own SwiftUI guidance from your Xcode (`xcrun agent skills export`) into `conventions/apple/`, indexed by the `swift/apple.md` module. The pages are a reference library, not rules: agents open only the page for the API they touch. Setup asks whether to commit the folder (about 170 KB, so teammates without Xcode 27 get it too) or gitignore it (better on a public repo, since it is Apple's text). Run `/wa-setup` again after an Xcode update to refresh it.
+
+### UI copy (wording)
+
+For a UI project (kind `app` or `web`, or SwiftUI / Compose detected), `/wa-setup` copies `wording.md` and its reference pages (`wording/`) into your conventions and lists it in `review.modules`. Every string the implementer writes goes down a ladder: remove it, show it (icon, button state, native empty state), shorten it, then tune its tone. A blacklist rejects the usual marks of AI-written copy (narrating what the app did, explaining the UI, filler politeness, dev jargon), and fixed guardrails cover destructive actions, errors, payment, permissions and legal text. Strings are written natively in each language, never translated, with each language's typography. The verifier checks the copy the diff adds, and existing copy the diff doesn't touch is never a finding.
+
+Setup asks up to three questions about your app's voice, each with a recommended answer detected from your existing strings: base tone (`neutral`, `sober`, `complice`, `premium`, `energetic`, or your own), formal or informal address for languages that have one, and audience. Answers land in the module's **Project voice** block, yours to edit; strings you rewrite can become **Validated examples** the agents copy. On an existing project, `/wa-setup` (or `/wa-setup wording`) offers the module as new. No module means no UI copy rules, as before.
 
 ### Focused reviewers
 

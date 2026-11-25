@@ -6,6 +6,8 @@
 
 ## Layers
 
+arch: view_model_no_android_ui, ui_no_data_import
+
 Unidirectional data flow — state down, events up:
 
 ```
@@ -24,6 +26,8 @@ Data layer
 - State = one `data class FooUiState` (or sealed interface) per screen, immutable, updated via `update { }`.
 
 ## File tree — group by feature, never by type
+
+arch: no_type_bucket
 
 Each feature own package hold all it need. **Never** global `viewmodels/`, `repositories/`, `models/` packages for app features.
 

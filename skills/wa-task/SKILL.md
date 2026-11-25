@@ -58,6 +58,7 @@ Task = one coherent feature: user tests it alone, one `/wa-code` pipeline, one P
 - **Never shred** — no task per acceptance criterion, field, button or edge case.
 - **Doubt between one and two → one.** Grill can still split later (`/wa-grill` step 4); merging back costs more.
 - **Size bound** — block beyond `large` (many sessions, many screens) → split. Everything fits `medium`/`large` → one task fine, even when spec long.
+- **Pitch page** (`{wiki}/pitch.md`, from `/wa-pitch`) → blocks = `## v1` features; `## Later`, `## Out of scope` → `Out of task`. First task = walking skeleton (thinnest core loop end to end), never setup-only task showing nothing.
 - **Count check** — big spec usually 2–6 tasks. Past ~8 → probably shredding: cut coarser, or say spec = several sprints and cut first one only.
 
 ### Proposal

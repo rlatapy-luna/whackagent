@@ -17,12 +17,14 @@ Architecture here = how feature **decomposed, made testable, kept modular** — 
 
 ## Design principles (general)
 
+arch: no_class_inheritance, error_is_enum
+
 - **Composition over inheritance.** No class inheritance for domain logic. Data = `struct` (value, immutable by default); shared mutable state = `actor`, not base class. Dependencies = fields, injected — never inherited.
 - **Protocol-driven boundaries (dependency inversion).** Depend on `protocol`, never concrete type. Hold collaborators as `any SomeProtocol`; inject concrete impl through `init`. This what make things swappable + testable (fakes). Use `associatedtype` + generics for reusable architectures, specialize with `typealias`.
 - **Protocol + struct over enum when cases not fixed.** `enum` only for fixed, closed one-of (domain values, events, errors — each case carry own associated data). When set open/extensible, or each case own its creation/logic, model as `protocol` with conforming `struct`s. Reach for enum only when cases truly finite + stable.
 - **Constructor injection.** Every dependency required or defaulted in `init`. No service locators, no global singletons for logic. Complex construction → factory `struct` or `static func` factory.
 - **Errors as enums.** `enum FooError: Error` (sum types) over exceptions/codes/sentinels.
-- **Single responsibility, small files.** One type, one reason to change; files stay small + focused. One primary type per file; extensions in `Type+Category.swift`.
+- **Single responsibility, small files.** One type, one reason to change; files stay small + focused. One primary type per file; extensions in `<Type>Extension.swift`, one file per extended type.
 - **Testability by design.** Protocol boundaries + constructor DI make fakes trivial. Type hard to test = design wrong.
 
 ## Review checklist (architecture category)

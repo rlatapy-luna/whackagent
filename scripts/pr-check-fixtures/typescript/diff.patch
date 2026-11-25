@@ -1,0 +1,85 @@
+diff --git a/src/sync/syncQueue.ts b/src/sync/syncQueue.ts
+new file mode 100644
+index 0000000..1a2b3c4
+--- /dev/null
++++ b/src/sync/syncQueue.ts
+@@ -0,0 +1,30 @@
++import type { ApiClient } from '../api/client'
++
++export type SyncPhase = 'idle' | 'running' | 'failed'
++
++export interface SyncJob {
++  id: string
++  attempts: number
++}
++
++export class SyncQueue {
++  private jobs: SyncJob[] = []
++  phase: SyncPhase = 'idle'
++
++  constructor(private readonly client: ApiClient) {}
++
++  push(job: SyncJob): void {
++    this.jobs.push(job)
++  }
++
++  async run(): Promise<void> {
++    this.phase = 'running'
++    try {
++      for (const job of this.jobs) await this.client.send(job.id)
++      this.phase = 'idle'
++    } catch {
++      this.phase = 'failed'
++    }
++  }
++}
+diff --git a/src/api/client.ts b/src/api/client.ts
+index 5d6e7f8..9a0b1c2 100644
+--- a/src/api/client.ts
++++ b/src/api/client.ts
+@@ -1,13 +1,18 @@
+ export interface ApiClient {
+-  send(id: string): void
++  send(id: string): Promise<void>
++  ping(): Promise<boolean>
+ }
+
+ export class HttpClient implements ApiClient {
+   constructor(private readonly base: string) {}
+
+-  send(id: string): void {
+-    fetch(`${this.base}/sync/${id}`)
++  async send(id: string): Promise<void> {
++    await fetch(`${this.base}/sync/${id}`)
++  }
++
++  async ping(): Promise<boolean> {
++    return (await fetch(`${this.base}/ping`)).ok
+   }
+ }
+diff --git a/src/ui/SyncBadge.tsx b/src/ui/SyncBadge.tsx
+new file mode 100644
+index 0000000..3c4d5e6
+--- /dev/null
++++ b/src/ui/SyncBadge.tsx
+@@ -0,0 +1,9 @@
++import type { SyncPhase } from '../sync/syncQueue'
++
++export function SyncBadge({ phase }: { phase: SyncPhase }) {
++  return (
++    <span className={`badge badge-${phase}`}>
++      {phase === 'failed' ? 'Sync failed' : 'Synced'}
++    </span>
++  )
++}
+diff --git a/src/sync/syncQueue.test.ts b/src/sync/syncQueue.test.ts
+new file mode 100644
+index 0000000..7e8f9a0
+--- /dev/null
++++ b/src/sync/syncQueue.test.ts
+@@ -0,0 +1,5 @@
++import { SyncQueue } from './syncQueue'
++
++test('starts idle', () => {
++  class FakeClient {}
++})

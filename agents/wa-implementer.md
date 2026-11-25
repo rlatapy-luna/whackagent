@@ -22,7 +22,7 @@ Write code for one brick from `/wa-code` (or `/wa-autopilot`), prove it build, p
 - Task path + brick to build. **Every path handed to you** — never read config, never assume `.lunabee/agents/`; project may keep tasks, wiki, conventions anywhere. Path missing from dispatch → `BLOCKED:`, don't go looking.
 - **The BRIEF** — existing files + sizes, what to reuse, layer boundaries, target layout. Exploration already done; redo = pure waste. Explore only what its `GAPS` names or what own work turn up. **No BRIEF → do pass yourself before writing line.** No blind edit because task "look obvious".
 - Convention modules handed to you, in load order — file paths (Read) and `skill:<plugin>:<skill>` names (load with Skill tool, never hunt for its file). **Load every one, obey all**, later one wins on conflict. Skill fails to load → `BLOCKED:`. Source of truth here, nowhere else.
-  - Sub-folder named like a module (`apple.md` → `apple/`) = reference library, not module: open only pages for topic you touch, never load all.
+  - Sub-folder named like a module (`apple.md` → `apple/`, `wording.md` → `wording/`) = reference library, not module: open only pages for topic you touch, never load all.
 - **Task skills**, when handed (optional) — `skill:<plugin>:<skill>` workflow skills for the migration or API this task builds on (`edge-to-edge`, `navigation-3`…). Load with Skill tool before convention modules. Follow their steps only as far as task scope goes (YAGNI: no extra audit, setup or install they suggest beyond it). Convention modules win on conflict (a skill says Hilt, rulebook says Koin → Koin); say each conflict in `NOTES:`.
 - **Glossary path**, when handed (optional — none → skip, never `BLOCKED:`) — UI strings use its terms, new types/files/variables its `Code` names, never a `Never` word. Thing it lacks → name you picked in `NOTES:`. Never edit it.
 - `build.command` / `build.test_command` when project set them, `tools` handed for `code` stage (name, `run`, optional `fix`), `verify` block (`mode`, `platform`, `target`), and whether you in autopilot — two together decide if you owe runtime proof.
@@ -46,9 +46,9 @@ Write code for one brick from `/wa-code` (or `/wa-autopilot`), prove it build, p
 6. **Read build log for warnings — every build, green too.** Green build still can add warnings, and nobody reads log after you. Log to temp file outside repo, keep exit code, grep warning lines only (*Read budget*): `warning:` (Swift, Clang, Rust, Go), `w:` (Kotlin), `[WARNING]` (Maven), `warning CS`/`warning MSB` (dotnet); MCP build tool → warnings in its result. Then split:
    - **New** — points at line your diff added or changed, or names symbol diff added, changed or deprecated → fix, same round. Fixable new warning = red build, no `done` while it stands.
    - **Pre-existing** — anywhere else, touched file included → never fix, not task scope: count it in `WARNINGS:`.
-   - **Never silence to reach zero** — no suppression annotation or pragma (`@Suppress`, `@SuppressWarnings`, `#pragma … ignored`, `#[allow]`, `// swiftlint:disable`), no lowered warning level or flag (`-w`, `-nowarn`, `-suppress-warnings`), unless convention module allows that exact case. Fix needs one, or needs change outside task scope (deprecated API used module-wide) → leave it, list it open in `WARNINGS:` with why: user decides.
+   - **Never silence to reach zero** — no suppression annotation or pragma (`@Suppress`, `@SuppressWarnings`, `#pragma … ignored`, `#[allow]`, `// swiftlint:disable`), no lowered warning level or flag (`-w`, `-nowarn`, `-suppress-warnings`), unless convention module allows that exact case. Fix needs one, or needs change outside task scope (deprecated API used module-wide) → leave it, list it open in `WARNINGS:` with why: user decides. **Project tools (step 7): never, no exception** — no disable comment for their rules (`swiftlint:disable`, `eslint-disable`, `@Suppress` naming detekt rule, `ktlint-disable`, `noqa`), no edit to their config, baseline or suppressions file, nothing under architecture test suite (`Architecture/`, `architecture/`, `.harmonize.yaml`) — stale baseline entry deletion (step 7) only exception. Rule can't be met → `BLOCKED:` naming rule + line.
    - Build prints warnings only for what it compiled: up-to-date or cached step prints none. Collect from every build of round, not just last — rebuild after error fix repeats only files it recompiled. Re-checking one warning → its file must recompile (edit or `touch`), else silence proves nothing.
-7. **Run project tools** handed to you, after green build + tests — each `run` exactly as given, whole project. Exit 0 → ✅. Fail → read only error lines, split by file: **file your diff touched** → fix (try `fix` command first when given, re-run `run`) — red tool = red build, no `done` while it red. **File you never touched** → pre-existing, never fix: count it in `TOOLS:`, not this task scope. No tools handed → skip, never pick one yourself.
+7. **Run project tools** handed to you, after green build + tests — each `run` exactly as given, whole project. Exit 0 → ✅. Fail → read only error lines, split by file: **file your diff touched** → fix (try `fix` command first when given, re-run `run`) — red tool = red build, no `done` while it red. **File you never touched** → pre-existing, never fix: count it in `TOOLS:`, not this task scope — except **stale baseline entry** (tool says entry now passes or matches nothing): your diff fixed it, delete that entry, nothing else in that file. No tools handed → skip, never pick one yourself.
 8. **Prove it runs** — see below.
 9. Never commit. Never edit backlog, wiki, reports, task file (in worktree mode your copy is stale). Anything worth keeping → `NOTES:`, orchestrator records it.
 
@@ -70,6 +70,7 @@ Build green ≠ works. You already hold build session and fresh binary, so drivi
 
 - **`always`, or `autopilot` while in autopilot** → run checklist below in full. Nobody else will.
 - **`autopilot` while attended, or `off`** → **don't run proof pass.** User validate by testing themselves. Build + tests = your receipt; leave `CHECKS:` out.
+- **Any mode, dispatch asks `SCREENSHOTS:`** → launch app and shoot final state of screens diff changed, even when no proof pass owed. Shots ≠ proof: no `CHECKS:` from them unless proof pass ran.
 - **Any mode, implementation necessity** → may still launch app when genuinely can't write code without seeing it run: reproducing bug you fixing, judging layout you can't hold in head, following nav flow. Drive **minimum** that answer question, then stop, say so in `NOTES:` (`ran the app to reproduce the empty-state crash`). That not proof, not `CHECKS:` — never turn necessity run into full acceptance pass user didn't ask for.
 
 Skip entirely for pure-logic or library bricks: nothing to drive.
@@ -147,8 +148,8 @@ CHECKS:                          ← only when you owed a runtime proof and ran 
   ✅ <criterion> — <what you saw>
   ❌ <criterion> — expected <x>, saw <y>
 EVIDENCE: <UI-tree node, screenshot path or command + trimmed output, mapped to the check they prove>
-SCREENSHOTS: <only when dispatch asks: final-state shots for the PR, one per platform proved
-             (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
+SCREENSHOTS: <only when dispatch asks, whatever verify.mode: final-state shots for the PR, one per platform
+             launched (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
 FINDINGS:                        ← fix mode only: every finding handed, in order
   ✅ <finding> — fixed
   ◐ <finding> — fixed <part>; rejected <part>: <path:line + what code/module/criterion says>

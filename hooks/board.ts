@@ -1037,3 +1037,117 @@ export function watchReviews(watches: readonly ReviewWatch[], pulls: readonly Re
 }
 
 // endregion
+
+// region PR body guard
+
+export type PrBodyCall = {
+  verb: 'create' | 'edit'
+  /** `gh pr edit`'s PR: number, URL or branch; empty for the current branch's PR. */
+  pr: string
+  base: string
+  head: string
+  repo: string
+  /** `--body-file` value, `-` for stdin; empty when absent. */
+  bodyFile: string
+  isInline: boolean
+  isFill: boolean
+  /** Directory of a leading `cd <dir> &&`, the shape agents use; empty when none. */
+  cwd: string
+}
+
+const GH_PR_BODY = /(?:^|[\s;&|(])gh\s+pr\s+(create|edit)\b/
+const SEPARATORS = new Set(['&&', '||', ';', '|', '\n'])
+// gh pr create / edit flags that take a value: skipped when looking for edit's PR argument
+const VALUE_FLAGS = new Set([
+  '--base', '-B', '--head', '-H', '--title', '-t', '--body', '-b', '--body-file', '-F', '--repo', '-R',
+  '--label', '-l', '--add-label', '--remove-label', '--assignee', '-a', '--add-assignee', '--remove-assignee',
+  '--reviewer', '-r', '--add-reviewer', '--remove-reviewer', '--milestone', '-m', '--project', '-p',
+  '--add-project', '--remove-project', '--template', '-T', '--recover',
+])
+
+/** Shell words of a command line, quotes removed, unquoted separators (`&&`, `||`, `;`, `|`, newline) as their own words. */
+function shellWords(text: string): string[] {
+  const words: string[] = []
+  let word: string | undefined
+  let quote = ''
+  const push = () => {
+    if (word !== undefined) words.push(word)
+    word = undefined
+  }
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]!
+    if (quote) {
+      if (char === quote) quote = ''
+      else if (char === '\\' && quote === '"' && index + 1 < text.length) word += text[++index]!
+      else word += char
+    } else if (char === '"' || char === "'") {
+      quote = char
+      word ??= ''
+    } else if (char === '\\' && index + 1 < text.length) {
+      word = (word ?? '') + text[++index]!
+    } else if (char === ' ' || char === '\t') {
+      push()
+    } else if (char === '\n' || char === ';') {
+      push()
+      words.push(char)
+    } else if ((char === '&' || char === '|') && text[index + 1] === char) {
+      push()
+      words.push(char + char)
+      index++
+    } else if (char === '|') {
+      push()
+      words.push(char)
+    } else {
+      word = (word ?? '') + char
+    }
+  }
+  push()
+  return words
+}
+
+function flagValue(words: readonly string[], names: readonly string[]): string | undefined {
+  for (const [index, word] of words.entries()) {
+    for (const name of names) {
+      if (word === name) return words[index + 1] ?? ''
+      if (name.startsWith('--') && word.startsWith(`${name}=`)) return word.slice(name.length + 1)
+    }
+  }
+  return undefined
+}
+
+/**
+ * The `gh pr create` / `gh pr edit` a Bash command runs, with what decides whether its body gets checked: body file,
+ * inline body, base, head, PR, leading `cd`. Undefined for any other command.
+ */
+export function prBodyCall(command: string): PrBodyCall | undefined {
+  const match = command.match(GH_PR_BODY)
+  if (!match || match.index === undefined) return undefined
+  const verb = match[1] === 'create' ? 'create' : 'edit'
+  const rest = shellWords(command.slice(match.index + match[0].length))
+  const end = rest.findIndex(word => SEPARATORS.has(word))
+  const words = end === -1 ? rest : rest.slice(0, end)
+  let pr = ''
+  for (let index = 0; verb === 'edit' && index < words.length; index++) {
+    const word = words[index]!
+    if (VALUE_FLAGS.has(word)) index++
+    else if (!word.startsWith('-')) {
+      pr = word
+      break
+    }
+  }
+  const lead = shellWords(command.slice(0, match.index))
+  const cwd = lead[0] === 'cd' && lead[1] !== undefined && SEPARATORS.has(lead[2] ?? '') ? lead[1] : ''
+  return {
+    verb,
+    pr,
+    base: flagValue(words, ['--base', '-B']) ?? '',
+    head: flagValue(words, ['--head', '-H']) ?? '',
+    repo: flagValue(words, ['--repo', '-R']) ?? '',
+    bodyFile: flagValue(words, ['--body-file', '-F']) ?? '',
+    isInline: flagValue(words, ['--body', '-b']) !== undefined,
+    isFill: words.some(word => word === '-f' || word.startsWith('--fill')),
+    cwd,
+  }
+}
+
+// endregion

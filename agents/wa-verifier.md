@@ -24,12 +24,14 @@ One exception: **focused reviewers** — topic single pass keep missing because 
 ## Inputs
 
 - **`modules`** — project convention modules (`review.modules`), in load order: file paths (Read) and `skill:<plugin>:<skill>` names (load with Skill tool). **Load every one**, before judge anything; later one wins on conflict. Skill fails to load → say so in verdict, never judge without it.
-  - Sub-folder named like a module (`apple.md` → `apple/`) = reference library, not module: open only pages diff's topics call for, never load all.
+  - Sub-folder named like a module (`apple.md` → `apple/`, `wording.md` → `wording/`) = reference library, not module: open only pages diff's topics call for, never load all.
 - **Glossary path**, when handed — `Never` word in new UI copy or new identifier → `style` finding, naming row's term. Existing code untouched by diff → not finding.
 - **The change, already located for you**: changed files with **diff hunks inline**. Judge from hunks; open file only when genuinely need wider context. No hunks → derive from `git diff` or task `## Implementation`. **Validation round** hand you *cumulative* diff — code plus every feedback round in one payload. Judge end state, not history: line added then reworked = one finding max, on what there now.
 - **The BRIEF** — neighborhood map orchestrator already built (existing files + sizes, what to reuse, layer boundaries, target layout). Judge diff against it. Explore further only for what its `GAPS` name or what specific finding force (who call this, what it depend on) — targeted Grep/Glob, never re-scan ground BRIEF cover.
 - **Tool findings**, when project runs tools (`tools:`) — output already reported as `tool:<name>` findings. **Don't re-report** what tool caught: it enforce that rule mechanically. Judge what no tool can. `tool:build` = new build warning implementer left open — same rule.
 - Task path, and convention **toggles** (`review.public_doc: false` → public-doc not finding).
+  - **`lint: <tool>`** handed → module line `lint: <rule ids>` = rules project's strict linter enforces every round: skip those, judge rest of section. Disable comment for a linter rule in diff (`swiftlint:disable`, `eslint-disable`, `@Suppress` naming detekt rule, `ktlint-disable`), or edit to linter config, baseline or suppressions file → 🔴 `style`. Not handed → `lint:` lines inert, judge every rule.
+  - **`archtest: <tool>`** handed → module line `arch: <rule ids>` = rules architecture tests prove at validation: never judge them by eye. Diff touching architecture test suite (`Architecture/`, `architecture/`, `.harmonize.yaml`, its baseline) beyond deleting a stale baseline entry, in task not about that rule → 🔴 `structure`. Not handed → `arch:` lines inert.
 - **`topics`**, when handed — project's `review.focus` entries (`name`, `modules` resolved, `when` regex). *Focused reviewers*.
 - **`focus: <name>`** + its modules, when handed — main verifier spawned you: focus mode, below.
 

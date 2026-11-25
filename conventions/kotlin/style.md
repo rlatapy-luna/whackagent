@@ -4,6 +4,8 @@
 
 ## One top-level class per file
 
+lint: MatchingDeclarationName, Filename
+
 One top-level `class` / `interface` / `object` / `enum class` per file. Filename match it (`UserRepository.kt` hold `UserRepository`).
 
 Exceptions: sealed hierarchy with its subclasses may share file; small private helpers used only by main type may share file. File of only top-level functions/extensions → name after what they do (`StringExtensions.kt`), never `Utils.kt`.
@@ -17,6 +19,8 @@ sealed interface LoginUiState {          // ✅ sealed parent + children, one fi
 ```
 
 ## Naming
+
+lint: ClassNaming, FunctionNaming, VariableNaming, PackageNaming, TopLevelPropertyNaming, ObjectPropertyNaming
 
 - Classes/objects `UpperCamelCase`; functions, properties, locals `lowerCamelCase`.
 - Constants (`const val`, top-level/`object` `val` holding deeply immutable data) `SCREAMING_SNAKE_CASE`.
@@ -35,6 +39,8 @@ val state = MutableStateFlow(Idle)                       // ❌ public, inferred
 ```
 
 ## Member order
+
+lint: ClassOrdering
 
 1. Property declarations and `init` blocks
 2. Secondary constructors
@@ -60,12 +66,17 @@ class UserViewModel(
 
 ## Expression bodies
 
+lint: ExpressionBodySyntax
+
 Single-expression function → expression body (`= ...`). Multi-branch logic or side effects → block body.
 
 ## Comments
 
+lint: UndocumentedPublicClass, UndocumentedPublicFunction, UndocumentedPublicProperty, ForbiddenComment
+
 - No comments for obvious code.
 - No comments when editing code after user feedback.
+- No `TODO` / `FIXME` left behind: do it now, or ask.
 - KDoc (`/** */`) on all public API — classes, functions, properties. Use `@param`, `@return`, `@throws` only when they add info beyond the signature. *(Disable via `public_doc` toggle for teams not requiring it.)*
 
 ## File header
@@ -73,6 +84,8 @@ Single-expression function → expression body (`= ...`). Multi-branch logic or 
 Only when project already uses one (license, copyright). Match existing header exactly; never invent one.
 
 ## Formatting
+
+lint: Indentation, TrailingCommaOnCallSite, TrailingCommaOnDeclarationSite, ParameterListWrapping, ArgumentListWrapping, ChainWrapping
 
 - 4-space indent. Follow project `.editorconfig`, ktlint, detekt, spotless config when present — tool wins over this file.
 - Multi-line call or declaration: break after `(`, one param per line, `)` on own line. **Trailing commas** on multi-line declarations and call sites.

@@ -1,6 +1,9 @@
 ---
 # Agents config — written by setup, edit freely.
 discussion_language: en        # language Claude talk to you in
+ui_strings_language: ""        # language of user-facing strings (UI copy, protos). Empty → discussion_language.
+                               # UI project with wording.md: mirrored as source (first) in its
+                               # Project voice `languages` — setup keeps both in step.
 primary_language: generic      # swift | kotlin | typescript | generic  (picks convention pack;
                                # any other language → generic)
 project_kind: app              # app | web | server | cli | package  (picks architecture module)
@@ -82,6 +85,9 @@ review:
                                # + apple.md when setup exported Xcode's Apple references
                                # into {conventions}/apple/ (Xcode 27+): index only, agents
                                # open one page per topic they touch.
+                               # + wording.md for UI project (kind app or web, or UI toolkit):
+                               # UI copy rules + project voice; {conventions}/wording/ beside it,
+                               # pages opened on demand. Absent → no UI copy rules, old behavior.
                                # `skill:<plugin>:<skill>` = rulebook from another installed plugin
                                # (company guidelines), loaded by name on every machine; project rules
                                # on top go to overlay file listed after it. Order = load order, later
@@ -131,6 +137,20 @@ tools: []                      # project tools agents run — lint, static analy
                                # Failure only in file task never touched = pre-existing: reported,
                                # never fixed — not this task scope.
                                # Empty → no tool run.
+lint: none                     # strict linter setup installed from plugin template:
+                               #   swiftlint | eslint | detekt | none. Offered by setup only when
+                               #   project runs no linter. Runs through its `tools:` entry above.
+                               # Set → verifier skips rules a module tags `lint:` (tool proves them).
+                               # Config + baseline = project's; agents never disable a rule.
+                               # none (default) → nothing installed, every rule judged by eye.
+archtest: none                 # architecture rules as unit tests, from plugin template:
+                               #   harmonize (Swift, Architecture/ package) | konsist (Kotlin,
+                               #   architecture/ module) | none. Runs through `tools:` entry
+                               #   `archtest`, when: [validation].
+                               # Set → verifier skips rules a module tags `arch:` (tests prove them).
+                               # Baseline only shrinks: stale entry = this task's failure, fixed by
+                               # deleting it. Agents never touch suite or baseline otherwise.
+                               # none (default) → nothing installed.
 
 verify:                        # runtime check — implementer drive app it just built
   mode: autopilot              # WHO exercise app after green build:
@@ -244,6 +264,14 @@ pr:                            # HOW every PR agents open look — ticket draft,
                                #     Re-shot only when screen moved since. Coding rounds shoot none.
                                #   each_round — final state after every coding round (key missing → this).
                                #   off — none.
+  screenshots_replay: off      # iOS only, validation shots: on — screenshot agent writes one XCUITest
+                               #   per task into <App>Screenshots/Generated/ (git-ignored), xcodebuild
+                               #   replays it on base and branch (needs target: setup). off (default) —
+                               #   agent drives app by hand, every platform. Rules: reference/shots.md.
+  how_it_works: true           # ticket PR: each non-trivial Changes line folds open on how change works
+                               #   (before / now, callers, diagram only for branches or states, read links),
+                               #   plus one overview scenario when diff adds ≥ 3 types.
+                               #   Rules: reference/how-it-works.md. Key missing → plain lines (old behavior).
 
 compress_wiki: true            # caveman-compress config + wiki pages to save re-read tokens
                                # (at setup and after every wiki step update; .original backups removed)

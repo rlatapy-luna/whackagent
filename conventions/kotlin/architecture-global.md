@@ -17,6 +17,8 @@ Architecture here = how feature **decomposed, made testable, kept modular** — 
 
 ## Design principles (general)
 
+arch: no_class_inheritance, error_is_sealed
+
 - **Composition over inheritance.** No `open` class hierarchies for domain logic. Classes `final` by default (Kotlin default — keep it). Data = `data class`, immutable. Dependencies = constructor params — never inherited.
 - **Interface-driven boundaries.** Repositories, data sources, clocks, dispatchers, anything I/O → behind `interface`, concrete impl injected. This what make things swappable + testable (fakes).
 - **Sealed type vs interface.** `sealed` only for fixed, closed one-of (UI state, domain results, errors — each subtype carry own data). Set open/extensible, or each case own behavior → plain `interface` + implementations.

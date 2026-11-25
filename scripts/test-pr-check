@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# Proves scripts/pr-check: signals per language, bodies missing them fail, bodies covering them
+# pass, base and ticket range resolved in a temp repo. Run before any commit (see CLAUDE.md).
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+F=scripts/pr-check-fixtures
+fail=0
+err() { echo "❌ $1"; fail=1; }
+has() { echo "$1" | grep -qF -- "$2" || err "$3: missing \"$2\""; }
+hasnt() { echo "$1" | grep -qF -- "$2" && err "$3: unexpected \"$2\""; }
+
+# Swift: 4 new types over 2 mechanisms.
+out=$(scripts/pr-check signals --diff $F/swift/diff.patch)
+has "$out" "new types: 4" "swift signals"
+for t in HingeStatus HingeRule KeypadEdgeReach HingeStatusChangeModifier; do has "$out" "$t (" "swift signals"; done
+has "$out" "states: HingeStatus (3)" "swift signals"
+has "$out" "LayoutModeRule.keypadEdgeReach required" "swift signals"
+has "$out" "LayoutContext.hingeStatus stored" "swift signals"
+has "$out" "HingeRule → KeypadEdgeReach" "swift links"
+has "$out" "overview: yes" "swift signals"
+hasnt "$out" "Tests" "swift signals (test file)"
+[ "$fail" = 0 ] && echo "✅ swift signals"
+
+# Kotlin: suspend members, enum class, primary constructor.
+out=$(scripts/pr-check signals --diff $F/kotlin/diff.patch)
+has "$out" "new types: 2" "kotlin signals"
+has "$out" "states: SyncPhase (4)" "kotlin signals"
+has "$out" "SyncSource.ping required" "kotlin signals"
+has "$out" "SyncEngine constructor changed" "kotlin signals"
+has "$out" "failure" "kotlin signals"
+hasnt "$out" "RetryPolicyTest" "kotlin signals (test file)"
+[ "$fail" = 0 ] && echo "✅ kotlin signals"
+
+# TypeScript: string union, interface member, JSX, test file skipped.
+out=$(scripts/pr-check signals --diff $F/typescript/diff.patch)
+has "$out" "new types: 3" "ts signals"
+has "$out" "states: SyncPhase (3)" "ts signals"
+has "$out" "ApiClient.ping required" "ts signals"
+has "$out" "ApiClient.send changed" "ts signals"
+has "$out" "SyncQueue → SyncPhase, SyncJob" "ts links"
+has "$out" "src/ui/SyncBadge.tsx
+  ui" "ts signals"
+hasnt "$out" "syncQueue.test.ts" "ts signals (test file)"
+hasnt "$out" "FakeClient" "ts signals (test file)"
+[ "$fail" = 0 ] && echo "✅ typescript signals"
+
+# Other languages: no signal, the model judges.
+tmp=$(mktemp)
+printf 'diff --git a/x.py b/x.py\nnew file mode 100644\n--- /dev/null\n+++ b/x.py\n@@ -0,0 +1,2 @@\n+class Pool:\n+    pass\n' > "$tmp"
+out=$(scripts/pr-check signals --diff "$tmp"); rm -f "$tmp"
+has "$out" "code files: 0" "python no signal"
+[ "$fail" = 0 ] && echo "✅ other languages: no signal"
+
+# Bodies.
+out=$(scripts/pr-check check $F/swift/body-bad.md --folds --diff $F/swift/diff.patch) && err "swift bad body green"
+has "$out" "Changes: no fold" "swift bad body"
+has "$out" "HingeRule: new type named in no Changes fold" "swift bad body"
+scripts/pr-check check $F/swift/body-bad.md --no-folds --diff $F/swift/diff.patch >/dev/null \
+  || err "folds off: plain Changes lines red"
+scripts/pr-check check $F/swift/body-good.md --folds --diff $F/swift/diff.patch >/dev/null \
+  || err "swift good body red"
+[ "$fail" = 0 ] && echo "✅ bodies: folds checked only when on"
+
+tmp=$(mktemp); awk '/^<details>/ && !h {skip=1} skip && /^<\/details>/ {skip=0; h=1; next} !skip' $F/swift/body-good.md > "$tmp"
+out=$(scripts/pr-check check "$tmp" --folds --diff $F/swift/diff.patch) && err "body without overview green"
+has "$out" "overview:" "body without overview"
+rm -f "$tmp"
+
+tmp=$(mktemp); awk '/^\*\*Before\*\*/ && !h {print; print "```mermaid\nflowchart TD\n    HR[HingeRule] -->|picks| KER[KeypadEdgeReach]\n```"; h=1; next} 1' \
+  $F/swift/body-good.md > "$tmp"
+out=$(scripts/pr-check check "$tmp" --no-folds --diff $F/swift/diff.patch) && err "type graph green"
+has "$out" "diagram: node \`HingeRule\` is a type" "type graph"
+has "$out" "diagram: node \`KeypadEdgeReach\` is a type" "type graph"
+rm -f "$tmp"
+[ "$fail" = 0 ] && echo "✅ overview and type graph fail"
+
+tmp=$(mktemp); sed 's|^Closes #66$|Note that the rule is robust.\n\nDistance mode on → one field per line → the value is saved in meters\n\nCloses #66|' \
+  $F/swift/body-good.md > "$tmp"
+out=$(scripts/pr-check check "$tmp" --no-folds --diff $F/swift/diff.patch) && err "tics green"
+has "$out" "banned word \`note that\`" "wording"
+has "$out" "banned word \`robust\`" "wording"
+has "$out" "several \`→\` in a sentence" "wording"
+hasnt "$out" "Launch → Calculator" "wording (path line)"
+rm -f "$tmp"
+tmp=$(mktemp); { cat $F/swift/body-good.md; printf '<!-- lb-report -->\n<details><summary>Run report</summary>\nrobust retry → seen once by agent → then fixed by agent round two\n</details>\n<!-- /lb-report -->\n'; } > "$tmp"
+scripts/pr-check check "$tmp" --no-folds --diff $F/swift/diff.patch >/dev/null || err "wording: run report checked"
+rm -f "$tmp"
+[ "$fail" = 0 ] && echo "✅ wording tics fail, run report skipped"
+
+out=$(scripts/pr-check signals --diff $F/swift/diff-generated.patch)
+has "$out" "generated (skipped): Modules/Assets/Strings.swift" "generated"
+has "$out" "ThumbnailCache (class)" "generated"
+hasnt "$out" "states" "generated (SwiftGen enum)"
+scripts/pr-check check $F/swift/body-generated.md --folds --diff $F/swift/diff-generated.patch >/dev/null \
+  || err "generated: body with a plain translations line red"
+[ "$fail" = 0 ] && echo "✅ generated files skipped"
+
+# Base: temp repo with a local bare origin, no network. Each commit adds one type.
+t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
+pc="$PWD/scripts/pr-check"
+g() { git -c user.name=t -c user.email=t@t -c init.defaultBranch=develop "$@" >/dev/null 2>&1; }
+add() { printf 'struct %s {\n    let id: Int\n}\n' "$2" > "$1/$2.swift"; g -C "$1" add -A; g -C "$1" commit -m "${3:-feat: add $2}"; }
+base_case() { # name, expected note, type of the branch, type of the base (must not show)
+  out=$(cd "$t/work" && "$pc" signals develop 2>&1)
+  has "$out" "$2" "base $1"; has "$out" "$3 (struct)" "base $1"
+  hasnt "$out" "$4 (struct)" "base $1 (type from the base)"
+}
+g init --bare "$t/origin.git"
+g clone "$t/origin.git" "$t/work"; add "$t/work" Root; g -C "$t/work" push -u origin develop
+g clone "$t/origin.git" "$t/peer"
+
+add "$t/peer" Remote1; g -C "$t/peer" push                          # local develop behind 1
+g -C "$t/work" fetch; g -C "$t/work" checkout -b behind origin/develop; add "$t/work" Behind
+base_case behind "base: origin/develop (local behind 1)" Behind Remote1
+
+g -C "$t/work" checkout develop; g -C "$t/work" merge --ff-only origin/develop
+add "$t/work" LocalOnly                                              # local develop ahead 1
+g -C "$t/work" checkout -b ahead; add "$t/work" Ahead
+base_case ahead "base: develop (local ahead 1)" Ahead LocalOnly
+
+g -C "$t/peer" pull; add "$t/peer" Remote2; g -C "$t/peer" push    # ahead 1, behind 1
+g -C "$t/work" fetch; g -C "$t/work" checkout -b diverged origin/develop; add "$t/work" Diverged
+base_case diverged "local diverged (ahead 1, behind 1)" Diverged Remote2
+
+out=$(cd "$t/work" && "$pc" signals "$(git -C "$t/work" rev-parse origin/develop)" 2>&1)
+has "$out" "(as given, not refreshed)" "base sha"
+has "$out" "Diverged (struct)" "base sha"
+echo 'Gen.swift linguist-generated' > "$t/work/.gitattributes"; add "$t/work" Gen
+out=$(cd "$t/work" && "$pc" signals develop 2>&1)
+has "$out" "generated (skipped): Gen.swift" "linguist-generated"
+[ "$fail" = 0 ] && echo "✅ base resolved"
+
+# Ticket range: child stacked on parent, parent squash-merged into develop.
+g -C "$t/work" checkout -b feature/7-parent origin/develop
+add "$t/work" Parent "task: grill #7 parent"; add "$t/work" ParentCode
+g -C "$t/work" checkout -b feature/8-child
+add "$t/work" Child "task: grill #8 child"
+out=$(cd "$t/work" && "$pc" signals feature/7-parent 2>&1)              # stacked: base = blocker branch
+has "$out" "Child (struct)" "stacked"; hasnt "$out" "ParentCode (struct)" "stacked"
+g -C "$t/work" checkout develop; g -C "$t/work" reset --hard origin/develop
+g -C "$t/work" merge --squash feature/7-parent; g -C "$t/work" commit -m "feat: parent (#7)"; g -C "$t/work" push origin develop
+g -C "$t/work" checkout feature/8-child
+out=$(cd "$t/work" && "$pc" signals develop 2>&1)                        # parent landed: base = develop
+has "$out" "ticket range from" "squash-landed parent"
+has "$out" "Child (struct)" "squash-landed parent"; hasnt "$out" "ParentCode (struct)" "squash-landed parent"
+g -C "$t/work" checkout develop
+out=$(cd "$t/work" && "$pc" signals develop --head feature/8-child 2>&1) # --head: PR branch not checked out
+has "$out" "Child (struct)" "--head"; hasnt "$out" "ParentCode (struct)" "--head"
+[ "$fail" = 0 ] && echo "✅ ticket range and stacked base"
+
+# Folds from config, commit wording warns only.
+g -C "$t/work" checkout feature/8-child
+mkdir -p "$t/work/.lunabee/agents"
+printf -- '---\npr:\n  how_it_works: true\n---\n' > "$t/work/.lunabee/agents/config.md"
+printf '### Changes\n- Add a child row\n\n### How to test\n1. **Path**: Launch → Rows\n' > "$t/flat.md"
+out=$(cd "$t/work" && "$pc" check "$t/flat.md" develop 2>&1) && err "config folds on: flat body green"
+has "$out" "Child: new type named in no Changes fold" "config folds on"
+printf -- '---\npr:\n  how_it_works: false\n---\n' > "$t/work/.lunabee/agents/config.md"
+(cd "$t/work" && "$pc" check "$t/flat.md" develop >/dev/null 2>&1) || err "config folds off: flat body red"
+rm -rf "$t/work/.lunabee"
+add "$t/work" Robust "feat: add a robust row"
+out=$(cd "$t/work" && "$pc" check "$t/flat.md" develop 2>&1) || err "commit wording failed the check"
+has "$out" "⚠️ commit" "commit wording"
+[ "$fail" = 0 ] && echo "✅ folds from config, commit wording warns"
+
+out=$(cd "$t" && "$pc" check "$t/flat.md" develop 2>&1); code=$?
+[ "$code" = 2 ] || err "outside repo: exit $code, want 2"
+has "$out" "not in a git repo" "outside repo"
+hasnt "$out" "Traceback" "outside repo"
+[ "$fail" = 0 ] && echo "✅ outside a repo says so"
+
+[ "$fail" = 0 ] && echo "✅ pr-check proven"
+exit "$fail"

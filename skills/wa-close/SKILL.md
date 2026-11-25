@@ -7,7 +7,7 @@ description: Close validated task — commit, land branch, clean up. GitHub: mer
 
 **Task finished.** You retested reviewed code, still does what you asked. `/wa-close` write that down, put branch where belong.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or `backlog.provider` ≠ `local` → + `pull-requests.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `commits.md` · arg is display index → + `display.md` · `branch.worktree: true` → + `worktrees.md` · task or arg has sprint → + `sprints.md` · `close.strategy: pr` or `backlog.provider` ≠ `local` → + `pull-requests.md` · (`close.strategy: pr` or `backlog.provider` ≠ `local`) + `pr.how_it_works: true` → + `how-it-works.md` · `backlog.provider` ≠ `local` → + `code-github.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
@@ -29,6 +29,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 4. **Commit** — when `commit.auto_commit_after_validation`. Author + message per **reference/commits.md**. Already clean → skip, say so.
    - Nothing committed and tree dirty → **stop before any branch move.** Uncommitted work plus merge = how work disappear.
    - `branch.worktree: true` → commit in task worktree: code + wiki. Local task file + `{backlog}` stay main-checkout bookkeeping, not in task commit (**reference/worktrees.md**).
+   - **Protos** — sources named by task's `Proto:` lines (`{wiki}/protos/`, **wa-proto → Never**) go in task commit, listed in plan block. Worktree mode: grill saved them in main checkout → moved into task worktree first.
 5. **Land branch** — *Landing* below. Task in sprint → into sprint branch (`close.strategy: pr` → PR onto it, else merge). Else → `close.strategy`.
 6. **Clean up** — *Cleanup* below. Worktree then branch, that order, `close.delete_branch` decide.
    - **Test branch** (`branch.test_branch: true`) of task's base → rebuilt without it, ref (or its worktree) only, never checked out; < 2 tasks left → deleted (**reference/test-branch.md**). Plan block names which.
@@ -75,7 +76,7 @@ Say what you about to do to git **before** doing it, in their terms. Landing out
 Closing login-apple
 
 wiki      : [[auth]] updated, [[login-apple]] created (/wa-wiki)
-commit    : 2 uncommitted files + 2 wiki pages → commit (Jane Doe)
+commit    : 2 uncommitted files + 2 wiki pages + 1 proto → commit (Jane Doe)
 sprint    : merge feature/login-apple → sprint/login-refacto
 branch    : feature/login-apple deleted (merged)
 worktree  : ../<repo>-worktrees/login-apple removed
@@ -138,7 +139,7 @@ Rules:
 2. **Find PR** — `gh pr list --head <branch> --state open --json number,isDraft,baseRefName,url`.
    - **Draft** (opened by hand, or earlier round) → refresh body (**reference/pull-requests.md**, *Refresh*), base differs → `gh pr edit <pr> --base <base>`, then `gh pr ready <pr>` + `pr.reviewers` requested. Draft = your test, ready = review.
    - **Ready already** → refresh body only, base fixed same way.
-   - **None** → `gh pr create --base <base> --head <branch>`, **not** `--draft`: title, body, labels, assignees, reviewers at creation per **reference/pull-requests.md**.
+   - **None** → `gh pr create --base <base> --head <branch> --body-file <file>`, **not** `--draft`: title, body, labels, assignees, reviewers at creation per **reference/pull-requests.md**.
 3. Status line in agents block: `Ready — validated. Review, then merge.` Print URL.
 4. **Never merge it** — no `gh pr merge`, no local merge of that branch into base. Merge = human's, on GitHub.
 5. `gh` missing or unauthenticated → say so, fall back to `nothing`, leave branch pushed. **Never delete branch with open PR**, whatever `delete_branch` say.
