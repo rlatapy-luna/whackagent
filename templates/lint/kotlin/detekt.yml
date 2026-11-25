@@ -1,0 +1,95 @@
+# Lunabee strict detekt: any issue fails the run (maxIssues: 0).
+# Built from the project's kotlin convention modules: each rule cites the module section it enforces.
+# Layered over detekt's default config (buildUponDefaultConfig = true): only changes listed here.
+# ktlint runs inside detekt through the detekt-formatting plugin (`formatting:` below).
+# Yours to edit: agent setup offers new template rules on reconfigure, never overwrites yours.
+# Agents never edit this file or the baseline, never add `@Suppress` for a detekt rule.
+# Rules below need no type resolution: plain `detekt` runs them all.
+
+build:
+  maxIssues: 0
+
+config:
+  validation: true
+  warningsAsErrors: true
+
+comments:
+  # style → Comments (review.public_doc: true only)
+  UndocumentedPublicClass:
+    active: true
+  UndocumentedPublicFunction:
+    active: true
+  UndocumentedPublicProperty:
+    active: true
+
+naming:
+  # style → One top-level class per file
+  MatchingDeclarationName:
+    active: true
+  # style → Naming (Composables are UpperCamelCase)
+  FunctionNaming:
+    active: true
+    ignoreAnnotated: ['Composable']
+
+style:
+  # style → Member order
+  ClassOrdering:
+    active: true
+  # style → Expression bodies
+  ExpressionBodySyntax:
+    active: true
+    includeLineWrapping: false
+  # style → Comments: no TODO / FIXME left behind
+  ForbiddenComment:
+    active: true
+  # elegance → Idiomatic Kotlin: require / check over hand-written throws
+  UseCheckOrError:
+    active: true
+  UseRequire:
+    active: true
+  # elegance → Idiomatic Kotlin: scope functions sparingly
+  UnnecessaryLet:
+    active: true
+  # leftovers agents forget
+  WildcardImport:
+    active: true
+  UnusedPrivateMember:
+    active: true
+  UnusedPrivateProperty:
+    active: true
+  UnusedParameter:
+    active: true
+
+potential-bugs:
+  # elegance → Idiomatic Kotlin: val over var, null-safety over sentinels
+  LateinitUsage:
+    active: true
+    ignoreAnnotated: ['Inject', 'get:Rule', 'BeforeTest', 'BeforeEach', 'Before']
+
+coroutines:
+  # elegance → Concurrency: never GlobalScope
+  GlobalCoroutineUsage:
+    active: true
+
+formatting:
+  # style → Formatting (ktlint): 4-space indent, trailing commas, chain wrapping
+  Indentation:
+    active: true
+    indentSize: 4
+  TrailingCommaOnCallSite:
+    active: true
+    useTrailingCommaOnCallSite: true
+  TrailingCommaOnDeclarationSite:
+    active: true
+    useTrailingCommaOnDeclarationSite: true
+  ParameterListWrapping:
+    active: true
+  ArgumentListWrapping:
+    active: true
+  ChainWrapping:
+    active: true
+  NoWildcardImports:
+    active: true
+  # style → One top-level class per file
+  Filename:
+    active: true

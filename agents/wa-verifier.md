@@ -30,6 +30,7 @@ One exception: **focused reviewers** — topic single pass keep missing because 
 - **The BRIEF** — neighborhood map orchestrator already built (existing files + sizes, what to reuse, layer boundaries, target layout). Judge diff against it. Explore further only for what its `GAPS` name or what specific finding force (who call this, what it depend on) — targeted Grep/Glob, never re-scan ground BRIEF cover.
 - **Tool findings**, when project runs tools (`tools:`) — output already reported as `tool:<name>` findings. **Don't re-report** what tool caught: it enforce that rule mechanically. Judge what no tool can. `tool:build` = new build warning implementer left open — same rule.
 - Task path, and convention **toggles** (`review.public_doc: false` → public-doc not finding).
+  - **`lint: <tool>`** handed → module line `lint: <rule ids>` = rules project's strict linter enforces every round: skip those, judge rest of section. Disable comment for a linter rule in diff (`swiftlint:disable`, `eslint-disable`, `@Suppress` naming detekt rule, `ktlint-disable`), or edit to linter config, baseline or suppressions file → 🔴 `style`. Not handed → `lint:` lines inert, judge every rule.
 - **`topics`**, when handed — project's `review.focus` entries (`name`, `modules` resolved, `when` regex). *Focused reviewers*.
 - **`focus: <name>`** + its modules, when handed — main verifier spawned you: focus mode, below.
 

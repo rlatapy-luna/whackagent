@@ -131,6 +131,12 @@ tools: []                      # project tools agents run — lint, static analy
                                # Failure only in file task never touched = pre-existing: reported,
                                # never fixed — not this task scope.
                                # Empty → no tool run.
+lint: none                     # strict linter setup installed from plugin template:
+                               #   swiftlint | eslint | detekt | none. Offered by setup only when
+                               #   project runs no linter. Runs through its `tools:` entry above.
+                               # Set → verifier skips rules a module tags `lint:` (tool proves them).
+                               # Config + baseline = project's; agents never disable a rule.
+                               # none (default) → nothing installed, every rule judged by eye.
 
 verify:                        # runtime check — implementer drive app it just built
   mode: autopilot              # WHO exercise app after green build:

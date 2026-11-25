@@ -4,6 +4,15 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Strict linter, off by default (`lint: none`). When a Swift, Kotlin or TypeScript project runs no linter, `/wa-setup` offers to install one built from the conventions (SwiftLint, detekt with ktlint rules, or ESLint `strictTypeChecked`), registered as a `tools:` entry for `code` and `validation`. Old code is autofixed on your yes and the rest frozen in a baseline; running it inside the build is offered separately. Convention sections the linter enforces carry a `lint:` line: with `lint` set, the verifier skips those rules and flags any disable comment or edit to the linter config or baseline.
+
+### Changed
+
+- Convention modules: Swift adds logging through `Logger`, no `TODO` left behind, no force unwrap or `try!` (tests included), no `Bool?`, no GCD, and extensions named `<Type>Extension.swift`; Kotlin and TypeScript add no `TODO` left behind, TypeScript logging through the project logger. Existing projects get the module diffs offered by `/wa-setup` reconfigure.
+- The implementer never silences a project tool: no disable comment, no edit to its config or baseline. A rule it can't meet stops the round with a question.
+
 ## [4.4.0] - 2026-11-25
 
 ### Changed
