@@ -6,6 +6,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ### Added
 
+- `/wa-proto [idea|task]` prototypes a UI idea as a Claude artifact, with light and dark themes, a controls panel for states and variants, real content and the target platform's look. Run alone it touches no task; `/wa-grill` offers it on UI-heavy tasks and records the proto link in the task's decisions.
 - UI copy rules for UI projects: `/wa-setup` copies the `wording.md` module (ladder, blacklist, situations and tones, native phrasing, localization, visuals) and asks up to three questions about your app's voice. The implementer writes every string against it and the verifier checks the copy a diff adds. Outside a task, the same rules load by themselves whenever Claude writes UI copy. On an existing project, `/wa-setup` offers it as new.
 - `ui_strings_language` config key: language of user-facing strings. Empty follows `discussion_language`.
 

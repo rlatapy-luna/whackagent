@@ -48,6 +48,7 @@ Add the marketplace, then install the plugin:
 | `/wa-review [scope]` | Standalone review, 4 lenses (diff / path / project) — audit, optional `--fix` |
 | `/wa-wiki` | Updates the wiki |
 | `/wa-wiki <feature>` | Looks up info in the wiki, then the code |
+| `/wa-proto [idea\|task]` | Prototypes a UI idea as a Claude artifact: light/dark, a controls panel for states and variants, real content, the target platform's look. No argument: what you're talking about. Run alone it touches no task; inside `/wa-grill` the grill records the proto link in the task's decisions |
 
 Each step suggests the next one. You never have to figure out what to run.
 
@@ -410,6 +411,7 @@ Not available: moving a local file backlog or a GitHub board to Plane, a Plane b
   tasks/<slug>.md      # one task = one file (frontmatter + body)
   wiki/index.md        # wiki summary
   wiki/glossary.md     # one word per thing (concepts, screens), used in UI, code, tasks and PRs
+  wiki/protos/         # /wa-proto sources (HTML), each also published as a Claude artifact
   wiki/<page>.md       # domain pages, [[wikilink]] links (Obsidian-compatible)
   reports/<slug>.md    # run reports, local only: /wa-setup gitignores them
 ```
