@@ -4,6 +4,18 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Swift conventions: no `Bool?` (three states become an enum), no deliberate crash (`!`, `try!`, `as!`, implicitly unwrapped optionals; `fatalError` only on impossible paths, with a message), no GCD, no leftover `TODO` / `FIXME`, one OSLog `Logger` per type instead of `print`. Tests never crash (`#require`, `#expect(throws:)`, exit tests), and XCTest is allowed for UI tests.
+- Text a teammate reads cold (PR body, commit messages, task context and acceptance criteria) follows new human text rules: short full sentences, everyday words, no recap or announce, no calques, no dash as separator, a table of tics to avoid and a list of banned words (`seamless`, `robust`, `leverage`…). Terminal output stays telegraphic.
+- PR wording: each Changes line says what changes for the user, never a `<thing>: <action noun>` label; each How to test check is an action plus what the screen shows, never an untestable negation; a repo prefix like `[iOS]` adds to the title, never shortens it.
+- Grill questions whose options differ by mechanism show a small sketch under each option (arrow line, ASCII of 8 lines at most, or 6 lines of code), never mermaid.
+- Swift conventions: extension files are named `<Type>Extension.swift` everywhere, as the app and package modules already said.
+
+### Fixed
+
+- With `pr.screenshots: each_round` (or the key missing), PRs get their screenshots when `verify.mode` is `off` or `autopilot` in an attended run: the implementer launches the app to shoot even when it owes no proof pass. These shots are not proof.
+
 ## [4.4.0] - 2026-11-25
 
 ### Changed

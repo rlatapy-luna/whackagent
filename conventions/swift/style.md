@@ -74,7 +74,19 @@ final class UserStore {
 
 - No comments for obvious code.
 - No comments when editing code after user feedback.
+- No `TODO` / `FIXME` left behind: do it now, or ask.
 - Add `///` doc comments for all public API (structs, classes, methods, properties, enums, protocols). Include `- Parameters:`, `- Returns:` and `- Throws:` sections when applicable. *(Disable via `public_doc` toggle for teams not requiring it.)*
+
+## Logging
+
+One OSLog `Logger` per type, `static let`. Never `print`, `debugPrint`, `dump`, `NSLog`, `os_log`.
+
+```swift
+private static let logger: Logger = .init(subsystem: "app", category: "sync")
+
+Self.logger.error("Sync failed: \(error)")   // ✅
+print("Sync failed")                          // ❌
+```
 
 ## File header
 

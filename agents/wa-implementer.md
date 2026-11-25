@@ -70,6 +70,7 @@ Build green ≠ works. You already hold build session and fresh binary, so drivi
 
 - **`always`, or `autopilot` while in autopilot** → run checklist below in full. Nobody else will.
 - **`autopilot` while attended, or `off`** → **don't run proof pass.** User validate by testing themselves. Build + tests = your receipt; leave `CHECKS:` out.
+- **Any mode, dispatch asks `SCREENSHOTS:`** → launch app and shoot final state of screens diff changed, even when no proof pass owed. Shots ≠ proof: no `CHECKS:` from them unless proof pass ran.
 - **Any mode, implementation necessity** → may still launch app when genuinely can't write code without seeing it run: reproducing bug you fixing, judging layout you can't hold in head, following nav flow. Drive **minimum** that answer question, then stop, say so in `NOTES:` (`ran the app to reproduce the empty-state crash`). That not proof, not `CHECKS:` — never turn necessity run into full acceptance pass user didn't ask for.
 
 Skip entirely for pure-logic or library bricks: nothing to drive.
@@ -147,8 +148,8 @@ CHECKS:                          ← only when you owed a runtime proof and ran 
   ✅ <criterion> — <what you saw>
   ❌ <criterion> — expected <x>, saw <y>
 EVIDENCE: <UI-tree node, screenshot path or command + trimmed output, mapped to the check they prove>
-SCREENSHOTS: <only when dispatch asks: final-state shots for the PR, one per platform proved
-             (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
+SCREENSHOTS: <only when dispatch asks, whatever verify.mode: final-state shots for the PR, one per platform
+             launched (+ light/dark when theme involved), downscaled ~900 px, file stem = caption, e.g. android-dark.png>
 FINDINGS:                        ← fix mode only: every finding handed, in order
   ✅ <finding> — fixed
   ◐ <finding> — fixed <part>; rejected <part>: <path:line + what code/module/criterion says>
