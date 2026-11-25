@@ -7,6 +7,7 @@ All notable changes to whackagent are listed here, newest first. The format foll
 ### Added
 
 - Strict linter, off by default (`lint: none`). When a Swift, Kotlin or TypeScript project runs no linter, `/wa-setup` offers to install one built from the conventions (SwiftLint, detekt with ktlint rules, or ESLint `strictTypeChecked`), registered as a `tools:` entry for `code` and `validation`. Old code is autofixed on your yes and the rest frozen in a baseline; running it inside the build is offered separately. Convention sections the linter enforces carry a `lint:` line: with `lint` set, the verifier skips those rules and flags any disable comment or edit to the linter config or baseline.
+- Architecture tests, off by default (`archtest: none`). `/wa-setup` offers a Harmonize package (`Architecture/`, Swift) or a Konsist module (`architecture/`, Kotlin) built from the architecture modules, registered as a `tools:` entry `archtest` run at `/wa-validate`. Kotlin rules read your own layer names (`Layers.kt`) instead of assuming a pattern. Old violations sit in a baseline that only shrinks; a stale entry counts as the task's failure and is deleted by it. Convention sections the tests prove carry an `arch:` line the verifier then skips.
 
 ### Changed
 

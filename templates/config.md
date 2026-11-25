@@ -137,6 +137,14 @@ lint: none                     # strict linter setup installed from plugin templ
                                # Set → verifier skips rules a module tags `lint:` (tool proves them).
                                # Config + baseline = project's; agents never disable a rule.
                                # none (default) → nothing installed, every rule judged by eye.
+archtest: none                 # architecture rules as unit tests, from plugin template:
+                               #   harmonize (Swift, Architecture/ package) | konsist (Kotlin,
+                               #   architecture/ module) | none. Runs through `tools:` entry
+                               #   `archtest`, when: [validation].
+                               # Set → verifier skips rules a module tags `arch:` (tests prove them).
+                               # Baseline only shrinks: stale entry = this task's failure, fixed by
+                               # deleting it. Agents never touch suite or baseline otherwise.
+                               # none (default) → nothing installed.
 
 verify:                        # runtime check — implementer drive app it just built
   mode: autopilot              # WHO exercise app after green build:
