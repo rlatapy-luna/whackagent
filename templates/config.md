@@ -95,18 +95,20 @@ review:
                                # opt into: `focus` below.
                                # Legacy `categories: {conventions: [...], correctness: []}` read as
                                # union of its lists.
-  focus: []                    # FOCUSED verifiers — topic the single verifier keep missing
+  focus: []                    # FOCUSED reviewers — topic the single verifier keep missing
                                # (concurrency, recomposition…): long rulebook dilute attention.
-                               # Each entry = one more verifier, own context, that topic only,
-                               # its own modules only, spawned beside main one ONLY when `when`
-                               # regex match diff's changed lines or file paths. Main one then
-                               # leave topic to it. ~50k tokens per spawn — list only topics
+                               # Verifier spawns one per entry, own context, that topic only,
+                               # its own modules only, ONLY when `when` regex match diff's
+                               # changed lines or file paths, then leave topic to it and merge
+                               # its findings. Session's specialist reviewer agents for domain
+                               # diff touches spawned too, no entry needed (same topic as entry
+                               # → agent replaces it). ~50k tokens per spawn — list only topics
                                # worth it. Entry:
                                #   - name: concurrency      # topic = finding tag
                                #     modules: [skill:lunabee-android:kotlin-concurrency-review]
                                #     when: 'suspend |Flow\b|launch|Dispatchers|Mutex'
                                # `modules` resolve like `modules` above (reference/paths.md).
-                               # [] → single verifier, as before.
+                               # [] → no topic reviewers; specialist agents still spawned.
 
 build:                         # how THIS project build — project win over plugin default
   command: ""                  # e.g. "make build", "./scripts/build.sh", "./gradlew assembleDebug".

@@ -4,6 +4,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- The verifier spawns focused reviewers itself instead of the commands spawning one verifier per topic: a reviewer per `review.focus` entry whose `when` matches, plus any specialist reviewer agent of the session whose domain the diff touches (`compose-recomposition-reviewer`, `kotlin-concurrency-reviewer`, `vulkan-engineer`), with no config entry needed. It merges their findings into one report, drops duplicates and findings without evidence (listed as dropped), and resumes them on later rounds. `review.focus` keeps its format.
+
 ## [4.3.0] - 2026-11-25
 
 ### Added

@@ -12,7 +12,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md`
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 
-Two subagents: one `wa-implementer`, one `wa-verifier` (plus one focused `wa-verifier` per matching `review.focus` entry, step 3). **Spawn each once, keep alive** — later rounds = `SendMessage` to `agentId`, never fresh spawn. Isolated agent costs ~50k tokens context before reading line; resuming costs delta.
+Two subagents: one `wa-implementer`, one `wa-verifier`. Each may spawn its own specialists (implementer: domain agents; verifier: focused reviewers, step 3) and answers for them: you talk to two. **Spawn each once, keep alive** — later rounds = `SendMessage` to `agentId`, never fresh spawn. Isolated agent costs ~50k tokens context before reading line; resuming costs delta.
 
 Read `.lunabee/agents/config.md` and `{tasks}/<slug>.md` first. `{…}` paths from config `paths:` block — see **reference/paths.md**.
 
@@ -113,18 +113,17 @@ All bricks green → spawn **one `wa-verifier`**. Note its `agentId`.
 **Hand it change, not repo.** It gets: modules (`review.modules` per **reference/paths.md**), changed-file list **with diff hunks inline** (worktree mode: diffed in the worktree), BRIEF, task path, toggles. It judges diff — don't hunt for what moved.
 Plus glossary path when step 2 passed one.
 
-**Focused verifiers** — `review.focus` entries: topics single verifier keep missing, long rulebook dilute attention. Each entry whose `when` regex match diff's changed lines or file paths → one more `wa-verifier`, **spawned in same message as main one** so they run in parallel, with Agent `model: sonnet`: one topic, few modules, main (Opus) verifier beside it — Opus price buys nothing there. Hands: `focus: <name>`, that entry's `modules` only (per **reference/paths.md**), same hunks, BRIEF, task path. Whole diff, not just matching files: cause often sit elsewhere (mapper behind recomposition, caller behind race). Main verifier gets `delegated: [<names spawned>]` — leaves those topics. No entry match → no spawn, echo nothing. Note each id, mapped to its topic.
+**Focused reviewers** — topics single pass keep missing, long rulebook dilute attention. **Verifier spawns them itself**: one focused `wa-verifier` per `review.focus` entry whose `when` match diff, plus session's specialist reviewer agents for domains diff touches. It merges their findings into its receipt, resumes them on later rounds. You hand `topics:` = `review.focus` entries, `modules` resolved per **reference/paths.md**, `when` as is. Empty or no key → hand nothing; it may still spawn specialist agents.
 
 Then:
-1. **Read `LENSES:` line** — main: `style`, `elegance`, `structure`, `correctness`, all four ✓; focused: its topic ✓. One missing = part of review didn't happen: send back for that lens alone before doing anything with findings.
-2. **Order** findings by severity (arrive lens-tagged; keep tags). Same `path:line`, same problem from main and focused → keep focused one.
-3. **Autofix** (`review.autofix: true`) → `SendMessage` implementer findings of every verifier in one batch, then re-verify. Findings = claims (**reference/findings.md**): implementer checks each before fixing, its `FINDINGS:` block says fixed or rejected with evidence. Rejected → back to verifier next round; disputed → out of loop, to user. Loop until clean or no progress, **cap 3 rounds**. Not converging → stop, show what left. `BLOCKED:` → stop and ask.
+1. **Read `LENSES:` line** — `style`, `elegance`, `structure`, `correctness`, all four ✓, plus one entry per topic it spawned. Lens missing = part of review didn't happen: send back for that lens alone before doing anything with findings. Topic `✗` → say it in report, don't loop on it.
+2. **Order** findings by severity (arrive merged, lens- or topic-tagged; keep tags). `DROPPED:` lines go to `## Review` as is.
+3. **Autofix** (`review.autofix: true`) → `SendMessage` implementer all findings in one batch, then re-verify. Findings = claims (**reference/findings.md**): implementer checks each before fixing, its `FINDINGS:` block says fixed or rejected with evidence. Rejected → back to verifier next round; disputed → out of loop, to user. Loop until clean or no progress, **cap 3 rounds**. Not converging → stop, show what left. `BLOCKED:` → stop and ask.
 4. Record final findings + what autofix changed + withdrawn and disputed findings in `## Review`.
 
 **Resuming, rounds 2+** — `SendMessage`, never respawn:
 - **Implementer** → findings, nothing else (held ones with verifier's new evidence).
-- **Verifier** → fix diff hunks **plus its previous findings**, implementer's rejections with their evidence, ask it to re-state every one as *fixed*, *still open* or *withdrawn* before hunting new ones. Each verifier gets rejections of its own findings.
-- **Focused verifiers** → resume only those that had findings or whose `when` match fix hunks; rest done. Fix hunks match entry no verifier holds yet → spawn it fresh, tell main verifier that topic now delegated.
+- **Verifier** → fix diff hunks **plus its previous findings**, implementer's rejections with their evidence, ask it to re-state every one as *fixed*, *still open* or *withdrawn* before hunting new ones. Topic findings included: it routes them to its focused reviewers.
 - **Always say it:** *"files changed since your last turn — re-read the ones listed; your memory of their content is stale."*
 - Past 3-round cap, respawn fresh: transcript full of build logs outweigh re-read it saves.
 
