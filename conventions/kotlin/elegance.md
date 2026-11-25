@@ -8,6 +8,8 @@ Bar: archi-clean, like senior Kotlin dev write. Names + structure carry meaning 
 
 ## Idiomatic Kotlin, not Java-in-Kotlin
 
+lint: UseCheckOrError, UseRequire, UnnecessaryLet, LateinitUsage
+
 Write to grain of language. Reject Java patterns when Kotlin offer better.
 
 - **`val` over `var`.** Immutability default. Read-only collection types (`List`, `Map`) in APIs; mutable only local or private.
@@ -36,6 +38,8 @@ Earn place only when cut real complexity.
 Rule: plain version first. Never to show off.
 
 ## Concurrency
+
+lint: GlobalCoroutineUsage
 
 Coroutines + Flow, structured concurrency.
 

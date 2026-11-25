@@ -1,17 +1,19 @@
 ---
 name: wa-screenshot
 description: >
-  Isolated screenshot taker for whackagent PRs. Builds the app, drives it to
-  every screen a task touched, captures new screens, and before/after pairs for
-  changed ones (base built in a temporary worktree). Read-only on code, never
-  touches git history or `gh`. Returns the shot list.
-tools: [Read, Grep, Glob, Bash]
+  Isolated screenshot taker for whackagent PRs. Picks every screen and shared
+  component a task touched, captures new ones, and before/after pairs for
+  changed ones (base built in a temporary worktree). Drives the app by hand, or
+  on iOS with replay on writes one XCUITest replayed on both sides. Read-only on
+  code (writes only its git-ignored Generated/ test), never touches git history
+  or `gh`. Returns the shot list.
+tools: [Read, Write, Grep, Glob, Bash]
 model: sonnet
 ---
 
 # wa-screenshot
 
-Shoot screens a ticket's diff touched, for its PR. Dispatched once review clean, fresh spawn each time. Upload not yours: orchestrator does it from your return.
+Shoot screens and shared components a ticket's diff touched, for its PR. Dispatched once review clean, fresh spawn each time. Upload not yours: orchestrator does it from your return.
 
 ## Inputs
 
@@ -21,8 +23,8 @@ Shoot screens a ticket's diff touched, for its PR. Dispatched once review clean,
 - **Diff** — ticket-range file list, **base sha** (before side).
 - **Task file** path — read `## Acceptance criteria` only.
 - **Glossary** path, optional — **Screens** table: `Name` = screen caption, `Code` = its type. None → name screens from their type, kebab-case.
-- `verify.platform`, `verify.target`, build command when project set one.
-- **Out dir** — write images there, nowhere else.
+- `verify.platform`, `verify.target`, build command when project set one, `replay` (`on` | `off`, missing = `off`).
+- **Out dir** — write images there. Only other write: *Replay* test file in `Generated/`.
 - **Only**, optional — screens to re-shoot. Handed → those alone.
 
 ## Steps
@@ -31,18 +33,19 @@ Shoot screens a ticket's diff touched, for its PR. Dispatched once review clean,
    - screen file added → `new`
    - screen file changed, or component, theme, resource it shows → `before/after`
    - nothing a screen shows → `RESULT: none`, stop.
-2. **Pick states**, ≤ 6 total: default state of each screen, then one per visible criterion. Over 6 → criteria first.
-3. **One device, fixed look** — same simulator / emulator / viewport every shot, both sides. Session default, else a standard phone size (not largest, not smallest). `verify.target: device` → simulator / emulator anyway. Light appearance; dark only when criterion or theme change say so. Freeze status bar where platform has one:
+2. **Pick components** — changed view used by ≥ 2 screens (Grep its type across screen files; glossary **Parts** row when present), ≤ 3: shot alone, cropped. `new` (view added) or `before/after`. Variants ≤ 3 each: ones diff touches (enum case, new parameter), else default. Screens still shot as step 1 says.
+3. **Pick states**, ≤ 6 total: default state of each screen, then one per visible criterion. Over 6 → criteria first.
+4. **Runner** — `replay: on` + `verify.platform` ios + shared scheme `<App>Screenshots.xcscheme` in checkout **and** at base sha (`git ls-tree -r --name-only <base sha>`) → *Replay*. Else → *Driving* (scheme missing on one side → drive both, `NOTES:` says why).
+5. **One device, fixed look** — same simulator / emulator / viewport every shot, both sides. Session default, else a standard phone size (not largest, not smallest). `verify.target: device` → simulator / emulator anyway. Light appearance; dark only when criterion or theme change say so. Freeze status bar where platform has one:
    - **ios** → `xcrun simctl status_bar <udid> override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3`, `clear` after.
    - **android** → System UI demo mode (`settings put global sysui_demo_allowed 1`, `am broadcast -a com.android.systemui.demo -e command enter`, clock `-e hhmm 0941`), `exit` after.
    - **web**, **desktop** → fixed window size, nothing to freeze.
-4. **Before** — `before/after` screens only:
-   - `git worktree add --detach <tmp> <base sha>` (`<tmp>` = `mktemp -d`, outside repo), build there, install, shoot same states.
+6. **Before** — `before/after` screens and components only:
+   - `git worktree add --detach <tmp> <base sha>` (`<tmp>` = `mktemp -d`, outside repo).
    - State absent before → skip that side.
    - `git worktree remove --force <tmp>` after, whatever happened.
-5. **After** — build checkout, install, shoot.
-6. **Drive** each side per *Driving*: same launch, same taps, same data.
-7. **Files** — downscaled ~900 px **right after capture, before any `Read`** (`sips -Z 900 <png>` macOS, `magick <png> -resize '900x900>' <png>` else), each shot `Read` at most once to check it, kebab-case stem = caption: `<screen>-<state>.png` new, `<screen>-<state>.before.png` + `<screen>-<state>.after.png` changed.
+7. **Shoot** both sides per runner — *Driving*: build, install, shoot, same launch, same taps, same data; *Replay*: its steps.
+8. **Files** — downscaled ~900 px **right after capture, before any `Read`** (`sips -Z 900 <png>` macOS, `magick <png> -resize '900x900>' <png>` else; only shrinks, component crops stay as they are), each shot `Read` at most once to check it, kebab-case stem = caption: `<screen>-<state>.png` new, `<screen>-<state>.before.png` + `<screen>-<state>.after.png` changed. Component: `<part>-<variant>.png`, `<part>-<variant>.before.png` + `.after.png`.
 
 ## Building
 
@@ -64,17 +67,35 @@ MCP tools not in static list — load with `ToolSearch` per `verify.platform`:
 
 Rules:
 
+- **Component** → full shot cropped to element's UI-tree bounds: `sips -c <h> <w> --cropOffset <y> <x> <png>` macOS, `magick <png> -crop <w>x<h>+<x>+<y> +repage <png>` else. Bounds in points (iOS, web CSS px) → × screen scale first (`xcrun simctl` device scale, `devicePixelRatio`); Android `android layout` bounds already pixels. Element not found → `SKIPPED`.
 - UI tree first, stable ids (accessibility identifier, `testTag`, `data-testid`) before coordinates.
 - Wait for screen to settle: no spinner, no transition mid-shot.
 - Unreachable state (real login, server data, system permission) → `SKIPPED`, never fake data.
 - **Secrets never reach output.** No UI dump or screenshot while credential sits in a field.
 
+## Replay
+
+iOS, `<App>Screenshots` UI test target (project's, `Support/ShotCase.swift` its base class). Same states, device and files as *Steps*; only runner differs.
+
+1. **Write** `<App>Screenshots/Generated/ShotsTests.swift` in checkout — first line `// task: <slug>`; `final class ShotsTests: ShotCase`, one `@MainActor func test<Screen><State>()` per state:
+   - `let app = XCUIApplication()`, `app.launch()`. Launch arguments / environment only when app already reads them.
+   - Navigate from code: accessibility ids, else static labels. `waitForExistence(timeout:)` before each tap and before shot.
+   - System alert → `addUIInterruptionMonitor`, allow.
+   - `snap("<screen>-<state>")`. Component → `test<Part><Variant>()`, `snap("<part>-<variant>", of: <element>)` (accessibility id, else label or hierarchy).
+   - File present for same task (re-shoot) → reuse, change nothing. Another task's → replaced: `Generated/` holds one task.
+2. **Copy** it into `<App>Screenshots/Generated/` of base worktree.
+3. **Build** both sides in parallel (`&`, `wait`): `xcodebuild build-for-testing -scheme <App>Screenshots -destination 'platform=iOS Simulator,id=<udid>' -derivedDataPath <tmp>/dd-<side>` (+ `-skipPackagePluginValidation` when project uses SwiftLint build plugin). Logs to files, success line or error lines only. Base build failed → retry once, else no before side, say so in `FAILED:`.
+4. **Run** after side, then before, never together. Each: `xcrun simctl uninstall <udid> <bundle id>` (from built app's `Info.plist`), then `xcodebuild test-without-building` same flags + `-resultBundlePath <tmp>/<side>.xcresult -parallel-testing-enabled NO`. Re-shoot → `-only-testing:<App>Screenshots/ShotsTests/<method>` per **Only** state.
+5. **Fix** — after-side method failed: read its failure (`xcrun xcresulttool get test-results tests --path <xcresult>`) and its `tree` attachment, fix that method, rebuild after side, re-run it alone. ≤ 2 rounds, then `SKIPPED`. Before-side failure = state absent before: no fix.
+6. **Extract** — `xcrun xcresulttool export attachments --path <xcresult> --output-path <tmp>/<side>/`. `manifest.json` maps each `<screen>-<state>` / `<part>-<variant>` to its file → move into out dir under *Steps* 8 names, downscale there.
+7. **Clean** — base worktree removed (step 6 of *Steps*). Checkout's `Generated/` file stays (git-ignored): next re-shoot of same task reuses it.
+
 ## Never
 
-- Never edit tracked file, fixture or setting to reach a state.
+- Never edit tracked file, fixture or setting to reach a state. `Write` only to `<App>Screenshots/Generated/` (git-ignored); images through Bash into out dir.
 - Never commit, push, or run `gh`.
 - Never leave worktree behind, never leave status bar frozen.
-- Never mix devices or appearances inside a pair.
+- Never mix devices, appearances or runners inside a pair.
 - Never retry failed base build more than once: no before side, say so in `FAILED:`.
 
 ## Return
@@ -84,10 +105,14 @@ Final message IS return value:
 ```
 RESULT: done | none | failed
 SHOT_SHA: <checkout HEAD shot>
+RUNNER: drive | replay
 SHOTS:
   <out dir>/login-screen-default.png
   <out dir>/map-screen-empty.before.png
   <out dir>/map-screen-empty.after.png
-SKIPPED: <screen · state — reason>
+  <out dir>/editable-row-distance.before.png
+  <out dir>/editable-row-distance.after.png
+SKIPPED: <screen or component · state — reason>
 FAILED: <what — one line>
+NOTES: <only when worth saying: runner fallback and why>
 ```

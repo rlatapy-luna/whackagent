@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# Proves templates/archtest per language: good fixture green, bad fixture fails every
+# rule, bad fixture + its baseline green, stale baseline entry red. Run before any commit
+# touching templates/archtest/.
+# Swift (Harmonize): needs `swift`. First run builds swift-syntax (~20 s), later runs reuse
+#   ARCHTEST_CACHE (~5 s each).
+# Kotlin (Konsist): needs Gradle — `gradle` on PATH or ARCHTEST_GRADLE=<path to gradle>.
+#   ARCHTEST_GRADLE_ARGS (e.g. --offline), ARCHTEST_KOTLIN (Kotlin plugin version, default 2.4.21).
+# A language whose toolchain is missing is skipped, said so, never counted green.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+cache=${ARCHTEST_CACHE:-$HOME/Library/Caches/lunabee-archtest}
+fail=0
+skipped=0
+err() { echo "❌ $1"; fail=1; }
+mkdir -p "$cache"
+
+# inject <baseline file> <ArchBaseline source> <empty literal regex>: the entries literal only, as setup writes it.
+inject() {
+  perl -0pi -e 'BEGIN { local $/; $p = shift @ARGV; open my $b, "<", shift @ARGV; $e = <$b>; chomp $e } s/= $p/= $e/' \
+    "$3" "$1" "$2"
+}
+
+# ---------------------------------------------------------------- Swift (Harmonize)
+
+T=templates/archtest/swift
+F=scripts/archtest-fixtures/swift
+work=$cache/project   # one stable package path: swift-syntax builds once, then reused
+
+# setup <fixture> <kind> [baseline] → $work, rules copied as setup does.
+setup() {
+  local dst=$work tests build=$cache/.build
+  [ -d "$dst/Architecture/.build" ] && mv "$dst/Architecture/.build" "$build"
+  rm -rf "$dst"
+  cp -R "$F/$1" "$dst"
+  cp "$T/.harmonize.yaml" "$dst/"
+  tests=$dst/Architecture/Tests/ArchitectureTests
+  mkdir -p "$tests"
+  cp "$T/Package.swift" "$dst/Architecture/"
+  cp -R "$T/Support" "$T/global/." "$T/$2/." "$tests/"
+  [ -z "${3:-}" ] || inject "$F/$1.baseline" "$tests/Support/ArchBaseline.swift" '\[:\]'
+  [ -d "$build" ] && mv "$build" "$dst/Architecture/.build"
+  echo "$dst"
+}
+
+run() { swift test --package-path "$1/Architecture" 2>&1 | sed 's/\x1b\[[0-9;]*m//g'; }
+
+swift_suite() {
+  local kind ids out id
+  for kind in app package; do
+    ids=$(grep -rhoE 'func `[a-z_]+`' "$T/global" "$T/$kind" | sed 's/func `//; s/`//' | sort -u)
+
+    out=$(run "$(setup "$kind-good" "$kind")") && echo "✅ swift $kind-good green" \
+      || err "swift $kind-good red:
+$(echo "$out" | grep -E 'recorded an issue|error:' | head -20)"
+
+    out=$(run "$(setup "$kind-bad" "$kind")") && err "swift $kind-bad green: rules don't bite"
+    for id in $ids; do
+      echo "$out" | grep -qE "Test $id\(\) (recorded an issue|failed)" || err "swift $kind-bad: $id never failed"
+    done
+    [ "$fail" = 0 ] && echo "✅ swift $kind-bad fails all $(echo "$ids" | wc -l | tr -d ' ') rules"
+
+    out=$(run "$(setup "$kind-bad" "$kind" .baselined)") && echo "✅ swift $kind-bad + baseline green" \
+      || err "swift $kind-bad + baseline red:
+$(echo "$out" | grep -E 'recorded an issue|error:' | head -20)"
+  done
+
+  # stale entries: one per assertion style (single collection, split across collections)
+  printf '[\n        "no_class_inheritance": ["Ghost"],\n        "store_main_actor_observable": ["Ghost"]\n    ]\n' > "$F/app-good.baseline"
+  out=$(run "$(setup app-good app .ghost)")
+  rm "$F/app-good.baseline"
+  for id in no_class_inheritance store_main_actor_observable; do
+    echo "$out" | grep -qE "Test $id\(\) (recorded an issue|failed)" || err "swift: stale baseline entry for $id not caught"
+  done
+  [ "$fail" = 0 ] && echo "✅ swift stale baseline entries fail the run"
+}
+
+# ---------------------------------------------------------------- Kotlin (Konsist)
+
+K=templates/archtest/kotlin
+KF=scripts/archtest-fixtures/kotlin
+kwork=$cache/kproject
+gradle=${ARCHTEST_GRADLE:-$(command -v gradle || true)}
+kotlin_version=${ARCHTEST_KOTLIN:-2.4.21}
+
+# ksetup <fixture> <kind> [baseline] → $kwork: fixture sources + `architecture` module, as setup does.
+ksetup() {
+  local dst=$kwork tests
+  rm -rf "$dst"; mkdir -p "$dst/architecture"
+  cp -R "$KF/$1/." "$dst/"
+  touch "$dst/gradlew"   # Konsist finds the project root by its Gradle wrapper
+  cat > "$dst/settings.gradle.kts" <<EOF
+pluginManagement { repositories { gradlePluginPortal(); mavenCentral() } }
+dependencyResolutionManagement { repositories { mavenCentral() } }
+rootProject.name = "fixture"
+include(":architecture")
+EOF
+  printf 'plugins {\n    kotlin("jvm") version "%s" apply false\n}\n' "$kotlin_version" > "$dst/build.gradle.kts"
+  cp "$K/build.gradle.kts" "$dst/architecture/"
+  tests=$dst/architecture/src/test/kotlin/architecture
+  mkdir -p "$tests"
+  cp -R "$K/support" "$K/global/." "$K/$2/." "$tests/"
+  [ -z "${3:-}" ] || inject "$KF/$1.baseline" "$tests/support/ArchBaseline.kt" 'mapOf\(\)'
+  echo "$dst"
+}
+
+# shellcheck disable=SC2086  # ARCHTEST_GRADLE_ARGS splits on purpose
+krun() { "$gradle" -p "$1" --console=plain ${ARCHTEST_GRADLE_ARGS:-} :architecture:test 2>&1; }
+
+kotlin_suite() {
+  local kind=app ids out id
+  ids=$(grep -rhoE 'fun `[a-z_]+`' "$K/global" "$K/$kind" | sed 's/fun `//; s/`//' | sort -u)
+
+  out=$(krun "$(ksetup "$kind-good" "$kind")") && echo "✅ kotlin $kind-good green" \
+    || err "kotlin $kind-good red:
+$(echo "$out" | grep -E 'FAILED|: [a-z_]+ — |error:|^e: ' | head -20)"
+
+  out=$(krun "$(ksetup "$kind-bad" "$kind")") && err "kotlin $kind-bad green: rules don't bite"
+  for id in $ids; do
+    echo "$out" | grep -qE "> $id\(\) FAILED" || err "kotlin $kind-bad: $id never failed"
+  done
+  [ "$fail" = 0 ] && echo "✅ kotlin $kind-bad fails all $(echo "$ids" | wc -l | tr -d ' ') rules"
+
+  out=$(krun "$(ksetup "$kind-bad" "$kind" .baselined)") && echo "✅ kotlin $kind-bad + baseline green" \
+    || err "kotlin $kind-bad + baseline red:
+$(echo "$out" | grep -E 'FAILED|: [a-z_]+ — |error:|^e: ' | head -20)"
+
+  printf 'mapOf(\n        "no_class_inheritance" to listOf("Ghost"),\n    )\n' > "$KF/app-good.baseline"
+  out=$(krun "$(ksetup app-good app .ghost)")
+  rm "$KF/app-good.baseline"
+  echo "$out" | grep -qE "> no_class_inheritance\(\) FAILED" || err "kotlin: stale baseline entry not caught"
+  [ "$fail" = 0 ] && echo "✅ kotlin stale baseline entry fails the run"
+}
+
+if command -v swift >/dev/null; then swift_suite; else echo "⚠️ swift not found: Swift archtest skipped"; skipped=1; fi
+if [ -n "$gradle" ]; then kotlin_suite; else echo "⚠️ gradle not found (PATH or ARCHTEST_GRADLE): Kotlin archtest skipped"; skipped=1; fi
+
+[ "$fail" = 0 ] && [ "$skipped" = 0 ] && echo "✅ archtest templates proven"
+[ "$fail" = 0 ] && [ "$skipped" = 1 ] && echo "⚠️ archtest templates proven for the languages that ran only"
+exit "$fail"

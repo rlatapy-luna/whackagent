@@ -179,7 +179,7 @@ Claims `coding` from `review`, runs the project tools and the verifier over the 
 
 1. Syncs the wiki and commits it with the task file (`phase: validated`, `## Review`) and the fixes, so docs ride in the same PR.
 2. When the PR base moved, rebases the ticket's own commits onto it, then rebuilds and reruns the tests.
-3. When the diff changes UI and `pr.screenshots` is `validation`, shoots the touched screens: a new screen as is, a changed screen as a before/after pair, the before side built from the ticket's fork point in a temporary worktree. A later validation re-shoots only the screens whose code moved since the recorded commit.
+3. When the diff changes UI and `pr.screenshots` is `validation`, shoots the touched screens: a new screen as is, a changed screen as a before/after pair, the before side built from the ticket's fork point in a temporary worktree. A changed view used by two or more screens is also shot alone, cropped. On iOS with `pr.screenshots_replay: on`, both sides are shot by replaying one XCUITest the agent wrote for the ticket instead of driving the app twice. A later validation re-shoots only the screens whose code moved since the recorded commit.
 4. Pushes (with lease after a rebase), refreshes the body, uploads the screenshots, and runs `gh pr ready`, requesting `pr.reviewers`. When autofix changed code since your test, the status line names the files to retest.
 
 Findings left open → the round still pushes, but the PR stays draft and the status line lists them. Either way the hook moves the ticket back to `review` and drops the claim. `validated` is internal to whackagent: the board never shows it.

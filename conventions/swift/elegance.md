@@ -8,6 +8,8 @@ Bar: archi-clean, like senior iOS dev write. Names + structure carry meaning —
 
 ## Idiomatic Swift, not C-in-Swift
 
+lint: force_unwrapping, implicitly_unwrapped_optional, discouraged_optional_boolean, fatal_error_message, shorthand_optional_binding, first_where, last_where, contains_over_filter_count, contains_over_first_not_nil, empty_count, sorted_first_last, toggle_bool
+
 Write to grain of language. Reject patterns from C/Objective-C/Java when Swift offer better.
 
 - **Value types first.** `struct`/`enum` for models and state. Reach for `class` only when need reference semantics or identity.
@@ -35,6 +37,8 @@ Easy forget, but can make truly complex code far more elegant. Use with care —
 Rule: prefer plain version first. Reach for these only to simplify case truly too complex without them — never to show off.
 
 ## Concurrency
+
+lint: no_combine, no_completion_handler, no_gcd, no_lock
 
 Full Swift concurrency. **No Combine.**
 

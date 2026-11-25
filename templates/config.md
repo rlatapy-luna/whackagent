@@ -137,6 +137,20 @@ tools: []                      # project tools agents run — lint, static analy
                                # Failure only in file task never touched = pre-existing: reported,
                                # never fixed — not this task scope.
                                # Empty → no tool run.
+lint: none                     # strict linter setup installed from plugin template:
+                               #   swiftlint | eslint | detekt | none. Offered by setup only when
+                               #   project runs no linter. Runs through its `tools:` entry above.
+                               # Set → verifier skips rules a module tags `lint:` (tool proves them).
+                               # Config + baseline = project's; agents never disable a rule.
+                               # none (default) → nothing installed, every rule judged by eye.
+archtest: none                 # architecture rules as unit tests, from plugin template:
+                               #   harmonize (Swift, Architecture/ package) | konsist (Kotlin,
+                               #   architecture/ module) | none. Runs through `tools:` entry
+                               #   `archtest`, when: [validation].
+                               # Set → verifier skips rules a module tags `arch:` (tests prove them).
+                               # Baseline only shrinks: stale entry = this task's failure, fixed by
+                               # deleting it. Agents never touch suite or baseline otherwise.
+                               # none (default) → nothing installed.
 
 verify:                        # runtime check — implementer drive app it just built
   mode: autopilot              # WHO exercise app after green build:
@@ -250,6 +264,10 @@ pr:                            # HOW every PR agents open look — ticket draft,
                                #     Re-shot only when screen moved since. Coding rounds shoot none.
                                #   each_round — final state after every coding round (key missing → this).
                                #   off — none.
+  screenshots_replay: off      # iOS only, validation shots: on — screenshot agent writes one XCUITest
+                               #   per task into <App>Screenshots/Generated/ (git-ignored), xcodebuild
+                               #   replays it on base and branch (needs target: setup). off (default) —
+                               #   agent drives app by hand, every platform. Rules: reference/shots.md.
 
 compress_wiki: true            # caveman-compress config + wiki pages to save re-read tokens
                                # (at setup and after every wiki step update; .original backups removed)

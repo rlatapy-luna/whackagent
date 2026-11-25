@@ -1,0 +1,7 @@
+mapOf(
+        "no_type_bucket" to listOf("User.kt", "SettingsViewModel.kt"),
+        "view_model_no_android_ui" to listOf("ProfileViewModel", "SettingsViewModel"),
+        "ui_no_data_import" to listOf("ProfileScreen.kt"),
+        "no_class_inheritance" to listOf("ProfileRepository"),
+        "error_is_sealed" to listOf("LoginError", "SyncError"),
+    )
