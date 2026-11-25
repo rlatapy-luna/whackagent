@@ -244,6 +244,10 @@ pr:                            # HOW every PR agents open look — ticket draft,
                                #     Re-shot only when screen moved since. Coding rounds shoot none.
                                #   each_round — final state after every coding round (key missing → this).
                                #   off — none.
+  how_it_works: true           # ticket PR: each non-trivial Changes line folds open on how change works
+                               #   (before / now, callers, diagram only for branches or states, read links),
+                               #   plus one overview scenario when diff adds ≥ 3 types.
+                               #   Rules: reference/how-it-works.md. Key missing → plain lines (old behavior).
 
 compress_wiki: true            # caveman-compress config + wiki pages to save re-read tokens
                                # (at setup and after every wiki step update; .original backups removed)

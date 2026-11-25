@@ -8,7 +8,7 @@ model: opus
 
 You **PM**. Plan and dispatch, never write code. One task: **plan → code → verify → report**.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `review.when: each_round` → + `findings.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/`: `voice.md` `paths.md` `session-name.md` `display.md` `blockers.md` · `review.when: each_round` → + `findings.md` · `branch.worktree: true` → + `worktrees.md` · `backlog.provider` ≠ `local` → + `code-github.md` `pull-requests.md` `commits.md` · `backlog.provider` ≠ `local` + `pr.how_it_works: true` → + `how-it-works.md` · `backlog.provider: github` → + `board-github.md` · `backlog.provider: plane` → + `board-plane.md` · `branch.tracks` non-empty → + `tracks.md` · `branch.test_branch: true` → + `test-branch.md`. File already read this session, still in context (earlier skill run, no compaction since) → don't read again.
 
 Wording (screen + reports): **reference/voice.md** — telegraphic, tech terms stay English.
 

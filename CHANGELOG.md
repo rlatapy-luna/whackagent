@@ -4,6 +4,15 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- New `pr.how_it_works` key (`/wa-setup` writes `true` for new projects): in a ticket PR, each non-trivial `Changes` line folds open on how the change works (before and now, the main type, callers, a diagram only for branches or states, parts, links into the diff), with one overview scenario when the diff adds three or more types and an optional Vocabulary fold pointing to your glossary. Fold size comes from `scripts/pr-check signals`, which reads the ticket's diff for Swift, Kotlin and TypeScript. Without the key, Changes lines stay plain.
+- PR bodies are checked before they are published: when a session creates or edits its own ticket PR, the backlog pane runs `scripts/pr-check check` on the body file and refuses the call while it fails (banned words, `→` chains, a mermaid node that is a bare type name, and with `pr.how_it_works: true` a new type missing from the folds). Commit messages get the same wording check as a warning only. Other PRs are not checked.
+
+### Changed
+
+- PR bodies are always published from a file (`--body-file`); an inline `--body` or a body on stdin is refused for the session's ticket PR.
+
 ## [4.4.0] - 2026-11-25
 
 ### Changed
