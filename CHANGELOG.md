@@ -12,6 +12,10 @@ All notable changes to whackagent are listed here, newest first. The format foll
 - Grill questions whose options differ by mechanism show a small sketch under each option (arrow line, ASCII of 8 lines at most, or 6 lines of code), never mermaid.
 - Swift conventions: extension files are named `<Type>Extension.swift` everywhere, as the app and package modules already said.
 
+### Fixed
+
+- With `pr.screenshots: each_round` (or the key missing), PRs get their screenshots when `verify.mode` is `off` or `autopilot` in an attended run: the implementer launches the app to shoot even when it owes no proof pass. These shots are not proof.
+
 ## [4.4.0] - 2026-11-25
 
 ### Changed
