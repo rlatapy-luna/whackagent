@@ -12,7 +12,8 @@ Write to grain of language. Reject patterns from C/Objective-C/Java when Swift o
 
 - **Value types first.** `struct`/`enum` for models and state. Reach for `class` only when need reference semantics or identity.
 - **`enum` for fixed state**, not booleans-and-flags or magic strings/ints. Model impossible states out of existence. Cases open/extensible or each own behavior → protocol + struct instead (see architecture module).
-- **Optionals over sentinels.** No `-1` / `""` / `NSNotFound` mean "absent". Use `Optional`, `guard let`, `if let`, `??`.
+- **Optionals over sentinels.** No `-1` / `""` / `NSNotFound` mean "absent". Use `Optional`, `guard let`, `if let`, `??`. No `Bool?`: three states → `enum`.
+- **Never crash on purpose.** No `!`, `try!`, `as!`, implicitly unwrapped optionals. `fatalError` only for truly impossible paths, with message saying why.
 - **Functional transforms.** `map` / `filter` / `compactMap` / `reduce` / `first(where:)` over manual index loops and mutable accumulators.
 - **`guard` for early exit.** Flatten happy path; bail on preconditions at top.
 - **Protocol-oriented + generics** over class hierarchies. Constrain with `where`. Prefer `some`/`any` right.
@@ -42,3 +43,4 @@ Full Swift concurrency. **No Combine.**
 - `Sendable` on all domain models.
 - `actor` / `@MainActor` isolation for shared mutable state.
 - Always use `Mutex` over `NSLock`.
+- No GCD (`DispatchQueue`, `DispatchGroup`, `DispatchSemaphore`): `Task`, `actor`, `@MainActor`.

@@ -4,10 +4,11 @@
 
 ## Testing
 
-- Swift Testing — never XCTest.
+- Swift Testing. XCTest only for UI tests (`<App>UITests/`): Swift Testing can't drive UI.
 - Group tests in `@Suite struct`, one suite per file (one-type rule).
 - Use backtick name syntax so test name carry description, no duplicate in string.
 - Assert with `#expect`; use `#require` to unwrap or stop test on failure.
+- Test never crash. No `!`, `try!`, `as!`: `try #require(...)`, `#expect(throws:)`, test marked `throws`. Code path ending in `fatalError` → exit test `#expect(processExitsWith: .failure)`.
 - Use `async`/`await` for async tests.
 - Put `@Suite` and `@Test` attributes on separate line from declaration.
 

@@ -4,6 +4,11 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Swift conventions: no `Bool?` (three states become an enum), no deliberate crash (`!`, `try!`, `as!`, implicitly unwrapped optionals; `fatalError` only on impossible paths, with a message), no GCD, no leftover `TODO` / `FIXME`, one OSLog `Logger` per type instead of `print`. Tests never crash (`#require`, `#expect(throws:)`, exit tests), and XCTest is allowed for UI tests.
+- Swift conventions: extension files are named `<Type>Extension.swift` everywhere, as the app and package modules already said.
+
 ## [4.4.0] - 2026-11-25
 
 ### Changed
