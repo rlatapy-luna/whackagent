@@ -4,6 +4,8 @@ All notable changes to whackagent are listed here, newest first. The format foll
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-11-25
+
 ### Added
 
 - The implementer hands the part of a brick that falls in a specialist agent's domain (a `vulkan-engineer`, a Room schema expert, any project or user agent whose description covers it) to that agent, with your conventions, and stays owner of the result: it checks the specialist's diff and proves build, warnings, tools and runtime itself. `## Implementation` records what was delegated.
