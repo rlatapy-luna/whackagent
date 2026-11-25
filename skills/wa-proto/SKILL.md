@@ -26,12 +26,13 @@ Wording (screen): **reference/voice.md** — telegraphic, tech terms stay Englis
 3. **Build** → *Musts*. Everything else yours: layout, style, framing, how controls look.
 4. **Save** source.
    - Config → `{wiki}/protos/<slug>.html`. Subject from task → `<task slug>-<subject>.html`.
+   - Inside `/wa-grill` → same checkout as task file (ticket worktree when one): source ships with task.
    - No config → scratchpad, say where.
 5. **Publish** as Claude artifact (Artifact tool), give link. Rework → same source, same URL.
    - No artifact tool → open source locally, give path.
 6. **Ask** once: `Proto OK, or changes?` + own doubt as recommendation, format **wa-grill → Question format**.
    - Notes → edit, republish, ask again.
-7. **Link** — only inside `/wa-grill` run (grill holds claim and task file): hand grill line `Proto: <artifact link> · {wiki}/protos/<file>` + decisions proto settled. Grill writes them into `## Context / Decisions` with its own decisions. Run alone → links nothing.
+7. **Link** — only inside `/wa-grill` run (grill holds claim and task file): hand grill line `Proto: <artifact link> · {wiki}/protos/<file>` + decisions proto settled. Grill writes them into `## Context / Decisions` with its own decisions, tracks source (*Never*). Run alone → links nothing.
 8. **Resume** — called inside skill (`/wa-grill`, `/wa-pitch`) → back to its open step, question where it stopped.
 
 ## Musts
@@ -50,7 +51,7 @@ Wording (screen): **reference/voice.md** — telegraphic, tech terms stay Englis
 
 - Never two protos for variants: one proto, variant control.
 - Never touch project code, task file, task state or claims.
-- Never commit. Source stays in tree; user decides.
+- Never commit itself. Source is tracked work, committed by owner of task: shared board → `/wa-grill` grill commit, with task file; local → `/wa-close` task commit. Standalone → stays in tree uncommitted, said in report (`proto: {wiki}/protos/<file> (uncommitted)`).
 
 ## Next step
 

@@ -29,6 +29,7 @@ Where sit: `/wa-task` → `/wa-grill` → `/wa-code` → *you test, `/wa-feedbac
 4. **Commit** — when `commit.auto_commit_after_validation`. Author + message per **reference/commits.md**. Already clean → skip, say so.
    - Nothing committed and tree dirty → **stop before any branch move.** Uncommitted work plus merge = how work disappear.
    - `branch.worktree: true` → commit in task worktree: code + wiki. Local task file + `{backlog}` stay main-checkout bookkeeping, not in task commit (**reference/worktrees.md**).
+   - **Protos** — sources named by task's `Proto:` lines (`{wiki}/protos/`, **wa-proto → Never**) go in task commit, listed in plan block. Worktree mode: grill saved them in main checkout → moved into task worktree first.
 5. **Land branch** — *Landing* below. Task in sprint → into sprint branch (`close.strategy: pr` → PR onto it, else merge). Else → `close.strategy`.
 6. **Clean up** — *Cleanup* below. Worktree then branch, that order, `close.delete_branch` decide.
    - **Test branch** (`branch.test_branch: true`) of task's base → rebuilt without it, ref (or its worktree) only, never checked out; < 2 tasks left → deleted (**reference/test-branch.md**). Plan block names which.
@@ -75,7 +76,7 @@ Say what you about to do to git **before** doing it, in their terms. Landing out
 Closing login-apple
 
 wiki      : [[auth]] updated, [[login-apple]] created (/wa-wiki)
-commit    : 2 uncommitted files + 2 wiki pages → commit (Jane Doe)
+commit    : 2 uncommitted files + 2 wiki pages + 1 proto → commit (Jane Doe)
 sprint    : merge feature/login-apple → sprint/login-refacto
 branch    : feature/login-apple deleted (merged)
 worktree  : ../<repo>-worktrees/login-apple removed
